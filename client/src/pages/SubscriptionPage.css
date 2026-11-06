@@ -1,0 +1,53 @@
+.badge-subscription-page { display: grid; gap: 18px; }
+.badge-subscription-heading { align-items: center; margin-bottom: 0; }
+.badge-subscription-status { display: inline-flex; align-items: center; gap: 8px; padding: 10px 14px; border: 1px solid var(--line); border-radius: 999px; color: var(--muted); font-size: 11px; font-weight: 800; letter-spacing: .04em; }
+.badge-subscription-status.active { border-color: rgba(37,148,104,.25); color: #188154; background: rgba(37,148,104,.08); }
+.badge-active-panel { display: flex; align-items: center; gap: 15px; border-color: rgba(37,148,104,.2); }
+.badge-status-icon { display: grid; width: 48px; height: 48px; flex: 0 0 auto; place-items: center; border-radius: 15px; color: #188154; background: rgba(37,148,104,.1); }
+.badge-active-panel > div { flex: 1; }
+.badge-active-panel h2,.badge-benefits-panel h2,.badge-payment-panel h2 { display: flex; align-items: center; gap: 9px; margin: 4px 0 7px; color: var(--ink); font: 800 17px/1.35 'Manrope',sans-serif; }
+.badge-active-panel p,.badge-benefits-panel > p,.badge-payment-intro,.badge-config-notice { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.65; }
+.badge-active-panel .primary-button,.badge-payment-form .primary-button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; border-radius: 10px; white-space: nowrap; }
+.badge-pending-panel { display: flex; align-items: flex-start; gap: 12px; border-color: rgba(205,145,35,.25); color: #986a13; background: rgba(205,145,35,.055); }
+.badge-pending-panel > svg { flex: 0 0 auto; margin-top: 2px; }
+.badge-pending-panel strong,.badge-rejected-panel strong { color: var(--ink); font-size: 13px; }
+.badge-pending-panel p,.badge-rejected-panel p { margin: 5px 0 0; color: var(--muted); font-size: 12px; line-height: 1.6; }
+.badge-rejected-panel { border-color: rgba(190,64,76,.2); background: rgba(190,64,76,.04); }
+.badge-subscription-grid { display: grid; grid-template-columns: minmax(0, .9fr) minmax(0, 1.1fr); align-items: start; gap: 16px; }
+.badge-benefits-panel,.badge-payment-panel { display: grid; gap: 13px; padding: 23px; }
+.badge-benefits-panel h2 svg,.badge-payment-panel h2 svg { flex: 0 0 auto; color: #7253bb; }
+.badge-subscription-price { color: #6348a4; font: 800 36px/1.1 'Manrope',sans-serif; }
+.badge-subscription-price small { font: 700 15px 'Manrope',sans-serif; }
+.badge-benefits-panel .badge-duration { margin-top: -7px; font-weight: 700; }
+.badge-future-benefit { display: flex; align-items: flex-start; gap: 10px; margin-top: 3px; padding: 13px; border: 1px solid var(--line); border-radius: 12px; color: #7253bb; background: rgba(114,83,187,.045); }
+.badge-future-benefit > svg { flex: 0 0 auto; margin-top: 1px; }
+.badge-future-benefit span { display: grid; gap: 4px; }
+.badge-future-benefit strong { color: var(--ink); font-size: 11px; }
+.badge-future-benefit small { color: var(--muted); font-size: 10px; }
+.badge-payment-destination { display: grid; gap: 4px; padding: 14px; border: 1px solid rgba(114,83,187,.17); border-radius: 13px; color: var(--ink); background: rgba(114,83,187,.045); }
+.badge-payment-destination > span { color: #7253bb; font-size: 10px; font-weight: 800; text-transform: uppercase; }
+.badge-payment-destination > strong { font: 800 20px 'Manrope',sans-serif; }
+.badge-payment-destination > small { color: var(--muted); font-size: 11px; }
+.badge-payment-destination > b { margin-top: 4px; color: #6045a2; font-size: 12px; }
+.badge-payment-form { display: grid; gap: 13px; }
+.badge-payment-form > label { display: grid; gap: 7px; color: var(--ink); font-size: 11px; font-weight: 700; }
+.badge-payment-form input:not([type="file"]) { width: 100%; height: 42px; padding: 0 12px; border: 1px solid var(--line); border-radius: 9px; outline: none; color: var(--ink); background: var(--surface); font: inherit; font-size: 12px; }
+.badge-payment-form input:focus { border-color: #8d70c8; box-shadow: 0 0 0 3px rgba(114,83,187,.1); }
+.badge-proof-field > small { color: var(--muted); font-size: 10px; font-weight: 450; }
+.badge-proof-field > span { display: flex; min-height: 43px; align-items: center; gap: 8px; overflow: hidden; padding: 0 12px; border: 1px dashed rgba(114,83,187,.4); border-radius: 10px; color: #7253bb; background: rgba(114,83,187,.035); text-overflow: ellipsis; white-space: nowrap; }
+.badge-proof-field input[type="file"] { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; clip-path: inset(50%); }
+.badge-payment-form .primary-button { min-height: 43px; }
+.badge-payment-form .primary-button:disabled { cursor: wait; opacity: .6; }
+.badge-manual-review { margin: 0; color: var(--muted); font-size: 10px; line-height: 1.5; }
+.badge-config-notice { padding: 12px; border: 1px solid rgba(205,145,35,.22); border-radius: 10px; color: #8c661a; background: rgba(205,145,35,.055); }
+.theme-dark .badge-subscription-status.active { color: #72d5a5; }
+.theme-dark .badge-active-panel { border-color: rgba(82,195,139,.28); }
+.theme-dark .badge-status-icon { color: #72d5a5; background: rgba(82,195,139,.13); }
+@media (max-width: 760px) {
+  .badge-subscription-page { gap: 13px; }
+  .badge-subscription-heading { align-items: flex-start; flex-direction: column; gap: 10px; }
+  .badge-active-panel { align-items: flex-start; flex-wrap: wrap; padding: 16px; }
+  .badge-active-panel .primary-button { width: 100%; }
+  .badge-subscription-grid { grid-template-columns: minmax(0, 1fr); gap: 12px; }
+  .badge-benefits-panel,.badge-payment-panel { padding: 17px; }
+}

@@ -1,0 +1,1073 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+}
+
+enum UserRole {
+  AGENT
+  ADMIN
+  SUPER_ADMIN
+}
+
+enum UserStatus {
+  ACTIF
+  SUSPENDU
+  EN_ATTENTE_ACTIVATION
+}
+
+enum ApplicationStatus {
+  RECUE
+  EN_EXAMEN
+  ACCEPTEE
+  REFUSEE
+}
+
+enum ReportStatus {
+  BROUILLON
+  SOUMIS
+  EN_VERIFICATION
+  VALIDE
+  REJETE
+  A_COMPLETER
+  PAYE
+}
+
+enum TokenType {
+  ACTIVATION
+  RESET
+}
+
+enum ProductStatus {
+  BROUILLON
+  PUBLIE
+  ARCHIVE
+}
+
+enum ContactType {
+  PRESENTIEL
+  APPEL
+  VISIO
+}
+
+enum InterestLevel {
+  FAIBLE
+  MOYEN
+  FORT
+}
+
+enum ReportNature {
+  CONTACT
+  RENDEZ_VOUS
+  CONTRAT
+}
+
+enum ReportType {
+  LEAD
+  PROVIDED_CONTACT
+  FULL_CYCLE
+}
+
+enum TransactionType {
+  GAIN_RAPPORT
+  AJUSTEMENT
+}
+
+enum WithdrawalStatus {
+  DEMANDE
+  APPROUVE
+  PAYE
+  REFUSE
+}
+
+enum ContentTargetType {
+  POST
+  COMMENT
+}
+
+enum ContentReportStatus {
+  OUVERT
+  TRAITE
+  REJETE
+}
+
+enum CollaborationDealStatus {
+  DECLARED
+  ACCESS_REQUESTED
+  IN_PROGRESS
+  CLOSING_REPORTED
+  CLIENT_CONFIRMED
+  CONFIRMED_BY_CLIENT
+  NO_RESPONSE
+  CONFIRMED
+  CONTRACT_SIGNED
+  COMMISSIONS_PAID
+  LOST
+  REJECTED
+  DISPUTED
+  EXPIRED
+}
+
+enum CollaborationAccessStatus {
+  PENDING
+  CLOSED_SIGNED
+  APPROVED
+  REJECTED
+  EXPIRED
+  REVOKED
+  NOT_SELECTED
+}
+
+enum CollaborationClientConfirmationStatus {
+  PENDING
+  CONFIRMED
+  CONFIRMED_BY_CLIENT
+  DENIED
+  NO_RESPONSE
+}
+
+enum CollaborationClosingReportStatus {
+  DRAFT
+  SUBMITTED
+}
+
+enum CollaborationLostReason {
+  NO_INTEREST
+  UNREACHABLE
+  NO_BUDGET
+  COMPETITOR_SELECTED
+  CLIENT_CANCELLED
+  DUPLICATE
+  OTHER
+}
+
+enum CollaborationCommissionRole {
+  SUPPLIER
+  CLOSER
+}
+
+enum CollaborationCommissionStatus {
+  PENDING
+  PAID
+  CANCELLED
+  ON_HOLD
+}
+
+enum CollaborationCommissionPaymentMode {
+  MVOLA
+  ORANGE_MONEY
+  AIRTEL_MONEY
+  BANK_TRANSFER
+  CASH
+}
+
+enum CollaborationEvidenceType {
+  CLOSING_REPORT
+  CLOSING_ATTACHMENT
+  CONTRACT
+  COMMISSION_PAYMENT
+}
+
+enum CollaborationEmailType {
+  ACCESS_REQUESTED
+  ACCESS_REQUEST_REMINDER
+  ACCESS_REQUEST_EXPIRED
+  ACCESS_REQUEST_REJECTED
+  ACCESS_REQUEST_NOT_SELECTED
+  ACCESS_GRANTED
+  ACCESS_EXPIRED
+  CLIENT_CONFIRMATION_CODE
+  COMMISSION_PAID
+}
+
+enum CollaborationEmailStatus {
+  QUEUED
+  SENDING
+  SENT
+  FAILED
+  CANCELLED
+}
+
+model User {
+  id                                  Int                                 @id @default(autoincrement())
+  email                               String                              @unique @db.VarChar(255)
+  passwordHash                        String                              @map("password_hash") @db.VarChar(255)
+  role                                UserRole                            @default(AGENT)
+  status                              UserStatus                          @default(EN_ATTENTE_ACTIVATION)
+  lastLoginAt                         DateTime?                           @map("last_login_at")
+  createdAt                           DateTime                            @default(now()) @map("created_at")
+  updatedAt                           DateTime                            @updatedAt @map("updated_at")
+  agentProfile                        AgentProfile?
+  applications                        Application[]
+  reports                             Report[]
+  reviewedApplications                Application[]                       @relation("ApplicationReviewer")
+  reviewedReports                     Report[]                            @relation("ReportReviewer")
+  activationTokens                    ActivationToken[]
+  refreshTokens                       RefreshToken[]
+  createdProducts                     Product[]                           @relation("ProductCreator")
+  reportHistories                     ReportStatusHistory[]
+  transactions                        Transaction[]
+  withdrawals                         Withdrawal[]
+  decidedWithdrawals                  Withdrawal[]                        @relation("WithdrawalDecider")
+  posts                               Post[]
+  comments                            Comment[]
+  postLikes                           PostLike[]
+  contentReports                      ContentReport[]
+  notifications                       Notification[]
+  notificationsAsActor                Notification[]                      @relation("NotificationActor")
+  pushSubscriptions                   PushSubscription[]
+  auditLogs                           AuditLog[]
+  conversationsAsFirst                Conversation[]                      @relation("ConversationParticipantOne")
+  conversationsAsSecond               Conversation[]                      @relation("ConversationParticipantTwo")
+  directMessages                      DirectMessage[]
+  prospectContactsCreated             ProspectContact[]                   @relation("ProspectContactCreator")
+  subscriptionRequests                SubscriptionRequest[]               @relation("SubscriptionAgent")
+  reviewedSubscriptionRequests        SubscriptionRequest[]               @relation("SubscriptionReviewer")
+  suppliedCollaborationDeals          CollaborationDeal[]                 @relation("CollaborationSupplier")
+  closedCollaborationDeals            CollaborationDeal[]                 @relation("CollaborationCloser")
+  reviewedCollaborationDeals          CollaborationDeal[]                 @relation("CollaborationDealReviewer")
+  collaborationAccessRequests         CollaborationAccessRequest[]        @relation("CollaborationAccessRequester")
+  reviewedCollaborationAccessRequests CollaborationAccessRequest[]        @relation("CollaborationAccessReviewer")
+  collaborationStatusChanges          CollaborationDealStatusHistory[]
+  collaborationClosings               CollaborationClosingReport[]
+  collaborationEvidenceUploads        CollaborationEvidence[]
+  collaborationCommissionPayments     CollaborationCommission[]           @relation("CollaborationCommissionAgent")
+  paidCollaborationCommissions        CollaborationCommission[]           @relation("CollaborationCommissionPayer")
+  collaborationCommissionAdjustments  CollaborationCommissionAdjustment[] @relation("CommissionAdjustmentAuthor")
+  collaborationTrustScoreSnapshots    CollaborationTrustScoreSnapshot[]
+  collaborationProspectHashClaims     CollaborationProspectHashClaim[]
+  collaborationContactAccessCounters  CollaborationContactAccessCounter[]
+  collaborationAudits                 CollaborationAuditLog[]
+  collaborationClosingSupplements     CollaborationClosingSupplement[]    @relation("CollaborationClosingSupplementAuthor")
+  hiddenCollaborationDeals            CollaborationHiddenDeal[]
+  totpSecretCiphertext                String?                             @map("totp_secret_ciphertext") @db.Text
+  totpEnabled                         Boolean                             @default(false) @map("totp_enabled")
+  totpLastUsedStep                    BigInt?                             @map("totp_last_used_step") @db.BigInt
+
+  @@map("users")
+}
+
+model AgentProfile {
+  id                  Int       @id @default(autoincrement())
+  userId              Int       @unique @map("user_id")
+  firstName           String    @map("first_name") @db.VarChar(100)
+  lastName            String    @map("last_name") @db.VarChar(100)
+  phone               String    @unique @db.VarChar(30)
+  city                String    @db.VarChar(100)
+  imageUrl            String?   @map("image_url") @db.VarChar(500)
+  cin                 String?   @db.VarChar(50)
+  mobileMoneyOperator String?   @map("mobile_money_operator") @db.VarChar(50)
+  mobileMoneyNumber   String?   @map("mobile_money_number") @db.VarChar(30)
+  cguAcceptedAt       DateTime? @map("cgu_accepted_at")
+  createdAt           DateTime  @default(now()) @map("created_at")
+  updatedAt           DateTime  @updatedAt @map("updated_at")
+  user                User      @relation(fields: [userId], references: [id])
+
+  @@map("agent_profiles")
+}
+
+model Application {
+  id                    Int               @id @default(autoincrement())
+  fullName              String            @map("full_name") @db.VarChar(200)
+  email                 String            @db.VarChar(255)
+  phone                 String            @db.VarChar(30)
+  city                  String            @db.VarChar(100)
+  motivation            String            @db.Text
+  consent               Boolean
+  candidatePasswordHash String?           @map("candidate_password_hash") @db.VarChar(255)
+  status                ApplicationStatus @default(RECUE)
+  reviewedBy            Int?              @map("reviewed_by")
+  decisionReason        String?           @map("decision_reason") @db.Text
+  userId                Int?              @map("user_id")
+  createdAt             DateTime          @default(now()) @map("created_at")
+  updatedAt             DateTime          @updatedAt @map("updated_at")
+  user                  User?             @relation(fields: [userId], references: [id])
+  reviewer              User?             @relation("ApplicationReviewer", fields: [reviewedBy], references: [id])
+
+  @@index([status])
+  @@map("applications")
+}
+
+model PendingAgentRegistration {
+  id                    Int       @id @default(autoincrement())
+  email                 String    @unique @db.VarChar(255)
+  firstName             String    @map("first_name") @db.VarChar(100)
+  lastName              String    @map("last_name") @db.VarChar(100)
+  phone                 String    @db.VarChar(30)
+  city                  String    @db.VarChar(100)
+  registrationSource    String    @default("EMAIL") @map("registration_source") @db.VarChar(20)
+  candidatePasswordHash String?   @map("candidate_password_hash") @db.VarChar(255)
+  codeHash              String    @map("code_hash") @db.VarChar(60)
+  attempts              Int       @default(0)
+  expiresAt             DateTime  @map("expires_at")
+  resendAvailableAt     DateTime  @map("resend_available_at")
+  consumedAt            DateTime? @map("consumed_at")
+  createdAt             DateTime  @default(now()) @map("created_at")
+  updatedAt             DateTime  @updatedAt @map("updated_at")
+
+  @@index([expiresAt])
+  @@index([phone])
+  @@map("pending_agent_registrations")
+}
+
+model Report {
+  id                       Int                   @id @default(autoincrement())
+  agentId                  Int                   @map("agent_id")
+  companyName              String                @map("company_name") @db.VarChar(255)
+  companyNameNormalized    String                @map("company_name_normalized") @db.VarChar(255)
+  contactPhone             String                @map("contact_phone") @db.Text
+  contactPhoneHash         String?               @map("contact_phone_hash") @db.Char(64)
+  summary                  String                @db.Text
+  status                   ReportStatus          @default(BROUILLON)
+  rejectionReason          String?               @map("rejection_reason") @db.Text
+  isDuplicateFlag          Boolean               @default(false) @map("is_duplicate_flag")
+  createdAt                DateTime              @default(now()) @map("created_at")
+  updatedAt                DateTime              @updatedAt @map("updated_at")
+  productId                Int?                  @map("product_id")
+  customServiceDescription String?               @map("custom_service_description") @db.Text
+  city                     String                @db.VarChar(100)
+  address                  String                @db.Text
+  contactName              String                @map("contact_name") @db.VarChar(150)
+  contactRole              String                @map("contact_role") @db.VarChar(100)
+  contactEmail             String?               @map("contact_email") @db.Text
+  contactEmailHash         String?               @map("contact_email_hash") @db.Char(64)
+  contactType              ContactType           @map("contact_type")
+  reportNature             ReportNature          @default(CONTACT) @map("report_nature")
+  reportType               ReportType            @default(LEAD) @map("report_type")
+  promoCode                String?               @map("promo_code") @db.VarChar(50)
+  contractSigned           Boolean               @default(false) @map("contract_signed")
+  commissionAmount         BigInt?               @map("commission_amount") @db.BigInt
+  meetingAt                DateTime              @map("meeting_at")
+  interestLevel            InterestLevel         @map("interest_level")
+  nextStep                 String?               @map("next_step") @db.Text
+  reviewedBy               Int?                  @map("reviewed_by")
+  reviewedAt               DateTime?             @map("reviewed_at")
+  agent                    User                  @relation(fields: [agentId], references: [id])
+  product                  Product?              @relation(fields: [productId], references: [id], onDelete: Restrict)
+  reviewer                 User?                 @relation("ReportReviewer", fields: [reviewedBy], references: [id])
+  statusHistory            ReportStatusHistory[]
+  attachments              ReportAttachment[]
+  gainTransaction          Transaction?
+  collaborationDeal        CollaborationDeal?
+
+  @@index([agentId, status])
+  @@index([companyNameNormalized])
+  @@index([contactPhoneHash])
+  @@index([contactEmailHash])
+  @@index([productId, status])
+  @@map("reports")
+}
+
+model ActivationToken {
+  id        Int       @id @default(autoincrement())
+  userId    Int       @map("user_id")
+  tokenHash String    @map("token_hash") @db.VarChar(255)
+  type      TokenType
+  expiresAt DateTime  @map("expires_at")
+  usedAt    DateTime? @map("used_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+  user      User      @relation(fields: [userId], references: [id])
+
+  @@index([tokenHash])
+  @@index([userId, type])
+  @@map("activation_tokens")
+}
+
+model RefreshToken {
+  id        Int       @id @default(autoincrement())
+  userId    Int       @map("user_id")
+  tokenHash String    @unique @map("token_hash") @db.VarChar(255)
+  expiresAt DateTime  @map("expires_at")
+  revokedAt DateTime? @map("revoked_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+  user      User      @relation(fields: [userId], references: [id])
+
+  @@index([userId, expiresAt])
+  @@map("refresh_tokens")
+}
+
+model Product {
+  id             Int           @id @default(autoincrement())
+  title          String        @db.VarChar(200)
+  slug           String        @unique @db.VarChar(220)
+  description    String        @db.Text
+  targetAudience String        @map("target_audience") @db.Text
+  salesPitch     String        @map("sales_pitch") @db.Text
+  status         ProductStatus @default(BROUILLON)
+  publishedAt    DateTime?     @map("published_at")
+  createdBy      Int           @map("created_by")
+  createdAt      DateTime      @default(now()) @map("created_at")
+  updatedAt      DateTime      @updatedAt @map("updated_at")
+  creator        User          @relation("ProductCreator", fields: [createdBy], references: [id])
+  files          ProductFile[]
+  reports        Report[]
+
+  @@index([status])
+  @@map("products")
+}
+
+model ProductFile {
+  id        Int      @id @default(autoincrement())
+  productId Int      @map("product_id")
+  fileUrl   String   @map("file_url") @db.VarChar(500)
+  fileName  String   @map("file_name") @db.VarChar(255)
+  createdAt DateTime @default(now()) @map("created_at")
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@map("product_files")
+}
+
+model ProspectContact {
+  id              Int      @id @default(autoincrement())
+  companyName     String   @map("company_name") @db.VarChar(200)
+  responsibleName String?  @map("responsible_name") @db.VarChar(150)
+  latitude        Float?
+  longitude       Float?
+  address         String?  @db.VarChar(500)
+  contact         String?  @db.VarChar(255)
+  createdBy       Int      @map("created_by")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+  creator         User     @relation("ProspectContactCreator", fields: [createdBy], references: [id])
+
+  @@index([createdAt])
+  @@map("prospect_contacts")
+}
+
+model SubscriptionRequest {
+  id              Int       @id @default(autoincrement())
+  userId          Int       @map("user_id")
+  status          String    @default("PENDING") @db.VarChar(20)
+  amount          Int
+  durationDays    Int       @default(30) @map("duration_days")
+  transactionRef  String    @map("transaction_ref") @db.VarChar(150)
+  proofFilename   String    @map("proof_filename") @db.VarChar(100)
+  proofMimeType   String    @map("proof_mime_type") @db.VarChar(100)
+  rejectionReason String?   @map("rejection_reason") @db.Text
+  requestedAt     DateTime  @default(now()) @map("requested_at")
+  reviewedAt      DateTime? @map("reviewed_at")
+  reviewedBy      Int?      @map("reviewed_by")
+  startsAt        DateTime? @map("starts_at")
+  expiresAt       DateTime? @map("expires_at")
+  user            User      @relation("SubscriptionAgent", fields: [userId], references: [id], onDelete: Cascade)
+  reviewer        User?     @relation("SubscriptionReviewer", fields: [reviewedBy], references: [id], onDelete: SetNull)
+
+  @@index([userId, status])
+  @@index([status, requestedAt])
+  @@map("subscription_requests")
+}
+
+model ReportAttachment {
+  id        Int      @id @default(autoincrement())
+  reportId  Int      @map("report_id")
+  fileUrl   String   @map("file_url") @db.VarChar(500)
+  fileName  String   @map("file_name") @db.VarChar(255)
+  createdAt DateTime @default(now()) @map("created_at")
+  report    Report   @relation(fields: [reportId], references: [id], onDelete: Cascade)
+
+  @@map("report_attachments")
+}
+
+model ReportStatusHistory {
+  id         Int           @id @default(autoincrement())
+  reportId   Int           @map("report_id")
+  fromStatus ReportStatus? @map("from_status")
+  toStatus   ReportStatus  @map("to_status")
+  changedBy  Int           @map("changed_by")
+  comment    String?       @db.Text
+  createdAt  DateTime      @default(now()) @map("created_at")
+  report     Report        @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  actor      User          @relation(fields: [changedBy], references: [id])
+
+  @@index([reportId, createdAt])
+  @@map("report_status_history")
+}
+
+model CollaborationDeal {
+  id                               Int                              @id @default(autoincrement())
+  reportId                         Int                              @unique @map("report_id")
+  supplierId                       Int                              @map("supplier_id")
+  closerId                         Int?                             @map("closer_id")
+  status                           CollaborationDealStatus          @default(DECLARED)
+  declaredAt                       DateTime                         @default(now()) @map("declared_at")
+  accessGrantedAt                  DateTime?                        @map("access_granted_at")
+  accessExpiresAt                  DateTime?                        @map("access_expires_at")
+  closingReportedAt                DateTime?                        @map("closing_reported_at")
+  clientConfirmedAt                DateTime?                        @map("client_confirmed_at")
+  confirmedAt                      DateTime?                        @map("confirmed_at")
+  contractSignedAt                 DateTime?                        @map("contract_signed_at")
+  contractReference                String?                          @map("contract_reference") @db.VarChar(150)
+  contractFileSha256               String?                          @map("contract_file_sha256") @db.Char(64)
+  saleNumber                       String?                          @unique @map("sale_number") @db.VarChar(40)
+  legacyBackfillBatchId            String?                          @map("legacy_backfill_batch_id") @db.Char(36)
+  lostReason                       CollaborationLostReason?         @map("lost_reason")
+  disputeReason                    String?                          @map("dispute_reason") @db.Text
+  clientConfirmationOverrideReason String?                          @map("client_confirmation_override_reason") @db.Text
+  reviewedById                     Int?                             @map("reviewed_by")
+  resolvedAt                       DateTime?                        @map("resolved_at")
+  createdAt                        DateTime                         @default(now()) @map("created_at")
+  updatedAt                        DateTime                         @updatedAt @map("updated_at")
+  report                           Report                           @relation(fields: [reportId], references: [id], onDelete: Restrict)
+  supplier                         User                             @relation("CollaborationSupplier", fields: [supplierId], references: [id], onDelete: Restrict)
+  closer                           User?                            @relation("CollaborationCloser", fields: [closerId], references: [id], onDelete: Restrict)
+  reviewer                         User?                            @relation("CollaborationDealReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+  secret                           CollaborationProspectSecret?
+  accessRequests                   CollaborationAccessRequest[]
+  statusHistory                    CollaborationDealStatusHistory[]
+  closingReport                    CollaborationClosingReport?
+  clientConfirmation               CollaborationClientConfirmation?
+  evidence                         CollaborationEvidence[]
+  commissions                      CollaborationCommission[]
+  auditEntries                     CollaborationAuditLog[]
+  emailJobs                        CollaborationEmailJob[]
+  domainEvents                     CollaborationDomainEvent[]
+  prospectHashClaims               CollaborationProspectHashClaim[]
+  hiddenByAgents                   CollaborationHiddenDeal[]
+
+  @@index([supplierId, status, createdAt])
+  @@index([closerId, status])
+  @@index([status, accessExpiresAt])
+  @@map("collaboration_deals")
+}
+
+model CollaborationProspectSecret {
+  id                    Int               @id @default(autoincrement())
+  dealId                Int               @unique @map("deal_id")
+  companyNameCiphertext String            @map("company_name_ciphertext") @db.Text
+  contactNameCiphertext String            @map("contact_name_ciphertext") @db.Text
+  phoneCiphertext       String            @map("phone_ciphertext") @db.Text
+  emailCiphertext       String?           @map("email_ciphertext") @db.Text
+  addressCiphertext     String?           @map("address_ciphertext") @db.Text
+  companyNameHash       String            @map("company_name_hash") @db.Char(64)
+  phoneHash             String            @map("phone_hash") @db.Char(64)
+  emailHash             String?           @map("email_hash") @db.Char(64)
+  createdAt             DateTime          @default(now()) @map("created_at")
+  updatedAt             DateTime          @updatedAt @map("updated_at")
+  deal                  CollaborationDeal @relation(fields: [dealId], references: [id], onDelete: Restrict)
+
+  @@index([companyNameHash])
+  @@index([phoneHash])
+  @@index([emailHash])
+  @@map("collaboration_prospect_secrets")
+}
+
+model CollaborationProspectHashClaim {
+  id          Int               @id @default(autoincrement())
+  contactType String            @map("contact_type") @db.VarChar(8)
+  contactHash String            @map("contact_hash") @db.Char(64)
+  dealId      Int               @map("deal_id")
+  supplierId  Int               @map("supplier_id")
+  claimedAt   DateTime          @default(now()) @map("claimed_at")
+  deal        CollaborationDeal @relation(fields: [dealId], references: [id], onDelete: Restrict)
+  supplier    User              @relation(fields: [supplierId], references: [id], onDelete: Restrict)
+
+  @@unique([contactType, contactHash])
+  @@index([dealId])
+  @@map("collaboration_prospect_hash_claims")
+}
+
+model CollaborationHiddenDeal {
+  dealId   Int               @map("deal_id")
+  agentId  Int               @map("agent_id")
+  hiddenAt DateTime          @default(now()) @map("hidden_at")
+  deal     CollaborationDeal @relation(fields: [dealId], references: [id], onDelete: Cascade)
+  agent    User              @relation(fields: [agentId], references: [id], onDelete: Cascade)
+
+  @@id([dealId, agentId])
+  @@index([agentId, hiddenAt])
+  @@map("collaboration_hidden_deals")
+}
+
+model CollaborationAccessRequest {
+  id             Int                       @id @default(autoincrement())
+  dealId         Int                       @map("deal_id")
+  requesterId    Int                       @map("requester_id")
+  status         CollaborationAccessStatus @default(PENDING)
+  pendingKey     String?                   @unique @map("pending_key") @db.VarChar(80)
+  message        String?                   @db.VarChar(500)
+  requestedAt    DateTime                  @default(now()) @map("requested_at")
+  expiresAt      DateTime                  @map("expires_at")
+  reminderSentAt DateTime?                 @map("reminder_sent_at")
+  decidedAt      DateTime?                 @map("decided_at")
+  decidedById    Int?                      @map("decided_by")
+  createdAt      DateTime                  @default(now()) @map("created_at")
+  updatedAt      DateTime                  @updatedAt @map("updated_at")
+  deal           CollaborationDeal         @relation(fields: [dealId], references: [id], onDelete: Restrict)
+  requester      User                      @relation("CollaborationAccessRequester", fields: [requesterId], references: [id], onDelete: Restrict)
+  reviewer       User?                     @relation("CollaborationAccessReviewer", fields: [decidedById], references: [id], onDelete: SetNull)
+
+  @@index([dealId, status, expiresAt])
+  @@index([requesterId, dealId, requestedAt])
+  @@index([status, expiresAt, reminderSentAt])
+  @@map("collaboration_access_requests")
+}
+
+model CollaborationDealStatusHistory {
+  id         Int                      @id @default(autoincrement())
+  dealId     Int                      @map("deal_id")
+  fromStatus CollaborationDealStatus? @map("from_status")
+  toStatus   CollaborationDealStatus  @map("to_status")
+  changedBy  Int?                     @map("changed_by")
+  comment    String?                  @db.Text
+  createdAt  DateTime                 @default(now()) @map("created_at")
+  deal       CollaborationDeal        @relation(fields: [dealId], references: [id], onDelete: Restrict)
+  actor      User?                    @relation(fields: [changedBy], references: [id], onDelete: SetNull)
+
+  @@index([dealId, createdAt])
+  @@map("collaboration_deal_status_history")
+}
+
+model CollaborationClosingReport {
+  id              Int                              @id @default(autoincrement())
+  dealId          Int                              @unique @map("deal_id")
+  closerId        Int                              @map("closer_id")
+  status          CollaborationClosingReportStatus @default(DRAFT)
+  saleAmount      BigInt?                          @map("sale_amount") @db.BigInt
+  saleDate        DateTime?                        @map("sale_date")
+  details         String?                          @db.Text
+  idempotencyKey  String?                          @unique @map("idempotency_key") @db.VarChar(100)
+  reportedAt      DateTime                         @default(now()) @map("reported_at")
+  submittedAt     DateTime?                        @map("submitted_at")
+  reviewedAt      DateTime?                        @map("reviewed_at")
+  rejectionReason String?                          @map("rejection_reason") @db.Text
+  deal            CollaborationDeal                @relation(fields: [dealId], references: [id], onDelete: Restrict)
+  closer          User                             @relation(fields: [closerId], references: [id], onDelete: Restrict)
+  supplements     CollaborationClosingSupplement[]
+  evidence        CollaborationEvidence[]
+
+  @@index([closerId, reportedAt])
+  @@map("collaboration_closing_reports")
+}
+
+model CollaborationClosingSupplement {
+  id              Int                        @id @default(autoincrement())
+  closingReportId Int                        @map("closing_report_id")
+  authorId        Int                        @map("author_id")
+  details         String                     @db.Text
+  createdAt       DateTime                   @default(now()) @map("created_at")
+  closingReport   CollaborationClosingReport @relation(fields: [closingReportId], references: [id], onDelete: Restrict)
+  author          User                       @relation("CollaborationClosingSupplementAuthor", fields: [authorId], references: [id], onDelete: Restrict)
+
+  @@index([closingReportId, createdAt], map: "collab_closing_supp_report_created_idx")
+  @@map("collaboration_closing_supplements")
+}
+
+model CollaborationClientConfirmation {
+  id              Int                                   @id @default(autoincrement())
+  dealId          Int                                   @unique @map("deal_id")
+  publicTokenHash String                                @unique(map: "collab_client_conf_public_token_key") @map("public_token_hash") @db.Char(64)
+  status          CollaborationClientConfirmationStatus @default(PENDING)
+  codeHash        String                                @map("code_hash") @db.Char(64)
+  attempts        Int                                   @default(0)
+  blockedUntil    DateTime?                             @map("blocked_until")
+  expiresAt       DateTime                              @map("expires_at")
+  sentAt          DateTime                              @default(now()) @map("sent_at")
+  respondedAt     DateTime?                             @map("responded_at")
+  deal            CollaborationDeal                     @relation(fields: [dealId], references: [id], onDelete: Restrict)
+
+  @@index([status, expiresAt])
+  @@map("collaboration_client_confirmations")
+}
+
+model CollaborationEvidence {
+  id              Int                         @id @default(autoincrement())
+  dealId          Int                         @map("deal_id")
+  closingReportId Int?                        @map("closing_report_id")
+  uploadedById    Int                         @map("uploaded_by")
+  type            CollaborationEvidenceType
+  commissionId    Int?                        @unique @map("commission_id")
+  storageKey      String                      @unique @map("storage_key") @db.VarChar(255)
+  fileName        String                      @map("file_name") @db.VarChar(255)
+  mimeType        String                      @map("mime_type") @db.VarChar(100)
+  fileSize        Int                         @map("file_size")
+  sha256          String                      @db.Char(64)
+  createdAt       DateTime                    @default(now()) @map("created_at")
+  deal            CollaborationDeal           @relation(fields: [dealId], references: [id], onDelete: Restrict)
+  closingReport   CollaborationClosingReport? @relation(fields: [closingReportId], references: [id], onDelete: Restrict)
+  commission      CollaborationCommission?    @relation(fields: [commissionId], references: [id], onDelete: Restrict)
+  uploader        User                        @relation(fields: [uploadedById], references: [id], onDelete: Restrict)
+
+  @@index([dealId, type, createdAt])
+  @@map("collaboration_evidence")
+}
+
+model CollaborationCommission {
+  id               Int                                 @id @default(autoincrement())
+  dealId           Int                                 @map("deal_id")
+  agentId          Int                                 @map("agent_id")
+  role             CollaborationCommissionRole
+  amount           BigInt                              @db.BigInt
+  currency         String                              @default("Ar") @db.VarChar(8)
+  status           CollaborationCommissionStatus       @default(PENDING)
+  paymentMode      CollaborationCommissionPaymentMode? @map("payment_mode")
+  paymentReference String?                             @unique @map("payment_reference") @db.VarChar(150)
+  paidById         Int?                                @map("paid_by")
+  generatedAt      DateTime                            @default(now()) @map("generated_at")
+  paidAt           DateTime?                           @map("paid_at")
+  pendingAlertedAt DateTime?                           @map("pending_alerted_at")
+  deal             CollaborationDeal                   @relation(fields: [dealId], references: [id], onDelete: Restrict)
+  agent            User                                @relation("CollaborationCommissionAgent", fields: [agentId], references: [id], onDelete: Restrict)
+  payer            User?                               @relation("CollaborationCommissionPayer", fields: [paidById], references: [id], onDelete: SetNull)
+  paymentEvidence  CollaborationEvidence?
+  adjustments      CollaborationCommissionAdjustment[]
+
+  @@unique([dealId, role])
+  @@index([agentId, status, generatedAt])
+  @@index([status, generatedAt])
+  @@map("collaboration_commissions")
+}
+
+model CollaborationCommissionAdjustment {
+  id             Int                     @id @default(autoincrement())
+  commissionId   Int                     @map("commission_id")
+  authorId       Int                     @map("author_id")
+  amount         BigInt                  @db.BigInt
+  currency       String                  @default("Ar") @db.VarChar(8)
+  reason         String                  @db.Text
+  idempotencyKey String                  @unique @map("idempotency_key") @db.VarChar(100)
+  createdAt      DateTime                @default(now()) @map("created_at")
+  commission     CollaborationCommission @relation(fields: [commissionId], references: [id], onDelete: Restrict)
+  author         User                    @relation("CommissionAdjustmentAuthor", fields: [authorId], references: [id], onDelete: Restrict)
+
+  @@index([commissionId, createdAt], map: "collab_commission_adj_commission_created_idx")
+  @@map("collaboration_commission_adjustments")
+}
+
+model CollaborationAuditLog {
+  id              Int                @id @default(autoincrement())
+  sequence        BigInt             @unique @db.BigInt
+  chainVersion    Int                @default(1) @map("chain_version")
+  actorId         Int?               @map("actor_id")
+  actorRole       String?            @map("actor_role") @db.VarChar(20)
+  dealId          Int?               @map("deal_id")
+  action          String             @db.VarChar(100)
+  entityType      String             @map("entity_type") @db.VarChar(80)
+  entityId        Int?               @map("entity_id")
+  metadata        Json?
+  oldValues       Json?              @map("old_values")
+  newValues       Json?              @map("new_values")
+  ip              String?            @db.VarChar(45)
+  userAgent       String?            @map("user_agent") @db.VarChar(500)
+  occurredAtLocal String?            @map("occurred_at_local") @db.VarChar(40)
+  previousHash    String?            @map("previous_hash") @db.Char(64)
+  entryHash       String             @unique @map("entry_hash") @db.Char(64)
+  createdAt       DateTime           @default(now()) @map("created_at")
+  actor           User?              @relation(fields: [actorId], references: [id], onDelete: SetNull)
+  deal            CollaborationDeal? @relation(fields: [dealId], references: [id], onDelete: Restrict)
+
+  @@index([action, createdAt])
+  @@index([dealId, createdAt])
+  @@index([actorId, createdAt])
+  @@index([entityType, entityId])
+  @@map("collaboration_audit_logs")
+}
+
+model CollaborationEmailJob {
+  id                  Int                      @id @default(autoincrement())
+  dealId              Int?                     @map("deal_id")
+  type                CollaborationEmailType
+  status              CollaborationEmailStatus @default(QUEUED)
+  recipientCiphertext String                   @map("recipient_ciphertext") @db.Text
+  payload             Json
+  idempotencyKey      String                   @unique @map("idempotency_key") @db.VarChar(180)
+  attempts            Int                      @default(0)
+  nextAttemptAt       DateTime                 @default(now()) @map("next_attempt_at")
+  lockedAt            DateTime?                @map("locked_at")
+  sentAt              DateTime?                @map("sent_at")
+  lastError           String?                  @map("last_error") @db.VarChar(1000)
+  createdAt           DateTime                 @default(now()) @map("created_at")
+  updatedAt           DateTime                 @updatedAt @map("updated_at")
+  deal                CollaborationDeal?       @relation(fields: [dealId], references: [id], onDelete: Restrict)
+
+  @@index([status, nextAttemptAt])
+  @@index([dealId, createdAt])
+  @@map("collaboration_email_jobs")
+}
+
+model CollaborationAuditHead {
+  id        Int      @id @default(1)
+  headHash  String?  @map("head_hash") @db.Char(64)
+  sequence  BigInt   @default(0) @db.BigInt
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("collaboration_audit_heads")
+}
+
+model CollaborationContactAccessCounter {
+  id             Int       @id @default(autoincrement())
+  agentId        Int       @map("agent_id")
+  day            DateTime  @db.Date
+  count          Int       @default(0)
+  dailyAlertedAt DateTime? @map("daily_alerted_at")
+  burstAlertedAt DateTime? @map("burst_alerted_at")
+  agent          User      @relation(fields: [agentId], references: [id], onDelete: Restrict)
+
+  @@unique([agentId, day])
+  @@map("collaboration_contact_access_counters")
+}
+
+model CollaborationTrustScoreSnapshot {
+  id             Int      @id @default(autoincrement())
+  agentId        Int      @map("agent_id")
+  scoreDay       DateTime @map("score_day") @db.Date
+  score          Int
+  formulaVersion Int      @default(1) @map("formula_version")
+  components     Json
+  calculatedAt   DateTime @default(now()) @map("calculated_at")
+  agent          User     @relation(fields: [agentId], references: [id], onDelete: Restrict)
+
+  @@unique([agentId, scoreDay])
+  @@index([agentId, calculatedAt])
+  @@map("collaboration_trust_score_snapshots")
+}
+
+model CollaborationRateLimitBucket {
+  id              Int       @id @default(autoincrement())
+  bucketKey       String    @unique @map("bucket_key") @db.Char(64)
+  windowStartedAt DateTime  @map("window_started_at")
+  attempts        Int       @default(0)
+  blockedUntil    DateTime? @map("blocked_until")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  @@index([windowStartedAt])
+  @@map("collaboration_rate_limit_buckets")
+}
+
+model CollaborationSchedulerLock {
+  name       String    @id @db.VarChar(100)
+  ownerToken String?   @map("owner_token") @db.Char(64)
+  expiresAt  DateTime? @map("expires_at")
+  updatedAt  DateTime  @updatedAt @map("updated_at")
+
+  @@map("collaboration_scheduler_locks")
+}
+
+model CollaborationSaleCounter {
+  id        Int      @id @default(1)
+  lastValue BigInt   @default(0) @map("last_value") @db.BigInt
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("collaboration_sale_counters")
+}
+
+model CollaborationDomainEvent {
+  id             Int               @id @default(autoincrement())
+  dealId         Int               @map("deal_id")
+  eventType      String            @map("event_type") @db.VarChar(100)
+  payload        Json
+  idempotencyKey String            @unique @map("idempotency_key") @db.VarChar(180)
+  createdAt      DateTime          @default(now()) @map("created_at")
+  consumedAt     DateTime?         @map("consumed_at")
+  attempts       Int               @default(0)
+  nextAttemptAt  DateTime          @default(now()) @map("next_attempt_at")
+  lastError      String?           @map("last_error") @db.VarChar(1000)
+  lastAlertedAt  DateTime?         @map("last_alerted_at")
+  deal           CollaborationDeal @relation(fields: [dealId], references: [id], onDelete: Restrict)
+
+  @@index([eventType, consumedAt, createdAt], map: "collab_domain_events_type_consumed_created_idx")
+  @@map("collaboration_domain_events")
+}
+
+model Transaction {
+  id        Int             @id @default(autoincrement())
+  agentId   Int             @map("agent_id")
+  type      TransactionType
+  amount    BigInt          @db.BigInt
+  reportId  Int?            @unique @map("report_id")
+  note      String?         @db.Text
+  createdAt DateTime        @default(now()) @map("created_at")
+  agent     User            @relation(fields: [agentId], references: [id])
+  report    Report?         @relation(fields: [reportId], references: [id])
+
+  @@index([agentId, createdAt])
+  @@map("transactions")
+}
+
+model Withdrawal {
+  id               Int              @id @default(autoincrement())
+  agentId          Int              @map("agent_id")
+  amount           BigInt           @db.BigInt
+  status           WithdrawalStatus @default(DEMANDE)
+  operator         String           @db.VarChar(50)
+  phoneNumber      String           @map("phone_number") @db.VarChar(30)
+  paymentReference String?          @map("payment_reference") @db.VarChar(100)
+  decidedBy        Int?             @map("decided_by")
+  decidedAt        DateTime?        @map("decided_at")
+  rejectReason     String?          @map("reject_reason") @db.Text
+  createdAt        DateTime         @default(now()) @map("created_at")
+  updatedAt        DateTime         @updatedAt @map("updated_at")
+  agent            User             @relation(fields: [agentId], references: [id])
+  decider          User?            @relation("WithdrawalDecider", fields: [decidedBy], references: [id])
+
+  @@index([agentId, status])
+  @@map("withdrawals")
+}
+
+model PostCategory {
+  id        Int      @id @default(autoincrement())
+  name      String   @unique @db.VarChar(100)
+  adminOnly Boolean  @default(false) @map("admin_only")
+  createdAt DateTime @default(now()) @map("created_at")
+  posts     Post[]
+
+  @@map("post_categories")
+}
+
+model Post {
+  id         Int          @id @default(autoincrement())
+  authorId   Int          @map("author_id")
+  categoryId Int          @map("category_id")
+  title      String       @db.VarChar(200)
+  content    String       @db.Text
+  imageUrl   String?      @map("image_url") @db.VarChar(500)
+  isPinned   Boolean      @default(false) @map("is_pinned")
+  isHidden   Boolean      @default(false) @map("is_hidden")
+  authorHidden Boolean    @default(false) @map("author_hidden")
+  createdAt  DateTime     @default(now()) @map("created_at")
+  updatedAt  DateTime     @updatedAt @map("updated_at")
+  author     User         @relation(fields: [authorId], references: [id])
+  category   PostCategory @relation(fields: [categoryId], references: [id])
+  comments   Comment[]
+  likes      PostLike[]
+
+  @@index([categoryId, createdAt])
+  @@map("posts")
+}
+
+model Comment {
+  id              Int       @id @default(autoincrement())
+  postId          Int       @map("post_id")
+  authorId        Int       @map("author_id")
+  parentCommentId Int?      @map("parent_comment_id")
+  content         String    @db.Text
+  isHidden        Boolean   @default(false) @map("is_hidden")
+  authorHidden    Boolean   @default(false) @map("author_hidden")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+  post            Post      @relation(fields: [postId], references: [id], onDelete: Cascade)
+  author          User      @relation(fields: [authorId], references: [id])
+  parent          Comment?  @relation("CommentReplies", fields: [parentCommentId], references: [id], onDelete: Cascade)
+  replies         Comment[] @relation("CommentReplies")
+
+  @@index([postId, createdAt])
+  @@index([parentCommentId])
+  @@map("comments")
+}
+
+model PostLike {
+  postId    Int      @map("post_id")
+  userId    Int      @map("user_id")
+  createdAt DateTime @default(now()) @map("created_at")
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([postId, userId])
+  @@map("post_likes")
+}
+
+model ContentReport {
+  id         Int                 @id @default(autoincrement())
+  reporterId Int                 @map("reporter_id")
+  targetType ContentTargetType   @map("target_type")
+  targetId   Int                 @map("target_id")
+  reason     String              @db.Text
+  status     ContentReportStatus @default(OUVERT)
+  createdAt  DateTime            @default(now()) @map("created_at")
+  reporter   User                @relation(fields: [reporterId], references: [id])
+
+  @@index([targetType, targetId])
+  @@index([status])
+  @@map("content_reports")
+}
+
+model Conversation {
+  id               Int             @id @default(autoincrement())
+  participantOneId Int             @map("participant_one_id")
+  participantTwoId Int             @map("participant_two_id")
+  createdAt        DateTime        @default(now()) @map("created_at")
+  updatedAt        DateTime        @updatedAt @map("updated_at")
+  participantOne   User            @relation("ConversationParticipantOne", fields: [participantOneId], references: [id])
+  participantTwo   User            @relation("ConversationParticipantTwo", fields: [participantTwoId], references: [id])
+  messages         DirectMessage[]
+
+  @@unique([participantOneId, participantTwoId])
+  @@index([participantOneId, updatedAt])
+  @@index([participantTwoId, updatedAt])
+  @@map("conversations")
+}
+
+model DirectMessage {
+  id             Int          @id @default(autoincrement())
+  conversationId Int          @map("conversation_id")
+  senderId       Int          @map("sender_id")
+  content        String       @db.Text
+  readAt         DateTime?    @map("read_at")
+  createdAt      DateTime     @default(now()) @map("created_at")
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender         User         @relation(fields: [senderId], references: [id])
+
+  @@index([conversationId, createdAt])
+  @@index([senderId, readAt])
+  @@map("direct_messages")
+}
+
+model Notification {
+  id        Int       @id @default(autoincrement())
+  userId    Int       @map("user_id")
+  actorId   Int?      @map("actor_id")
+  type      String    @db.VarChar(80)
+  title     String    @db.VarChar(200)
+  body      String    @db.Text
+  link      String?   @db.VarChar(500)
+  readAt    DateTime? @map("read_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  actor     User?     @relation("NotificationActor", fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([userId, readAt, createdAt])
+  @@index([actorId])
+  @@map("notifications")
+}
+
+model PushSubscription {
+  id           Int      @id @default(autoincrement())
+  userId       Int      @map("user_id")
+  endpoint     String   @db.Text
+  endpointHash String   @unique @map("endpoint_hash") @db.Char(64)
+  p256dh       String   @db.VarChar(255)
+  auth         String   @db.VarChar(255)
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("push_subscriptions")
+}
+
+model Setting {
+  id        Int      @id @default(autoincrement())
+  key       String   @unique @db.VarChar(100)
+  value     String   @db.Text
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("settings")
+}
+
+model AuditLog {
+  id         Int      @id @default(autoincrement())
+  userId     Int      @map("user_id")
+  action     String   @db.VarChar(100)
+  entityType String   @map("entity_type") @db.VarChar(80)
+  entityId   Int      @map("entity_id")
+  metadata   Json?
+  ip         String?  @db.VarChar(45)
+  createdAt  DateTime @default(now()) @map("created_at")
+  user       User     @relation(fields: [userId], references: [id])
+
+  @@index([entityType, entityId])
+  @@index([userId, createdAt])
+  @@map("audit_logs")
+}

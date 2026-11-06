@@ -1,0 +1,21 @@
+CREATE TABLE `pending_agent_registrations` (
+  `id` INTEGER NOT NULL AUTO_INCREMENT,
+  `email` VARCHAR(255) NOT NULL,
+  `first_name` VARCHAR(100) NOT NULL,
+  `last_name` VARCHAR(100) NOT NULL,
+  `phone` VARCHAR(30) NOT NULL,
+  `city` VARCHAR(100) NOT NULL,
+  `registration_source` VARCHAR(20) NOT NULL DEFAULT 'EMAIL',
+  `candidate_password_hash` VARCHAR(255) NULL,
+  `code_hash` VARCHAR(60) NOT NULL,
+  `attempts` INTEGER NOT NULL DEFAULT 0,
+  `expires_at` DATETIME(3) NOT NULL,
+  `resend_available_at` DATETIME(3) NOT NULL,
+  `consumed_at` DATETIME(3) NULL,
+  `created_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  `updated_at` DATETIME(3) NOT NULL,
+  UNIQUE INDEX `pending_agent_registrations_email_key` (`email`),
+  INDEX `pending_agent_registrations_expires_at_idx` (`expires_at`),
+  INDEX `pending_agent_registrations_phone_idx` (`phone`),
+  PRIMARY KEY (`id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;

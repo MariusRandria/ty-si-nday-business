@@ -1,0 +1,21 @@
+{
+  "name": "innovcom",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Plateforme Agents commerciaux x ESN",
+  "scripts": {
+    "dev": "concurrently -k \"npm --prefix client run dev:agent\" \"npm --prefix client run dev:admin\" \"npm --prefix server run dev\"",
+    "build": "npm --prefix client run build && npm --prefix server run build",
+    "lint": "npm --prefix client run lint",
+    "db:generate": "npm --prefix server run db:generate",
+    "db:migrate": "npm --prefix server run db:migrate"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.4"
+  },
+  "main": "index.js",
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs"
+}

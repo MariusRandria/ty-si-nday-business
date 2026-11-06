@@ -1,0 +1,78 @@
+:root {
+  /* Brand colors */
+  --color-primary-pink: #c86be8;
+  --color-primary-violet: #9b6ff0;
+  --color-primary-blue: #4f72ff;
+  --gradient-brand: linear-gradient(160deg, #c86be8 0%, #9b6ff0 45%, #4f72ff 100%);
+
+  /* Neutral colors */
+  --color-text-dark: #1e1b4b;
+  --color-text-muted: #6b7280;
+  --color-bg: #ffffff;
+  --color-bg-soft: #f6f4ff;
+  --color-border: #e5e1fa;
+
+  /* Semantic colors */
+  --color-success: #168a67;
+  --color-success-soft: #eaf8f3;
+  --color-error: #d6455d;
+  --color-error-soft: #fff0f3;
+  --color-warning: #b7791f;
+  --color-warning-soft: #fff8e6;
+  --color-info: #4f72ff;
+  --color-info-soft: #eef3ff;
+
+  /* Typography */
+  --font-display: 'Archivo', sans-serif;
+  --font-body: 'Poppins', sans-serif;
+  --font-script: 'Allura', cursive;
+  --text-body: clamp(1rem, 0.96rem + 0.18vw, 1.0625rem);
+  --text-h1: clamp(2.5rem, 2rem + 2.5vw, 4rem);
+  --text-h2: clamp(1.5rem, 1.35rem + 0.5vw, 1.875rem);
+  --text-h3: clamp(1.125rem, 1.08rem + 0.25vw, 1.375rem);
+  --text-small: 0.875rem;
+  --text-caption: 0.75rem;
+  --leading-body: 1.6;
+
+  /* Radius */
+  --radius-12: 12px;
+  --radius-16: 16px;
+  --radius-24: 24px;
+  --radius-full: 9999px;
+
+  /* Elevation */
+  --shadow-card: 0 10px 30px rgba(155, 111, 240, 0.18);
+  --shadow-soft: 0 4px 16px rgba(30, 27, 75, 0.08);
+  --shadow-button: 0 12px 24px rgba(155, 111, 240, 0.28);
+
+  /* Spacing */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
+  --space-12: 3rem;
+  --space-16: 4rem;
+
+  /* Motion */
+  --transition-fast: 200ms ease;
+  --transition-normal: 300ms ease;
+
+  font-family: var(--font-body);
+  color: var(--color-text-dark);
+  background: var(--color-bg);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+}
+
+@theme {
+  --font-display: 'Archivo', sans-serif;
+  --font-body: 'Poppins', sans-serif;
+  --color-brand-pink: #c86be8;
+  --color-brand-violet: #9b6ff0;
+  --color-brand-blue: #4f72ff;
+  --color-brand-dark: #1e1b4b;
+  --color-brand-soft: #f6f4ff;
+}

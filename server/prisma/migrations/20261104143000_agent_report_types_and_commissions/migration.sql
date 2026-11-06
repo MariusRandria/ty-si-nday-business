@@ -1,0 +1,12 @@
+ALTER TABLE `reports`
+  MODIFY `status` ENUM('BROUILLON', 'SOUMIS', 'EN_VERIFICATION', 'VALIDE', 'REJETE', 'A_COMPLETER', 'PAYE') NOT NULL DEFAULT 'BROUILLON',
+  ADD COLUMN `report_type` ENUM('LEAD', 'PROVIDED_CONTACT', 'FULL_CYCLE') NOT NULL DEFAULT 'LEAD',
+  ADD COLUMN `promo_code` VARCHAR(50) NULL,
+  ADD COLUMN `contract_signed` BOOLEAN NOT NULL DEFAULT false,
+  ADD COLUMN `commission_amount` BIGINT NULL;
+
+INSERT INTO `settings` (`key`, `value`, `created_at`, `updated_at`)
+VALUES
+  ('report_lead_amount', '50000', CURRENT_TIMESTAMP(3), CURRENT_TIMESTAMP(3)),
+  ('report_sale_amount', '100000', CURRENT_TIMESTAMP(3), CURRENT_TIMESTAMP(3))
+ON DUPLICATE KEY UPDATE `key` = VALUES(`key`);

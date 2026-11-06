@@ -1,0 +1,130 @@
+@import './styles/theme.css';
+
+@import "tailwindcss";
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  min-width: 320px;
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+  font-family: var(--font-body);
+  font-size: var(--text-body);
+  line-height: var(--leading-body);
+  color: var(--color-text-dark);
+  background: var(--color-bg-soft);
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+button,
+[role='button'] {
+  cursor: pointer;
+}
+
+button:disabled,
+[aria-disabled='true'] {
+  cursor: not-allowed;
+}
+
+img,
+svg {
+  display: block;
+  max-width: 100%;
+}
+
+h1,
+h2,
+h3,
+h4 {
+  font-family: var(--font-display);
+  font-stretch: expanded;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  line-height: 1.12;
+  text-wrap: balance;
+}
+
+h1 {
+  font-size: var(--text-h1);
+}
+
+h2 {
+  font-size: var(--text-h2);
+}
+
+h3 {
+  font-size: var(--text-h3);
+}
+
+small,
+.section-kicker,
+.eyebrow {
+  font-size: var(--text-caption);
+  line-height: 1.5;
+}
+
+p,
+label,
+button,
+input,
+select,
+textarea,
+.nav-item,
+.topbar button,
+.community-filter,
+.community-chat-shortcut,
+.community-create-prompt,
+.community-post-actions .like-button {
+  font-size: var(--text-small);
+  line-height: 1.5;
+}
+
+input,
+select,
+textarea {
+  min-height: 44px;
+}
+
+@media (max-width: 900px) {
+  body {
+    font-size: 1rem;
+  }
+
+  small,
+  .section-kicker,
+  .eyebrow {
+    font-size: 0.75rem;
+  }
+}
+
+:focus-visible {
+  outline: 3px solid rgba(155, 111, 240, 0.4);
+  outline-offset: 3px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

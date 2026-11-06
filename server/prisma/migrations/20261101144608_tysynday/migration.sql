@@ -1,0 +1,2 @@
+-- AlterTable
+ALTER TABLE `reports` ADD COLUMN `report_nature` ENUM('CONTACT', 'RENDEZ_VOUS', 'CONTRAT') NOT NULL DEFAULT 'CONTACT';

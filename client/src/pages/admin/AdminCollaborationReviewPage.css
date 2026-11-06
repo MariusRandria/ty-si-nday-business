@@ -1,0 +1,895 @@
+.admin-collaboration {
+  display: grid;
+  gap: 18px;
+  min-width: 0;
+  padding-bottom: 28px;
+}
+
+.admin-collab-panel {
+  min-width: 0;
+  padding: clamp(16px, 3vw, 24px);
+  border: 1px solid var(--border, #e5e7eb);
+  border-radius: 16px;
+  background: var(--surface, #fff);
+  box-shadow: 0 8px 22px rgb(25 31 50 / 5%);
+}
+
+.admin-collab-panel-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.admin-collab-panel-heading > div {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  color: #5b2ca0;
+}
+
+.admin-collab-panel-heading h2 {
+  margin: 0;
+  color: var(--text, #202033);
+  font-size: 1.05rem;
+}
+
+.admin-collab-panel-heading > span {
+  color: var(--muted, #687084);
+  font-size: .88rem;
+  text-align: right;
+}
+
+.admin-collab-totp-form {
+  display: grid;
+  gap: 10px;
+  max-width: 620px;
+}
+
+.admin-collab-totp-form p,
+.admin-collab-muted {
+  margin: 0 0 4px;
+  color: var(--muted, #687084);
+  line-height: 1.55;
+}
+
+.admin-collab-totp-form label,
+.admin-collab-field-label {
+  font-weight: 650;
+  color: var(--text, #202033);
+}
+
+.admin-collab-inline-form {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.admin-collab-inline-form input,
+.admin-collab-decision-panel textarea {
+  min-height: 48px;
+  width: min(100%, 220px);
+  padding: 11px 13px;
+  border: 1px solid var(--border, #cfd3dd);
+  border-radius: 10px;
+  color: var(--text, #202033);
+  background: var(--surface, #fff);
+  font: inherit;
+}
+
+.admin-collab-inline-form input {
+  font-size: 1.1rem;
+  letter-spacing: .22em;
+}
+
+.admin-collab-inline-form button,
+.admin-collab-deal-card > button {
+  min-height: 48px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.admin-collab-deal-list {
+  display: grid;
+  gap: 12px;
+}
+
+.admin-collab-deal-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 16px;
+  border: 1px solid var(--border, #e5e7eb);
+  border-radius: 12px;
+  background: var(--surface, #fff);
+}
+
+.admin-collab-deal-card.is-priority {
+  border-color: #e9a43a;
+  background: #fffaf0;
+}
+
+.admin-collab-action-card {
+  display: grid;
+}
+
+.admin-collab-signature-fields,
+.admin-collab-payment-fields {
+  display: grid;
+  gap: 12px;
+  width: 100%;
+}
+
+.admin-collab-signature-fields label,
+.admin-collab-payment-fields label {
+  display: grid;
+  gap: 6px;
+  color: var(--text, #202033);
+  font-weight: 650;
+}
+
+.admin-collab-signature-fields input:not([type="file"]),
+.admin-collab-payment-fields input:not([type="file"]),
+.admin-collab-payment-fields select {
+  width: 100%;
+  min-height: 46px;
+  padding: 10px 12px;
+  border: 1px solid var(--border, #cfd3dd);
+  border-radius: 9px;
+  color: var(--text, #202033);
+  background: var(--surface, #fff);
+  font: inherit;
+}
+
+.admin-collab-signature-fields input[type="file"],
+.admin-collab-payment-fields input[type="file"] {
+  max-width: 100%;
+  min-height: 42px;
+  font: inherit;
+}
+
+.admin-collab-signature-fields > button,
+.admin-collab-payment-fields > button {
+  min-height: 48px;
+  justify-self: start;
+}
+
+.admin-collab-blockers {
+  display: grid;
+  gap: 5px;
+  padding: 11px 12px;
+  border-radius: 9px;
+  color: #744700;
+  background: #fff7e6;
+  overflow-wrap: anywhere;
+}
+
+.admin-collab-action-result {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+  padding: 14px;
+  border: 1px solid #a8d7ba;
+  border-radius: 10px;
+  color: #173d28;
+  background: #effaf3;
+  overflow-wrap: anywhere;
+}
+
+.admin-collab-action-result > strong {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.admin-collab-hash {
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: .88rem;
+  overflow-wrap: anywhere;
+}
+
+.admin-collab-action-card.is-paid {
+  border-color: #a8d7ba;
+  background: #f7fcf8;
+}
+
+.admin-collab-export-panel {
+  display: grid;
+  gap: 14px;
+}
+
+.admin-collab-export-panel .admin-collab-note {
+  margin: 0;
+}
+
+.admin-collab-export-panel .admin-collab-note p {
+  margin: 0;
+}
+
+.admin-collab-dashboard {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.admin-collab-dashboard-card {
+  display: grid;
+  justify-items: start;
+  gap: 10px;
+  min-width: 0;
+  min-height: 132px;
+  padding: 16px;
+  border: 1px solid var(--border, #e5e7eb);
+  border-radius: 14px;
+  color: var(--text, #202033);
+  background: var(--surface, #fff);
+  text-align: left;
+  cursor: pointer;
+}
+
+.admin-collab-dashboard-card:hover,
+.admin-collab-dashboard-card:focus-visible {
+  border-color: #7543b6;
+  outline: 2px solid rgb(117 67 182 / 20%);
+}
+
+.admin-collab-dashboard-card > span {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #5b2ca0;
+  font-weight: 650;
+}
+
+.admin-collab-dashboard-card > strong {
+  font-size: 1.65rem;
+  line-height: 1.1;
+}
+
+.admin-collab-dashboard-card > small {
+  color: var(--muted, #687084);
+}
+
+.admin-collab-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+}
+
+.admin-collab-pagination span {
+  color: var(--muted, #687084);
+}
+
+.admin-collab-deal-card-main {
+  display: grid;
+  gap: 5px;
+  color: var(--text, #202033);
+}
+
+.admin-collab-deal-card-main > strong {
+  font-size: 1rem;
+}
+
+.admin-collab-deal-card-main > span:not(.admin-collab-status),
+.admin-collab-deal-card-main small {
+  color: var(--muted, #687084);
+  font-size: .9rem;
+}
+
+.admin-collab-status {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  gap: 6px;
+  padding: 5px 9px;
+  border-radius: 999px;
+  background: #e9f1ff;
+  color: #245a9c;
+  font-size: .82rem;
+  font-weight: 650;
+}
+
+.status-disputed,
+.status-no_response {
+  color: #9a5700;
+  background: #fff3da;
+}
+
+.status-confirmed,
+.status-confirmed_by_client,
+.status-client_confirmed {
+  color: #176a43;
+  background: #e4f6ed;
+}
+
+.status-rejected {
+  color: #a42828;
+  background: #ffebeb;
+}
+
+.admin-collab-empty {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 18px 4px;
+  color: #176a43;
+}
+
+.admin-collab-empty p {
+  margin: 0;
+  color: var(--text, #202033);
+}
+
+.admin-collab-note,
+.admin-collab-error,
+.admin-collab-override {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  line-height: 1.5;
+}
+
+.admin-collab-note {
+  color: #744700;
+  background: #fff7e6;
+}
+
+.admin-collab-note p {
+  margin: 0;
+}
+
+.admin-collab-error {
+  justify-content: space-between;
+  color: #9b2424;
+  background: #fff0f0;
+}
+
+.admin-collab-error button {
+  padding: 0 4px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font-size: 1.3rem;
+}
+
+.admin-collab-refresh,
+.admin-collab-back {
+  display: inline-flex;
+  align-items: center;
+  justify-self: start;
+  gap: 8px;
+  min-height: 44px;
+  padding: 8px 12px;
+  border: 1px solid var(--border, #d9dce4);
+  border-radius: 10px;
+  color: var(--text, #202033);
+  background: var(--surface, #fff);
+  font: inherit;
+  cursor: pointer;
+}
+
+.admin-collab-back {
+  border: 0;
+  padding-left: 0;
+  color: #5b2ca0;
+  background: transparent;
+  font-weight: 650;
+}
+
+.admin-collab-detail-heading {
+  margin-bottom: 2px;
+}
+
+.admin-collab-detail-heading h1 {
+  margin: 5px 0;
+}
+
+.admin-collab-detail-heading .intro {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.admin-collab-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+  gap: 16px;
+}
+
+.admin-collab-data {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px 18px;
+  margin: 0;
+}
+
+.admin-collab-data > div {
+  min-width: 0;
+}
+
+.admin-collab-data dt {
+  margin-bottom: 4px;
+  color: var(--muted, #687084);
+  font-size: .82rem;
+}
+
+.admin-collab-data dd {
+  margin: 0;
+  color: var(--text, #202033);
+  font-weight: 550;
+  overflow-wrap: anywhere;
+}
+
+.admin-collab-data-wide {
+  grid-column: 1 / -1;
+}
+
+.admin-collab-data.compact {
+  gap: 10px 16px;
+}
+
+.admin-collab-confirmation {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 16px;
+  color: #855100;
+  font-weight: 700;
+}
+
+.admin-collab-confirmation.is-confirmed {
+  color: #176a43;
+}
+
+.admin-collab-confirmation.is-denied {
+  color: #a42828;
+}
+
+.admin-collab-agent-scores {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.admin-collab-agent-scores article {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+  padding: 12px;
+  border-radius: 10px;
+  background: var(--surface-muted, #f7f7fa);
+}
+
+.admin-collab-agent-scores span,
+.admin-collab-agent-scores small {
+  color: var(--muted, #687084);
+}
+
+.admin-collab-agent-scores strong {
+  overflow-wrap: anywhere;
+}
+
+.admin-collab-evidence,
+.admin-collab-contract-files {
+  display: grid;
+  gap: 11px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.admin-collab-evidence li,
+.admin-collab-contract-files {
+  min-width: 0;
+}
+
+.admin-collab-evidence li {
+  display: grid;
+  gap: 3px;
+}
+
+.admin-collab-file-button {
+  width: fit-content;
+  padding: 0;
+  border: 0;
+  color: #5b2ca0;
+  background: transparent;
+  font: inherit;
+  font-weight: 650;
+  text-align: left;
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+
+.admin-collab-file-button:hover,
+.admin-collab-file-button:focus-visible {
+  text-decoration: underline;
+}
+
+.admin-collab-evidence small {
+  color: var(--muted, #687084);
+  overflow-wrap: anywhere;
+}
+
+.admin-collab-contract-files {
+  margin-top: 16px;
+}
+
+.admin-collab-contract-files > strong {
+  margin-bottom: 2px;
+}
+
+.admin-collab-history {
+  display: grid;
+  gap: 16px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.admin-collab-history li {
+  display: grid;
+  grid-template-columns: 12px minmax(0, 1fr);
+  gap: 10px;
+}
+
+.admin-collab-history-dot {
+  width: 10px;
+  height: 10px;
+  margin-top: 5px;
+  border-radius: 50%;
+  background: #7543b6;
+}
+
+.admin-collab-history li > div {
+  display: grid;
+  gap: 4px;
+}
+
+.admin-collab-history small {
+  color: var(--muted, #687084);
+}
+
+.admin-collab-history p {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.admin-collab-override {
+  margin: 14px 0 0;
+  color: #744700;
+  background: #fff7e6;
+}
+
+.admin-collab-decision-panel {
+  display: grid;
+  gap: 12px;
+}
+
+.admin-collab-decision-panel textarea {
+  width: 100%;
+  resize: vertical;
+  letter-spacing: normal;
+}
+
+.admin-collab-checkbox {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  color: #744700;
+  line-height: 1.45;
+}
+
+.admin-collab-checkbox input {
+  width: 18px;
+  height: 18px;
+  margin-top: 1px;
+  flex: 0 0 auto;
+}
+
+.admin-collab-decision-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.admin-collab-decision-actions button {
+  min-height: 48px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 16px;
+  border: 0;
+  border-radius: 10px;
+  color: #fff;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.admin-collab-confirm-button {
+  background: #18764b;
+}
+
+.admin-collab-reject-button {
+  background: #b52e32;
+}
+
+.admin-collab-decision-actions button:disabled,
+.admin-collab-inline-form button:disabled {
+  cursor: wait;
+  opacity: .65;
+}
+
+.admin-collab-totp-form blockquote {
+  margin: 0;
+  padding: 10px 12px;
+  border-left: 3px solid #7543b6;
+  background: var(--surface-muted, #f7f7fa);
+  overflow-wrap: anywhere;
+}
+
+.admin-collab-decision-summary {
+  display: grid;
+  gap: 6px;
+  padding: 13px;
+  border: 1px solid #a8d7ba;
+  border-radius: 10px;
+  background: #effaf3;
+  color: #173d28;
+  overflow-wrap: anywhere;
+}
+
+.admin-collab-totp-form .admin-collab-error {
+  margin: 0;
+}
+
+.spin {
+  animation: admin-collab-spin .8s linear infinite;
+}
+
+.admin-collab-special-panels,
+.admin-collab-admin-filters,
+.admin-collab-agent-list {
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+}
+
+.admin-collab-admin-filters {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 190px), 1fr));
+  align-items: end;
+}
+
+.admin-collab-admin-filters label,
+.admin-collab-agent-card > label,
+.admin-collab-dispute-card > label {
+  display: grid;
+  gap: 6px;
+  color: var(--text, #202033);
+  font-weight: 650;
+}
+
+.admin-collab-admin-filters input,
+.admin-collab-admin-filters select,
+.admin-collab-agent-card textarea,
+.admin-collab-dispute-card textarea,
+.admin-collab-totp-form input:not([type="checkbox"]) {
+  width: 100%;
+  min-width: 0;
+  min-height: 44px;
+  padding: 10px 12px;
+  border: 1px solid var(--border, #cfd3dd);
+  border-radius: 9px;
+  color: var(--text, #202033);
+  background: var(--surface, #fff);
+  font: inherit;
+}
+
+.admin-collab-admin-filters .admin-collab-filter-totp {
+  grid-column: span 2;
+}
+
+.admin-collab-chain {
+  border-left: 5px solid #d38b00;
+}
+
+.admin-collab-chain.is-valid {
+  border-left-color: #1d7b4b;
+}
+
+.admin-collab-chain.is-broken {
+  border-left-color: #b42323;
+}
+
+.admin-collab-chain.is-uncertain {
+  border-left-color: #d38b00;
+}
+
+.admin-collab-chain-status {
+  color: #9a6200;
+}
+
+.admin-collab-chain.is-valid .admin-collab-chain-status {
+  color: #176a43;
+}
+
+.admin-collab-chain.is-broken .admin-collab-chain-status {
+  color: #a42828;
+}
+
+.admin-collab-chain-alert,
+.admin-collab-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  padding: 12px;
+  border-radius: 9px;
+  color: #744700;
+  background: #fff7e6;
+}
+
+.admin-collab-chain-alert {
+  color: #9b2424;
+  background: #fff0f0;
+}
+
+.admin-collab-chain-alert svg,
+.admin-collab-note svg {
+  flex: 0 0 auto;
+  margin-top: 2px;
+}
+
+.admin-collab-audit-list {
+  display: grid;
+  gap: 8px;
+}
+
+.admin-collab-audit-list article,
+.admin-collab-agent-card,
+.admin-collab-dispute-card {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+  padding: 14px;
+  border: 1px solid var(--border, #e5e7eb);
+  border-radius: 11px;
+  overflow-wrap: anywhere;
+}
+
+.admin-collab-audit-list article > span,
+.admin-collab-audit-list article > small,
+.admin-collab-agent-card-summary > span,
+.admin-collab-dispute-card > div > span {
+  color: var(--muted, #687084);
+}
+
+.admin-collab-agent-card.is-priority,
+.admin-collab-dispute-card {
+  border-color: #e9a43a;
+  background: #fffaf0;
+}
+
+.admin-collab-agent-card-summary,
+.admin-collab-dispute-card > div:first-child {
+  display: grid;
+  gap: 5px;
+}
+
+.admin-collab-hold-heading {
+  margin: 22px 0 8px;
+}
+
+.admin-collab-hold-heading > strong {
+  color: #744700;
+}
+
+.admin-collab-audit-export {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border, #e5e7eb);
+}
+
+@keyframes admin-collab-spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (max-width: 720px) {
+  .admin-collab-detail-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .admin-collab-dashboard {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 480px) {
+  .admin-collaboration {
+    gap: 14px;
+  }
+
+  .admin-collab-panel {
+    padding: 15px;
+    border-radius: 13px;
+  }
+
+  .admin-collab-deal-card {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .admin-collab-deal-card > button,
+  .admin-collab-inline-form > button,
+  .admin-collab-decision-actions > button,
+  .admin-collab-signature-fields > button,
+  .admin-collab-payment-fields > button {
+    width: 100%;
+  }
+
+  .admin-collab-dashboard {
+    gap: 9px;
+  }
+
+  .admin-collab-dashboard-card {
+    min-height: 120px;
+    padding: 12px;
+  }
+
+  .admin-collab-dashboard-card > span {
+    align-items: flex-start;
+    font-size: .9rem;
+  }
+
+  .admin-collab-admin-filters .admin-collab-filter-totp {
+    grid-column: auto;
+  }
+
+  .admin-collab-agent-card > button,
+  .admin-collab-dispute-card > button {
+    width: 100%;
+  }
+
+  .admin-collab-hold-heading {
+    flex-direction: column;
+  }
+
+  .admin-collab-pagination {
+    flex-wrap: wrap;
+  }
+
+  .admin-collab-inline-form {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .admin-collab-inline-form input {
+    width: 100%;
+  }
+
+  .admin-collab-data,
+  .admin-collab-agent-scores {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .admin-collab-data-wide {
+    grid-column: auto;
+  }
+
+  .admin-collab-panel-heading {
+    align-items: flex-start;
+  }
+}

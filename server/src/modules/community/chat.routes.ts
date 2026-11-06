@@ -1,0 +1,146 @@
+import { Router } from 'express';
+import type { Response } from 'express';
+import { z } from 'zod';
+import { prisma } from '../../lib/prisma.js';
+import type { AuthRequest } from '../auth/auth.middleware.js';
+
+export const chatRouter = Router();
+
+function requireActiveAgent(request: AuthRequest, response: Response) {
+  if (request.user?.role !== 'AGENT' || request.user.status !== 'ACTIF') {
+    response.status(403).json({ error: 'La messagerie est réservée aux agents actifs.' });
+    return false;
+  }
+  return true;
+}
+
+function participantIds(firstId: number, secondId: number) {
+  return firstId < secondId
+    ? { participantOneId: firstId, participantTwoId: secondId }
+    : { participantOneId: secondId, participantTwoId: firstId };
+}
+
+function agentSelect(now: Date) {
+  return {
+    id: true,
+    agentProfile: { select: { firstName: true, lastName: true, city: true, imageUrl: true } },
+    subscriptionRequests: {
+      where: { status: 'APPROVED', startsAt: { lte: now }, expiresAt: { gt: now } },
+      select: { id: true },
+      take: 1,
+    },
+  };
+}
+
+function withSubscriberBadge<T extends { subscriptionRequests: unknown[] }>(agent: T) {
+  const { subscriptionRequests, ...publicAgent } = agent;
+  return { ...publicAgent, isSubscriber: subscriptionRequests.length > 0 };
+}
+
+chatRouter.get('/agents', async (request: AuthRequest, response) => {
+  if (!requireActiveAgent(request, response)) return;
+  const now = new Date();
+  const agents = await prisma.user.findMany({
+    where: { id: { not: request.user!.id }, role: 'AGENT', status: 'ACTIF' },
+    orderBy: { agentProfile: { firstName: 'asc' } },
+    select: agentSelect(now),
+  });
+  response.json({ data: agents.map(withSubscriberBadge) });
+});
+
+chatRouter.get('/conversations', async (request: AuthRequest, response) => {
+  if (!requireActiveAgent(request, response)) return;
+  const userId = request.user!.id;
+  const selectedAgent = agentSelect(new Date());
+  const conversations = await prisma.conversation.findMany({
+    where: { OR: [{ participantOneId: userId }, { participantTwoId: userId }] },
+    orderBy: { updatedAt: 'desc' },
+    include: {
+      participantOne: { select: selectedAgent },
+      participantTwo: { select: selectedAgent },
+      messages: { orderBy: { createdAt: 'desc' }, take: 1 },
+      _count: { select: { messages: { where: { senderId: { not: userId }, readAt: null } } } },
+    },
+  });
+  response.json({
+    data: conversations.map((conversation) => ({
+      id: conversation.id,
+      agent: withSubscriberBadge(conversation.participantOneId === userId ? conversation.participantTwo : conversation.participantOne),
+      lastMessage: conversation.messages[0] ?? null,
+      unreadCount: conversation._count.messages,
+      updatedAt: conversation.updatedAt,
+    })),
+  });
+});
+
+chatRouter.post('/conversations', async (request: AuthRequest, response) => {
+  if (!requireActiveAgent(request, response)) return;
+  const result = z.object({ agentId: z.number().int().positive() }).safeParse(request.body);
+  if (!result.success || result.data.agentId === request.user!.id) {
+    response.status(400).json({ error: 'Agent destinataire invalide.' });
+    return;
+  }
+  const recipient = await prisma.user.findFirst({
+    where: { id: result.data.agentId, role: 'AGENT', status: 'ACTIF' },
+    select: { id: true },
+  });
+  if (!recipient) { response.status(404).json({ error: 'Cet agent est introuvable ou inactif.' }); return; }
+
+  const ids = participantIds(request.user!.id, recipient.id);
+  const conversation = await prisma.conversation.upsert({
+    where: { participantOneId_participantTwoId: ids },
+    update: {},
+    create: ids,
+  });
+  response.status(200).json({ data: { id: conversation.id } });
+});
+
+chatRouter.get('/conversations/:id/messages', async (request: AuthRequest, response) => {
+  if (!requireActiveAgent(request, response)) return;
+  const conversationId = Number(request.params.id);
+  if (!Number.isInteger(conversationId) || conversationId < 1) {
+    response.status(400).json({ error: 'Identifiant de conversation invalide.' });
+    return;
+  }
+  const conversation = await prisma.conversation.findFirst({
+    where: {
+      id: conversationId,
+      OR: [{ participantOneId: request.user!.id }, { participantTwoId: request.user!.id }],
+    },
+    select: { id: true },
+  });
+  if (!conversation) { response.status(404).json({ error: 'Conversation introuvable.' }); return; }
+
+  await prisma.directMessage.updateMany({
+    where: { conversationId, senderId: { not: request.user!.id }, readAt: null },
+    data: { readAt: new Date() },
+  });
+  const messages = await prisma.directMessage.findMany({
+    where: { conversationId },
+    orderBy: { createdAt: 'desc' },
+    take: 100,
+  });
+  response.json({ data: messages.reverse() });
+});
+
+chatRouter.patch('/conversations/:id/read', async (request: AuthRequest, response) => {
+  if (!requireActiveAgent(request, response)) return;
+  const conversationId = Number(request.params.id);
+  if (!Number.isInteger(conversationId) || conversationId < 1) {
+    response.status(400).json({ error: 'Identifiant de conversation invalide.' });
+    return;
+  }
+  const conversation = await prisma.conversation.findFirst({
+    where: {
+      id: conversationId,
+      OR: [{ participantOneId: request.user!.id }, { participantTwoId: request.user!.id }],
+    },
+    select: { id: true },
+  });
+  if (!conversation) { response.status(404).json({ error: 'Conversation introuvable.' }); return; }
+  await prisma.directMessage.updateMany({
+    where: { conversationId, senderId: { not: request.user!.id }, readAt: null },
+    data: { readAt: new Date() },
+  });
+  response.json({ data: { read: true } });
+});

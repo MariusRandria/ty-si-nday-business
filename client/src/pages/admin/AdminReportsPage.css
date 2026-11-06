@@ -1,0 +1,56 @@
+.admin-report-detail-backdrop {
+  z-index: 120;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.admin-report-detail-backdrop .report-detail-modal {
+  width: min(900px, 100%);
+  max-height: min(90dvh, 900px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.admin-report-detail-backdrop .detail-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.admin-report-detail-backdrop .modal-actions {
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.admin-report-detail-backdrop .contract-signature-confirm {
+  flex: 1 1 100%;
+}
+
+@media (max-width: 700px) {
+  .admin-report-detail-backdrop {
+    align-items: start;
+    padding: 12px;
+  }
+
+  .admin-report-detail-backdrop .report-detail-modal {
+    max-height: calc(100dvh - 24px);
+    padding: 24px 17px;
+  }
+
+  .admin-report-detail-backdrop .detail-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .admin-report-detail-backdrop .modal-actions {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .admin-report-detail-backdrop .modal-actions button {
+    width: 100%;
+  }
+}
+
+@media (max-width: 380px) {
+  .admin-report-detail-backdrop .detail-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

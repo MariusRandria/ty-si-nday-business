@@ -1,0 +1,50 @@
+.admin-subscriptions-page { display: grid; gap: 18px; }
+.admin-subscriptions-heading { align-items: center; margin-bottom: 0; }
+.admin-subscription-count { display: inline-flex; align-items: center; gap: 7px; padding: 9px 13px; border: 1px solid rgba(205,145,35,.23); border-radius: 999px; color: #966a17; background: rgba(205,145,35,.06); font-size: 11px; font-weight: 750; white-space: nowrap; }
+.admin-subscription-list { display: grid; gap: 12px; }
+.admin-subscription-card { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 17px; padding: 18px; }
+.admin-subscription-person { display: flex; min-width: 0; align-items: center; gap: 11px; }
+.admin-subscription-icon { display: grid; width: 40px; height: 40px; flex: 0 0 auto; place-items: center; border-radius: 12px; color: #188154; background: rgba(37,148,104,.09); }
+.admin-subscription-icon.pending { color: #9a6b16; background: rgba(205,145,35,.1); }
+.admin-subscription-person > div { display: grid; min-width: 0; flex: 1; gap: 4px; }
+.admin-subscription-person > div strong { overflow: hidden; color: var(--ink); font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
+.admin-subscription-person > div small { overflow: hidden; color: var(--muted); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+.admin-subscription-state { flex: 0 0 auto; padding: 6px 9px; border-radius: 999px; font-size: 9px; font-weight: 800; text-transform: uppercase; }
+.admin-subscription-state.pending { color: #8d641a; background: rgba(205,145,35,.11); }
+.admin-subscription-state.approved { color: #16784d; background: rgba(37,148,104,.1); }
+.admin-subscription-state.rejected { color: #a53444; background: rgba(190,64,76,.09); }
+.admin-subscription-details { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin: 15px 0 0 51px; }
+.admin-subscription-details > span { display: grid; min-width: 0; gap: 4px; }
+.admin-subscription-details small { color: var(--muted); font-size: 9px; }
+.admin-subscription-details strong { overflow-wrap: anywhere; color: var(--ink); font-size: 11px; }
+.admin-subscription-expiry,.admin-subscription-rejection { margin: 12px 0 0 51px; color: var(--muted); font-size: 10px; line-height: 1.5; }
+.admin-subscription-rejection { color: #a53444; }
+.admin-subscription-actions { display: grid; min-width: 205px; gap: 8px; }
+.admin-proof-button,.admin-approve-button { display: inline-flex; min-height: 38px; align-items: center; justify-content: center; gap: 7px; border-radius: 9px; }
+.admin-approve-button { background: linear-gradient(135deg,#29a473,#168254); color: white; box-shadow: none; }
+.admin-approve-button:disabled,.admin-reject-button:disabled { cursor: wait; opacity: .6; }
+.admin-reject-row { display: flex; align-items: stretch; gap: 6px; }
+.admin-reject-row input { width: 100%; min-width: 0; height: 36px; padding: 0 9px; border: 1px solid var(--line); border-radius: 8px; outline: none; color: var(--ink); background: var(--surface); font-size: 10px; }
+.admin-reject-row input:focus { border-color: #c35a68; }
+.admin-reject-button { display: inline-flex; flex: 0 0 auto; align-items: center; justify-content: center; gap: 4px; padding: 0 9px; border: 1px solid rgba(190,64,76,.2); border-radius: 8px; color: #a53444; background: rgba(190,64,76,.055); font-size: 10px; font-weight: 750; cursor: pointer; }
+.badge-admin-empty { display: grid; min-height: 240px; justify-items: center; align-content: center; gap: 8px; color: #7253bb; text-align: center; }
+.badge-admin-empty strong { color: var(--ink); font-size: 14px; }
+.badge-admin-empty p { margin: 0; color: var(--muted); font-size: 11px; }
+.admin-proof-backdrop { position: fixed; z-index: 1000; inset: 0; display: grid; place-items: center; padding: 20px; background: rgba(11,19,32,.72); }
+.admin-proof-dialog { display: grid; width: min(900px, 100%); height: min(760px, 90vh); grid-template-rows: auto minmax(0,1fr); gap: 12px; padding: 15px; }
+.admin-proof-heading { display: flex; align-items: center; justify-content: space-between; color: var(--ink); font-size: 13px; }
+.admin-proof-heading strong { display: inline-flex; align-items: center; gap: 8px; }
+.admin-proof-heading button { display: grid; width: 34px; height: 34px; place-items: center; border: 1px solid var(--line); border-radius: 9px; color: var(--ink); background: var(--surface); cursor: pointer; }
+.admin-proof-dialog > img { width: 100%; height: 100%; min-height: 0; object-fit: contain; }
+.admin-proof-dialog > iframe { width: 100%; height: 100%; min-height: 0; border: 0; }
+@media (max-width: 760px) {
+  .admin-subscriptions-page { gap: 13px; }
+  .admin-subscriptions-heading { align-items: flex-start; flex-direction: column; gap: 10px; }
+  .admin-subscription-card { grid-template-columns: minmax(0,1fr); gap: 15px; padding: 14px; }
+  .admin-subscription-details { margin-left: 0; gap: 7px; }
+  .admin-subscription-details small { font-size: 8px; }
+  .admin-subscription-details strong { font-size: 10px; }
+  .admin-subscription-expiry,.admin-subscription-rejection { margin-left: 0; }
+  .admin-subscription-actions { min-width: 0; }
+  .admin-proof-dialog { height: min(680px, 90vh); }
+}
