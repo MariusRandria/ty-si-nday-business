@@ -65,11 +65,16 @@ chatRouter.get('/conversations', async (request: AuthRequest, response) => {
       participantOne: { select: selectedAgent },
       participantTwo: { select: selectedAgent },
       messages: {
-        where: { hiddenFor: { none: { userId } } },
+        where: {
+          OR: [
+            { deletedAt: { not: null } },
+            { hiddenFor: { none: { userId } } },
+          ],
+        },
         orderBy: { createdAt: 'desc' },
         take: 1,
       },
-      _count: { select: { messages: { where: { senderId: { not: userId }, readAt: null, hiddenFor: { none: { userId } } } } } },
+      _count: { select: { messages: { where: { senderId: { not: userId }, readAt: null, deletedAt: null, hiddenFor: { none: { userId } } } } } },
     },
   });
   response.json({
@@ -134,7 +139,13 @@ chatRouter.get('/conversations/:id/messages', async (request: AuthRequest, respo
     data: { readAt: new Date() },
   });
   const messages = await prisma.directMessage.findMany({
-    where: { conversationId, hiddenFor: { none: { userId: request.user!.id } } },
+    where: {
+      conversationId,
+      OR: [
+        { deletedAt: { not: null } },
+        { hiddenFor: { none: { userId: request.user!.id } } },
+      ],
+    },
     orderBy: { createdAt: 'desc' },
     take: 100,
   });
@@ -282,7 +293,13 @@ chatRouter.delete('/conversations/:id/messages/:messageId', async (request: Auth
   const recipients = await Promise.all([conversation.participantOneId, conversation.participantTwoId].map(async (userId) => {
     const [lastMessage, unreadCount] = await Promise.all([
       prisma.directMessage.findFirst({
-        where: { conversationId, hiddenFor: { none: { userId } } },
+        where: {
+          conversationId,
+          OR: [
+            { deletedAt: { not: null } },
+            { hiddenFor: { none: { userId } } },
+          ],
+        },
         orderBy: { createdAt: 'desc' },
         select: { id: true, conversationId: true, senderId: true, content: true, readAt: true, createdAt: true, deletedAt: true },
       }),
@@ -291,6 +308,7 @@ chatRouter.delete('/conversations/:id/messages/:messageId', async (request: Auth
           conversationId,
           senderId: { not: userId },
           readAt: null,
+          deletedAt: null,
           hiddenFor: { none: { userId } },
         },
       }),
