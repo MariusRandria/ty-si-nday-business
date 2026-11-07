@@ -30,6 +30,25 @@ export function emitConversationDeleted(userIds: number[], conversationId: numbe
   }
 }
 
+export function emitChatMessageDeleted(
+  userIds: number[],
+  conversationId: number,
+  messageId: number,
+  deletedMessage: { senderId: number; readAt: Date | null },
+  lastMessage: { id: number; conversationId: number; senderId: number; content: string; readAt: Date | null; createdAt: Date } | null,
+  updatedAt: Date,
+) {
+  for (const userId of userIds) {
+    chatIo?.to(`agent:${userId}`).emit('message:deleted', {
+      conversationId,
+      messageId,
+      deletedMessage,
+      lastMessage,
+      updatedAt: updatedAt.toISOString(),
+    });
+  }
+}
+
 export function attachChatGateway(server: HttpServer) {
   const io = new Server(server, { cors: { origin: env.clientOrigins } });
   chatIo = io;

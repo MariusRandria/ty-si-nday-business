@@ -37,6 +37,7 @@ export default function CommunityChat({ currentUserId, initialConversationId }: 
   const [attachment, setAttachment] = useState<File | null>(null)
   const [conversationFilter, setConversationFilter] = useState<'all' | 'unread' | 'archived'>('all')
   const [conversationMenuOpen, setConversationMenuOpen] = useState(false)
+  const [openMessageMenuId, setOpenMessageMenuId] = useState<number | null>(null)
   const [conversationActionBusy, setConversationActionBusy] = useState(false)
   const [socketConnected, setSocketConnected] = useState(false)
   const [error, setError] = useState(() => window.localStorage.getItem('innovcom-token')
@@ -75,12 +76,17 @@ export default function CommunityChat({ currentUserId, initialConversationId }: 
   }, [initialConversationId, conversations])
 
   useEffect(() => {
-    if (!conversationMenuOpen) return
+    if (!conversationMenuOpen && openMessageMenuId === null) return
     function closeMenuOnOutsideClick(event: PointerEvent) {
-      if (event.target instanceof Element && !event.target.closest('.chat-conversation-actions')) setConversationMenuOpen(false)
+      if (!(event.target instanceof Element)) return
+      if (!event.target.closest('.chat-conversation-actions')) setConversationMenuOpen(false)
+      if (!event.target.closest('.chat-message-actions')) setOpenMessageMenuId(null)
     }
     function closeMenuOnEscape(event: KeyboardEvent) {
-      if (event.key === 'Escape') setConversationMenuOpen(false)
+      if (event.key === 'Escape') {
+        setConversationMenuOpen(false)
+        setOpenMessageMenuId(null)
+      }
     }
     document.addEventListener('pointerdown', closeMenuOnOutsideClick)
     document.addEventListener('keydown', closeMenuOnEscape)
@@ -88,7 +94,7 @@ export default function CommunityChat({ currentUserId, initialConversationId }: 
       document.removeEventListener('pointerdown', closeMenuOnOutsideClick)
       document.removeEventListener('keydown', closeMenuOnEscape)
     }
-  }, [conversationMenuOpen])
+  }, [conversationMenuOpen, openMessageMenuId])
 
   useEffect(() => {
     const token = window.localStorage.getItem('innovcom-token')
@@ -133,11 +139,30 @@ export default function CommunityChat({ currentUserId, initialConversationId }: 
         setActiveId(null)
       }
     })
+    socket.on('message:deleted', (event: {
+      conversationId: number
+      messageId: number
+      deletedMessage: { senderId: number; readAt: string | null }
+      lastMessage: ChatMessage | null
+      updatedAt: string
+    }) => {
+      setMessages((current) => current.filter((message) => message.id !== event.messageId))
+      setConversations((current) => current.map((conversation) => conversation.id === event.conversationId
+        ? {
+          ...conversation,
+          lastMessage: conversation.lastMessage?.id === event.messageId ? event.lastMessage : conversation.lastMessage,
+          updatedAt: event.updatedAt,
+          unreadCount: event.deletedMessage.senderId !== currentUserId && !event.deletedMessage.readAt
+            ? Math.max(0, conversation.unreadCount - 1)
+            : conversation.unreadCount,
+        }
+        : conversation).sort((first, second) => Date.parse(second.updatedAt) - Date.parse(first.updatedAt)))
+    })
     return () => {
       socket.disconnect()
       socketRef.current = null
     }
-  }, [])
+  }, [currentUserId])
 
   useEffect(() => {
     activeIdRef.current = activeId
@@ -186,16 +211,14 @@ export default function CommunityChat({ currentUserId, initialConversationId }: 
     }
   }
 
-  async function deleteActiveConversation(scope: 'me' | 'everyone') {
+  async function deleteActiveConversation() {
     if (!activeConversation || conversationActionBusy) return
-    const confirmation = scope === 'everyone'
-      ? 'Supprimer définitivement cette conversation et tous ses messages pour vous et l’autre agent ? Cette action est irréversible.'
-      : 'Retirer cette conversation et son historique de votre liste ? L’autre agent conservera la conversation.'
+    const confirmation = 'Retirer cette conversation et son historique de votre liste ? L’autre agent conservera la conversation.'
     if (!window.confirm(confirmation)) return
     setConversationActionBusy(true)
     setError('')
     try {
-      await api.deleteCommunityChatConversation(activeConversation.id, scope)
+      await api.deleteCommunityChatConversation(activeConversation.id)
       setConversations((current) => current.filter((conversation) => conversation.id !== activeConversation.id))
       setMessages((current) => current.filter((message) => message.conversationId !== activeConversation.id))
       activeIdRef.current = null
@@ -203,6 +226,29 @@ export default function CommunityChat({ currentUserId, initialConversationId }: 
       setConversationMenuOpen(false)
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Impossible de supprimer la conversation.')
+    } finally {
+      setConversationActionBusy(false)
+    }
+  }
+
+  async function deleteMessageForEveryone(message: ChatMessage) {
+    if (!activeConversation || message.senderId !== currentUserId || conversationActionBusy) return
+    if (!window.confirm(`Supprimer uniquement ce message pour tout le monde ? Cette action est définitive.\n\n« ${message.content} »`)) return
+    setConversationActionBusy(true)
+    setError('')
+    try {
+      const result = await api.deleteCommunityChatMessage(activeConversation.id, message.id)
+      setMessages((current) => current.filter((item) => item.id !== message.id))
+      setConversations((current) => current.map((conversation) => conversation.id === activeConversation.id
+        ? {
+          ...conversation,
+          lastMessage: conversation.lastMessage?.id === message.id ? result.lastMessage : conversation.lastMessage,
+          updatedAt: result.updatedAt,
+        }
+        : conversation).sort((first, second) => Date.parse(second.updatedAt) - Date.parse(first.updatedAt)))
+      setOpenMessageMenuId(null)
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'Impossible de supprimer le message.')
     } finally {
       setConversationActionBusy(false)
     }
@@ -312,11 +358,8 @@ export default function CommunityChat({ currentUserId, initialConversationId }: 
                     {activeConversation.archivedAt ? <ArchiveRestore size={16} aria-hidden="true" /> : <Archive size={16} aria-hidden="true" />}
                     {activeConversation.archivedAt ? 'Désarchiver' : 'Archiver'}
                   </button>
-                  <button type="button" role="menuitem" className="danger" onClick={() => void deleteActiveConversation('me')} disabled={conversationActionBusy}>
+                  <button type="button" role="menuitem" className="danger" onClick={() => void deleteActiveConversation()} disabled={conversationActionBusy}>
                     <Trash2 size={16} aria-hidden="true" /> Supprimer pour moi
-                  </button>
-                  <button type="button" role="menuitem" className="danger" onClick={() => void deleteActiveConversation('everyone')} disabled={conversationActionBusy}>
-                    <Trash2 size={16} aria-hidden="true" /> Supprimer pour tout le monde
                   </button>
                 </div>}
               </div>
@@ -324,7 +367,17 @@ export default function CommunityChat({ currentUserId, initialConversationId }: 
           </header>
           <div className="chat-messages" aria-live="polite">
             {activeMessages.length === 0 && <p className="chat-first-message">Dites bonjour et commencez la conversation 👋</p>}
-            {activeMessages.map((message) => <div className={`chat-message-row ${message.senderId === currentUserId ? 'mine' : ''}`} key={message.id}><div className="chat-bubble"><p>{message.content}</p><time>{timeOf(message.createdAt)}</time></div></div>)}
+            {activeMessages.map((message) => <div className={`chat-message-row ${message.senderId === currentUserId ? 'mine' : ''}`} key={message.id}>
+              <div className="chat-bubble">
+                {message.senderId === currentUserId && <div className="chat-message-actions">
+                  <button type="button" className="chat-message-menu-trigger" aria-label="Options de ce message" aria-haspopup="menu" aria-expanded={openMessageMenuId === message.id} onClick={() => setOpenMessageMenuId((current) => current === message.id ? null : message.id)} disabled={conversationActionBusy}><MoreHorizontal size={17} aria-hidden="true" /></button>
+                  {openMessageMenuId === message.id && <div className="chat-message-menu" role="menu">
+                    <button type="button" role="menuitem" className="danger" onClick={() => void deleteMessageForEveryone(message)} disabled={conversationActionBusy}><Trash2 size={15} aria-hidden="true" /> Supprimer pour tout le monde</button>
+                  </div>}
+                </div>}
+                <p>{message.content}</p><time>{timeOf(message.createdAt)}</time>
+              </div>
+            </div>)}
             <div ref={endRef} />
           </div>
           {attachment && <div className="chat-attachment-preview"><FileText size={18} /><span><strong>{attachment.name}</strong><small>{Math.max(1, Math.round(attachment.size / 1024))} Ko</small></span><button type="button" aria-label="Retirer la pièce jointe" onClick={() => setAttachment(null)}><X size={18} /></button></div>}

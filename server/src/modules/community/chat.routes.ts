@@ -3,7 +3,7 @@ import type { Response } from 'express';
 import { z } from 'zod';
 import { prisma } from '../../lib/prisma.js';
 import type { AuthRequest } from '../auth/auth.middleware.js';
-import { emitConversationArchiveChanged, emitConversationDeleted } from './chat.gateway.js';
+import { emitChatMessageDeleted, emitConversationArchiveChanged, emitConversationDeleted } from './chat.gateway.js';
 
 export const chatRouter = Router();
 
@@ -194,10 +194,57 @@ chatRouter.patch('/conversations/:id/archive', async (request: AuthRequest, resp
   response.json({ data: { archivedAt: archivedAt?.toISOString() ?? null } });
 });
 
+chatRouter.delete('/conversations/:id/messages/:messageId', async (request: AuthRequest, response) => {
+  if (!requireActiveAgent(request, response)) return;
+  const conversationId = Number(request.params.id);
+  const messageId = Number(request.params.messageId);
+  if (!Number.isInteger(conversationId) || conversationId < 1 || !Number.isInteger(messageId) || messageId < 1) {
+    response.status(400).json({ error: 'Identifiant de message invalide.' });
+    return;
+  }
+  const conversation = await prisma.conversation.findFirst({
+    where: {
+      id: conversationId,
+      OR: [
+        { participantOneId: request.user!.id, participantOneDeletedAt: null },
+        { participantTwoId: request.user!.id, participantTwoDeletedAt: null },
+      ],
+    },
+    select: { participantOneId: true, participantTwoId: true, createdAt: true },
+  });
+  if (!conversation) { response.status(404).json({ error: 'Conversation introuvable.' }); return; }
+  const message = await prisma.directMessage.findFirst({
+    where: { id: messageId, conversationId, senderId: request.user!.id },
+    select: { id: true, senderId: true, readAt: true },
+  });
+  if (!message) { response.status(404).json({ error: 'Message introuvable ou suppression non autorisée.' }); return; }
+
+  const result = await prisma.$transaction(async (transaction) => {
+    await transaction.directMessage.delete({ where: { id: messageId } });
+    const lastMessage = await transaction.directMessage.findFirst({
+      where: { conversationId },
+      orderBy: { createdAt: 'desc' },
+      select: { id: true, conversationId: true, senderId: true, content: true, readAt: true, createdAt: true },
+    });
+    const updatedAt = lastMessage?.createdAt ?? conversation.createdAt;
+    await transaction.conversation.update({ where: { id: conversationId }, data: { updatedAt } });
+    return { lastMessage, updatedAt };
+  });
+  emitChatMessageDeleted(
+    [conversation.participantOneId, conversation.participantTwoId],
+    conversationId,
+    messageId,
+    { senderId: message.senderId, readAt: message.readAt },
+    result.lastMessage,
+    result.updatedAt,
+  );
+  response.json({ data: { deleted: true, messageId, lastMessage: result.lastMessage, updatedAt: result.updatedAt } });
+});
+
 chatRouter.delete('/conversations/:id', async (request: AuthRequest, response) => {
   if (!requireActiveAgent(request, response)) return;
   const conversationId = Number(request.params.id);
-  const result = z.object({ scope: z.enum(['me', 'everyone']) }).safeParse(request.body);
+  const result = z.object({ scope: z.literal('me') }).safeParse(request.body);
   if (!Number.isInteger(conversationId) || conversationId < 1 || !result.success) {
     response.status(400).json({ error: 'Requête de suppression invalide.' });
     return;
@@ -210,33 +257,22 @@ chatRouter.delete('/conversations/:id', async (request: AuthRequest, response) =
     select: { participantOneId: true, participantTwoId: true },
   });
   if (!conversation) { response.status(404).json({ error: 'Conversation introuvable.' }); return; }
-
-  if (result.data.scope === 'everyone') {
-    await prisma.$transaction(async (transaction) => {
-      await transaction.notification.deleteMany({
-        where: { type: 'PRIVATE_MESSAGE', link: `/messages?conversationId=${conversationId}` },
-      });
-      await transaction.conversation.delete({ where: { id: conversationId } });
+  const isParticipantOne = conversation.participantOneId === request.user!.id;
+  await prisma.$transaction(async (transaction) => {
+    await transaction.conversation.update({
+      where: { id: conversationId },
+      data: isParticipantOne
+        ? { participantOneDeletedAt: new Date(), participantOneArchivedAt: null }
+        : { participantTwoDeletedAt: new Date(), participantTwoArchivedAt: null },
     });
-    emitConversationDeleted([conversation.participantOneId, conversation.participantTwoId], conversationId, true);
-  } else {
-    const isParticipantOne = conversation.participantOneId === request.user!.id;
-    await prisma.$transaction(async (transaction) => {
-      await transaction.conversation.update({
-        where: { id: conversationId },
-        data: isParticipantOne
-          ? { participantOneDeletedAt: new Date(), participantOneArchivedAt: null }
-          : { participantTwoDeletedAt: new Date(), participantTwoArchivedAt: null },
-      });
-      await transaction.notification.deleteMany({
-        where: {
-          userId: request.user!.id,
-          type: 'PRIVATE_MESSAGE',
-          link: `/messages?conversationId=${conversationId}`,
-        },
-      });
+    await transaction.notification.deleteMany({
+      where: {
+        userId: request.user!.id,
+        type: 'PRIVATE_MESSAGE',
+        link: `/messages?conversationId=${conversationId}`,
+      },
     });
-    emitConversationDeleted([request.user!.id], conversationId, false);
-  }
-  response.json({ data: { deleted: true, scope: result.data.scope } });
+  });
+  emitConversationDeleted([request.user!.id], conversationId, false);
+  response.json({ data: { deleted: true, scope: 'me' } });
 });
