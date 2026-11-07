@@ -33,12 +33,12 @@ export function emitConversationDeleted(userIds: number[], conversationId: numbe
 export function emitChatMessageDeleted(
   recipients: {
     userId: number;
-    lastMessage: { id: number; conversationId: number; senderId: number; content: string; readAt: Date | null; createdAt: Date } | null;
+    lastMessage: { id: number; conversationId: number; senderId: number; content: string; readAt: Date | null; createdAt: Date; deletedAt: Date | null } | null;
     unreadCount: number;
   }[],
   conversationId: number,
   messageId: number,
-  deletedMessage: { senderId: number; readAt: Date | null },
+  deletedMessage: { id: number; conversationId: number; senderId: number; content: string; readAt: Date | null; createdAt: Date; deletedAt: Date | null },
   updatedAt: Date,
 ) {
   for (const recipient of recipients) {

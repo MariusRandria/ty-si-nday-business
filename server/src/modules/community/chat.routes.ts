@@ -263,32 +263,28 @@ chatRouter.delete('/conversations/:id/messages/:messageId', async (request: Auth
         { participantTwoId: request.user!.id, participantTwoDeletedAt: null },
       ],
     },
-    select: { participantOneId: true, participantTwoId: true, createdAt: true },
+    select: { participantOneId: true, participantTwoId: true, updatedAt: true },
   });
   if (!conversation) { response.status(404).json({ error: 'Conversation introuvable.' }); return; }
   const message = await prisma.directMessage.findFirst({
-    where: { id: messageId, conversationId, senderId: request.user!.id },
+    where: { id: messageId, conversationId, senderId: request.user!.id, deletedAt: null },
     select: { id: true, senderId: true, readAt: true },
   });
   if (!message) { response.status(404).json({ error: 'Message introuvable ou suppression non autorisée.' }); return; }
 
   const result = await prisma.$transaction(async (transaction) => {
-    await transaction.directMessage.delete({ where: { id: messageId } });
-    const lastMessage = await transaction.directMessage.findFirst({
-      where: { conversationId },
-      orderBy: { createdAt: 'desc' },
-      select: { id: true, conversationId: true, senderId: true, content: true, readAt: true, createdAt: true },
+    const deletedMessage = await transaction.directMessage.update({
+      where: { id: messageId },
+      data: { content: '', deletedAt: new Date() },
     });
-    const updatedAt = lastMessage?.createdAt ?? conversation.createdAt;
-    await transaction.conversation.update({ where: { id: conversationId }, data: { updatedAt } });
-    return { lastMessage, updatedAt };
+    return deletedMessage;
   });
   const recipients = await Promise.all([conversation.participantOneId, conversation.participantTwoId].map(async (userId) => {
     const [lastMessage, unreadCount] = await Promise.all([
       prisma.directMessage.findFirst({
         where: { conversationId, hiddenFor: { none: { userId } } },
         orderBy: { createdAt: 'desc' },
-        select: { id: true, conversationId: true, senderId: true, content: true, readAt: true, createdAt: true },
+        select: { id: true, conversationId: true, senderId: true, content: true, readAt: true, createdAt: true, deletedAt: true },
       }),
       prisma.directMessage.count({
         where: {
@@ -305,11 +301,11 @@ chatRouter.delete('/conversations/:id/messages/:messageId', async (request: Auth
     recipients,
     conversationId,
     messageId,
-    { senderId: message.senderId, readAt: message.readAt },
-    result.updatedAt,
+    result,
+    conversation.updatedAt,
   );
   const recipientResult = recipients.find((recipient) => recipient.userId === request.user!.id)!;
-  response.json({ data: { deleted: true, messageId, lastMessage: recipientResult.lastMessage, unreadCount: recipientResult.unreadCount, updatedAt: result.updatedAt } });
+  response.json({ data: { deleted: true, messageId, deletedMessage: result, lastMessage: recipientResult.lastMessage, unreadCount: recipientResult.unreadCount, updatedAt: conversation.updatedAt } });
 });
 
 chatRouter.delete('/conversations/:id', async (request: AuthRequest, response) => {

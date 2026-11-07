@@ -228,8 +228,10 @@
   background: var(--gradient-brand) !important;
   box-shadow: var(--shadow-button) !important;
 }
+.chat-bubble p.chat-message-deleted { color: var(--color-text-muted) !important; font-style: italic; }
 .chat-message-row.mine .chat-bubble p,
 .chat-message-row.mine .chat-bubble time { color: var(--color-bg) !important; }
+.chat-message-row.mine .chat-bubble p.chat-message-deleted { color: var(--color-text-muted) !important; }
 .chat-compose,
 .chat-thread-header,
 .chat-contacts { background: var(--color-bg) !important; }

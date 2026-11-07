@@ -167,12 +167,12 @@ export default function CommunityChat({ currentUserId, initialConversationId }: 
     socket.on('message:deleted', (event: {
       conversationId: number
       messageId: number
-      deletedMessage: { senderId: number; readAt: string | null }
+      deletedMessage: ChatMessage
       lastMessage: ChatMessage | null
       updatedAt: string
       unreadCount: number
     }) => {
-      setMessages((current) => current.filter((message) => message.id !== event.messageId))
+      setMessages((current) => current.map((message) => message.id === event.messageId ? event.deletedMessage : message))
       setOpenMessageMenuId((current) => current === event.messageId ? null : current)
       setConversations((current) => current.map((conversation) => conversation.id === event.conversationId
         ? {
@@ -279,7 +279,7 @@ export default function CommunityChat({ currentUserId, initialConversationId }: 
     setError('')
     try {
       const result = await api.deleteCommunityChatMessage(activeConversation.id, message.id)
-      setMessages((current) => current.filter((item) => item.id !== message.id))
+      setMessages((current) => current.map((item) => item.id === message.id ? result.deletedMessage : item))
       setConversations((current) => current.map((conversation) => conversation.id === activeConversation.id
         ? {
           ...conversation,
@@ -390,7 +390,7 @@ export default function CommunityChat({ currentUserId, initialConversationId }: 
             {visibleConversations.map((conversation) => {
               const name = nameOf(conversation.agent)
               return <button type="button" key={conversation.id} className={`chat-contact ${activeId === conversation.id ? 'active' : ''}`} onClick={() => setActiveId(conversation.id)}>
-                <span className="chat-avatar" aria-hidden="true">{avatarContent(conversation.agent, name)}</span><span className="chat-contact-copy"><strong><span>{name}</span>{conversation.agent.isSubscriber && <SubscriberBadge />}</strong><small>{conversation.lastMessage?.content ?? 'Démarrer la conversation'}</small></span>
+                <span className="chat-avatar" aria-hidden="true">{avatarContent(conversation.agent, name)}</span><span className="chat-contact-copy"><strong><span>{name}</span>{conversation.agent.isSubscriber && <SubscriberBadge />}</strong><small>{conversation.lastMessage?.deletedAt ? 'Message supprimé' : conversation.lastMessage?.content ?? 'Démarrer la conversation'}</small></span>
                 {conversation.unreadCount > 0 && <span className="chat-unread">{conversation.unreadCount}</span>}
               </button>
             })}
@@ -434,14 +434,17 @@ export default function CommunityChat({ currentUserId, initialConversationId }: 
             {activeMessages.length === 0 && <p className="chat-first-message">Dites bonjour et commencez la conversation 👋</p>}
             {activeMessages.map((message) => <div className={`chat-message-row ${message.senderId === currentUserId ? 'mine' : ''}`} key={message.id}>
               <div className="chat-bubble">
-                {message.senderId === currentUserId && <div className="chat-message-actions">
+                {message.senderId === currentUserId && !message.deletedAt && <div className="chat-message-actions">
                   <button type="button" className="chat-message-menu-trigger" aria-label="Options de ce message" aria-haspopup="menu" aria-expanded={openMessageMenuId === message.id} onClick={(event) => toggleMessageMenu(message.id, event)} disabled={conversationActionBusy}><MoreHorizontal size={17} aria-hidden="true" /></button>
                   {openMessageMenuId === message.id && messageMenuPosition && createPortal(<div className={`chat-message-menu ${document.querySelector('.app-shell.theme-dark') ? 'theme-dark' : ''}`} role="menu" style={messageMenuPosition}>
                     <button type="button" role="menuitem" onClick={() => void deleteMessageForMe(message)} disabled={conversationActionBusy}><Trash2 size={15} aria-hidden="true" /> Supprimer pour moi</button>
                     <button type="button" role="menuitem" className="danger" onClick={() => void deleteMessageForEveryone(message)} disabled={conversationActionBusy}><Trash2 size={15} aria-hidden="true" /> Supprimer pour tout le monde</button>
                   </div>, document.body)}
                 </div>}
-                <p>{message.content}</p><time>{timeOf(message.createdAt)}</time>
+                {message.deletedAt
+                  ? <p className="chat-message-deleted">{message.senderId === currentUserId ? 'Vous avez supprimé ce message' : `${nameOf(activeConversation.agent)} a supprimé ce message`}</p>
+                  : <p>{message.content}</p>}
+                <time>{timeOf(message.createdAt)}</time>
               </div>
             </div>)}
             <div ref={endRef} />
