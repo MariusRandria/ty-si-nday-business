@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type FormEvent, type MouseEvent } from 'react'
+import { createPortal } from 'react-dom'
 import { io, type Socket } from 'socket.io-client'
 import api, { type ChatAgent, type ChatConversation, type ChatMessage, type CommunityAuthor } from '../api/client'
 import { Archive, ArchiveRestore, ArrowLeft, FileText, Maximize2, MessageCircle, Mic, MoreHorizontal, Paperclip, Phone, Search, Send, ShieldCheck, SquarePen, Trash2, X } from 'lucide-react'
@@ -38,6 +39,7 @@ export default function CommunityChat({ currentUserId, initialConversationId }: 
   const [conversationFilter, setConversationFilter] = useState<'all' | 'unread' | 'archived'>('all')
   const [conversationMenuOpen, setConversationMenuOpen] = useState(false)
   const [openMessageMenuId, setOpenMessageMenuId] = useState<number | null>(null)
+  const [messageMenuPosition, setMessageMenuPosition] = useState<{ top: number; left: number } | null>(null)
   const [conversationActionBusy, setConversationActionBusy] = useState(false)
   const [socketConnected, setSocketConnected] = useState(false)
   const [error, setError] = useState(() => window.localStorage.getItem('innovcom-token')
@@ -80,7 +82,7 @@ export default function CommunityChat({ currentUserId, initialConversationId }: 
     function closeMenuOnOutsideClick(event: PointerEvent) {
       if (!(event.target instanceof Element)) return
       if (!event.target.closest('.chat-conversation-actions')) setConversationMenuOpen(false)
-      if (!event.target.closest('.chat-message-actions')) setOpenMessageMenuId(null)
+      if (!event.target.closest('.chat-message-actions, .chat-message-menu')) setOpenMessageMenuId(null)
     }
     function closeMenuOnEscape(event: KeyboardEvent) {
       if (event.key === 'Escape') {
@@ -88,13 +90,36 @@ export default function CommunityChat({ currentUserId, initialConversationId }: 
         setOpenMessageMenuId(null)
       }
     }
+    function closeMessageMenu() {
+      setOpenMessageMenuId(null)
+    }
     document.addEventListener('pointerdown', closeMenuOnOutsideClick)
     document.addEventListener('keydown', closeMenuOnEscape)
+    document.addEventListener('scroll', closeMessageMenu, true)
+    window.addEventListener('resize', closeMessageMenu)
     return () => {
       document.removeEventListener('pointerdown', closeMenuOnOutsideClick)
       document.removeEventListener('keydown', closeMenuOnEscape)
+      document.removeEventListener('scroll', closeMessageMenu, true)
+      window.removeEventListener('resize', closeMessageMenu)
     }
   }, [conversationMenuOpen, openMessageMenuId])
+
+  function toggleMessageMenu(messageId: number, event: MouseEvent<HTMLButtonElement>) {
+    if (openMessageMenuId === messageId) {
+      setOpenMessageMenuId(null)
+      return
+    }
+    const trigger = event.currentTarget.getBoundingClientRect()
+    const menuWidth = Math.min(205, window.innerWidth - 16)
+    const menuHeight = 100
+    const top = window.innerHeight - trigger.bottom >= menuHeight + 8
+      ? trigger.bottom + 6
+      : Math.max(8, trigger.top - menuHeight - 6)
+    const left = Math.max(8, Math.min(trigger.left, window.innerWidth - menuWidth - 8))
+    setMessageMenuPosition({ top, left })
+    setOpenMessageMenuId(messageId)
+  }
 
   useEffect(() => {
     const token = window.localStorage.getItem('innovcom-token')
@@ -410,11 +435,11 @@ export default function CommunityChat({ currentUserId, initialConversationId }: 
             {activeMessages.map((message) => <div className={`chat-message-row ${message.senderId === currentUserId ? 'mine' : ''}`} key={message.id}>
               <div className="chat-bubble">
                 {message.senderId === currentUserId && <div className="chat-message-actions">
-                  <button type="button" className="chat-message-menu-trigger" aria-label="Options de ce message" aria-haspopup="menu" aria-expanded={openMessageMenuId === message.id} onClick={() => setOpenMessageMenuId((current) => current === message.id ? null : message.id)} disabled={conversationActionBusy}><MoreHorizontal size={17} aria-hidden="true" /></button>
-                  {openMessageMenuId === message.id && <div className="chat-message-menu" role="menu">
+                  <button type="button" className="chat-message-menu-trigger" aria-label="Options de ce message" aria-haspopup="menu" aria-expanded={openMessageMenuId === message.id} onClick={(event) => toggleMessageMenu(message.id, event)} disabled={conversationActionBusy}><MoreHorizontal size={17} aria-hidden="true" /></button>
+                  {openMessageMenuId === message.id && messageMenuPosition && createPortal(<div className={`chat-message-menu ${document.querySelector('.app-shell.theme-dark') ? 'theme-dark' : ''}`} role="menu" style={messageMenuPosition}>
                     <button type="button" role="menuitem" onClick={() => void deleteMessageForMe(message)} disabled={conversationActionBusy}><Trash2 size={15} aria-hidden="true" /> Supprimer pour moi</button>
                     <button type="button" role="menuitem" className="danger" onClick={() => void deleteMessageForEveryone(message)} disabled={conversationActionBusy}><Trash2 size={15} aria-hidden="true" /> Supprimer pour tout le monde</button>
-                  </div>}
+                  </div>, document.body)}
                 </div>}
                 <p>{message.content}</p><time>{timeOf(message.createdAt)}</time>
               </div>
