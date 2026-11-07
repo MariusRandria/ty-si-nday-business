@@ -377,7 +377,8 @@
   background: var(--surface-muted);
 }
 
-.app-shell .community-image-preview > img {
+.app-shell .community-image-preview > img,
+.app-shell .community-image-preview > video {
   width: 72px;
   height: 58px;
   border-radius: 8px;
@@ -423,6 +424,11 @@
   border-radius: 16px;
   background: var(--surface-muted);
   object-fit: contain;
+}
+
+.app-shell .community-post-video {
+  aspect-ratio: 16 / 9;
+  background: #10121b;
 }
 
 .app-shell .top-avatar,

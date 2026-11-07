@@ -14,35 +14,40 @@ import { notifyAgents, notifyUser } from '../notifications/notifications.service
 export const communityRouter = Router();
 communityRouter.use('/chat', chatRouter);
 
-const postImageUpload = multer({
+const postMediaUpload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 5 * 1024 * 1024, files: 1 },
+  limits: { fileSize: 50 * 1024 * 1024, files: 1 },
   fileFilter: (_request, file, callback) => {
-    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.mimetype)) {
-      callback(new Error('La photo doit être au format JPEG, PNG ou WebP.'));
+    if (!['image/jpeg', 'image/png', 'image/webp', 'video/mp4', 'video/webm'].includes(file.mimetype)) {
+      callback(new Error('Le média doit être une image JPEG, PNG, WebP ou une vidéo MP4/WebM.'));
       return;
     }
     callback(null, true);
   },
-}).single('image');
+}).single('media');
 
-function parsePostImage(request: AuthRequest, response: Response, next: NextFunction) {
-  postImageUpload(request, response, (error: unknown) => {
+function parsePostMedia(request: AuthRequest, response: Response, next: NextFunction) {
+  postMediaUpload(request, response, (error: unknown) => {
     if (!error) { next(); return; }
     if (error instanceof multer.MulterError && error.code === 'LIMIT_FILE_SIZE') {
-      response.status(413).json({ error: 'La photo ne doit pas dépasser 5 Mo.' });
+      response.status(413).json({ error: 'Une vidéo ne doit pas dépasser 50 Mo.' });
       return;
     }
-    response.status(400).json({ error: error instanceof Error ? error.message : 'Impossible de lire la photo envoyée.' });
+    response.status(400).json({ error: error instanceof Error ? error.message : 'Impossible de lire le média envoyé.' });
   });
 }
 
-function communityImageExtension(buffer: Buffer): 'jpg' | 'png' | 'webp' | null {
+function communityMediaExtension(buffer: Buffer, mimeType: string): 'jpg' | 'png' | 'webp' | 'mp4' | 'webm' | null {
   if (buffer.length >= 8 && buffer.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))) return 'png';
   if (buffer.length >= 3 && buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff) return 'jpg';
   if (buffer.length >= 12 && buffer.toString('ascii', 0, 4) === 'RIFF' && buffer.toString('ascii', 8, 12) === 'WEBP') return 'webp';
+  if (mimeType === 'video/mp4' && buffer.length >= 12 && buffer.toString('ascii', 4, 8) === 'ftyp') return 'mp4';
+  if (mimeType === 'video/webm' && buffer.length >= 4 && buffer.subarray(0, 4).equals(Buffer.from([0x1a, 0x45, 0xdf, 0xa3]))) return 'webm';
   return null;
 }
+
+const COMMUNITY_IMAGE_MAX_SIZE = 5 * 1024 * 1024;
+const COMMUNITY_VIDEO_MAX_SIZE = 50 * 1024 * 1024;
 
 const postSchema = z.object({
   title: z.string().trim().min(3).max(200),
@@ -153,17 +158,28 @@ communityRouter.get('/feed', async (request: AuthRequest, response) => {
 
 communityRouter.post('/posts', (request: AuthRequest, response: Response, next: NextFunction) => {
   if (requireAgent(request, response)) next();
-}, parsePostImage, async (request: AuthRequest, response) => {
+}, parsePostMedia, async (request: AuthRequest, response) => {
   const result = postSchema.safeParse(request.body);
   if (!result.success) { response.status(400).json({ error: 'Titre, contenu ou catégorie invalide.', details: result.error.flatten() }); return; }
   const file = request.file;
-  const extension = file ? communityImageExtension(file.buffer) : null;
-  if (file && (!extension || !({
-    jpg: file.mimetype === 'image/jpeg',
-    png: file.mimetype === 'image/png',
-    webp: file.mimetype === 'image/webp',
-  }[extension]))) {
-    response.status(400).json({ error: 'La photo envoyée doit être une image JPEG, PNG ou WebP valide.' });
+  const extension = file ? communityMediaExtension(file.buffer, file.mimetype) : null;
+  const validMimeType = extension ? ({
+    jpg: file?.mimetype === 'image/jpeg',
+    png: file?.mimetype === 'image/png',
+    webp: file?.mimetype === 'image/webp',
+    mp4: file?.mimetype === 'video/mp4',
+    webm: file?.mimetype === 'video/webm',
+  }[extension]) : false;
+  if (file && (!extension || !validMimeType)) {
+    response.status(400).json({ error: 'Le média doit être une image valide (JPEG, PNG ou WebP) ou une vidéo valide (MP4 ou WebM).' });
+    return;
+  }
+  if (file && extension && ['jpg', 'png', 'webp'].includes(extension) && file.size > COMMUNITY_IMAGE_MAX_SIZE) {
+    response.status(413).json({ error: 'Une image ne doit pas dépasser 5 Mo.' });
+    return;
+  }
+  if (file && extension && ['mp4', 'webm'].includes(extension) && file.size > COMMUNITY_VIDEO_MAX_SIZE) {
+    response.status(413).json({ error: 'Une vidéo ne doit pas dépasser 50 Mo.' });
     return;
   }
 

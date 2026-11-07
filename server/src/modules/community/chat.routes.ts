@@ -1,11 +1,78 @@
+import { randomUUID } from 'node:crypto';
+import { mkdir, unlink, writeFile } from 'node:fs/promises';
+import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { Router } from 'express';
-import type { Response } from 'express';
+import multer from 'multer';
+import type { NextFunction, Response } from 'express';
 import { z } from 'zod';
 import { prisma } from '../../lib/prisma.js';
 import type { AuthRequest } from '../auth/auth.middleware.js';
-import { emitChatMessageDeleted, emitChatMessageHidden, emitConversationArchiveChanged, emitConversationDeleted } from './chat.gateway.js';
+import { emitChatMediaMessage, emitChatMessageDeleted, emitChatMessageHidden, emitConversationArchiveChanged, emitConversationDeleted, serializeChatMessage } from './chat.gateway.js';
+import { notifyUser } from '../notifications/notifications.service.js';
 
 export const chatRouter = Router();
+
+const chatMediaDirectory = fileURLToPath(new URL('../../../uploads/chat-media/', import.meta.url));
+const chatMediaTypes = {
+  'image/jpeg': { extension: 'jpg', maxBytes: 5 * 1024 * 1024 },
+  'image/png': { extension: 'png', maxBytes: 5 * 1024 * 1024 },
+  'image/webp': { extension: 'webp', maxBytes: 5 * 1024 * 1024 },
+  'video/mp4': { extension: 'mp4', maxBytes: 25 * 1024 * 1024 },
+  'video/webm': { extension: 'webm', maxBytes: 25 * 1024 * 1024 },
+  'audio/webm': { extension: 'webm', maxBytes: 25 * 1024 * 1024 },
+  'audio/ogg': { extension: 'ogg', maxBytes: 25 * 1024 * 1024 },
+  'audio/mp4': { extension: 'm4a', maxBytes: 25 * 1024 * 1024 },
+  'audio/mpeg': { extension: 'mp3', maxBytes: 25 * 1024 * 1024 },
+  'audio/wav': { extension: 'wav', maxBytes: 25 * 1024 * 1024 },
+  'audio/aac': { extension: 'aac', maxBytes: 25 * 1024 * 1024 },
+  'audio/flac': { extension: 'flac', maxBytes: 25 * 1024 * 1024 },
+} as const;
+
+function baseMediaType(mimetype: string) {
+  return mimetype.toLowerCase().split(';', 1)[0].trim();
+}
+
+const chatMediaUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 25 * 1024 * 1024, files: 1 },
+  fileFilter: (_request, file, callback) => {
+    if (!Object.hasOwn(chatMediaTypes, baseMediaType(file.mimetype))) {
+      callback(new Error('Formats acceptés : images JPEG, PNG, WebP, vidéos MP4, WebM et fichiers audio WebM, OGG, M4A, MP3, WAV, AAC ou FLAC.'));
+      return;
+    }
+    callback(null, true);
+  },
+}).single('media');
+
+function parseChatMediaUpload(request: AuthRequest, response: Response, next: NextFunction) {
+  if (!requireActiveAgent(request, response)) return;
+  chatMediaUpload(request, response, (error: unknown) => {
+    if (!error) { next(); return; }
+    if (error instanceof multer.MulterError && error.code === 'LIMIT_FILE_SIZE') {
+      response.status(413).json({ error: 'Le média ne doit pas dépasser 25 Mo.' });
+      return;
+    }
+    response.status(400).json({ error: error instanceof Error ? error.message : 'Impossible de lire le média envoyé.' });
+  });
+}
+
+function hasValidChatMediaSignature(mimetype: string, buffer: Buffer) {
+  if (mimetype === 'image/jpeg') return buffer.length >= 3 && buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff;
+  if (mimetype === 'image/png') return buffer.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]));
+  if (mimetype === 'image/webp') return buffer.length >= 12 && buffer.toString('ascii', 0, 4) === 'RIFF' && buffer.toString('ascii', 8, 12) === 'WEBP';
+  if (mimetype === 'video/mp4') return buffer.length >= 12 && buffer.toString('ascii', 4, 8) === 'ftyp';
+  if (mimetype === 'video/webm') return buffer.subarray(0, 4).equals(Buffer.from([0x1a, 0x45, 0xdf, 0xa3]));
+  if (mimetype === 'audio/webm') return buffer.subarray(0, 4).equals(Buffer.from([0x1a, 0x45, 0xdf, 0xa3]));
+  if (mimetype === 'audio/ogg') return buffer.toString('ascii', 0, 4) === 'OggS';
+  if (mimetype === 'audio/mp4') return buffer.length >= 12 && buffer.toString('ascii', 4, 8) === 'ftyp';
+  if (mimetype === 'audio/mpeg') return buffer.toString('ascii', 0, 3) === 'ID3'
+    || (buffer.length >= 2 && buffer[0] === 0xff && (buffer[1] & 0xe0) === 0xe0);
+  if (mimetype === 'audio/wav') return buffer.length >= 12 && buffer.toString('ascii', 0, 4) === 'RIFF' && buffer.toString('ascii', 8, 12) === 'WAVE';
+  if (mimetype === 'audio/aac') return buffer.length >= 2 && buffer[0] === 0xff && (buffer[1] & 0xf6) === 0xf0;
+  if (mimetype === 'audio/flac') return buffer.toString('ascii', 0, 4) === 'fLaC';
+  return false;
+}
 
 function requireActiveAgent(request: AuthRequest, response: Response) {
   if (request.user?.role !== 'AGENT' || request.user.status !== 'ACTIF') {
@@ -81,7 +148,7 @@ chatRouter.get('/conversations', async (request: AuthRequest, response) => {
     data: conversations.map((conversation) => ({
       id: conversation.id,
       agent: withSubscriberBadge(conversation.participantOneId === userId ? conversation.participantTwo : conversation.participantOne),
-      lastMessage: conversation.messages[0] ?? null,
+      lastMessage: conversation.messages[0] ? serializeChatMessage(conversation.messages[0]) : null,
       unreadCount: conversation._count.messages,
       updatedAt: conversation.updatedAt,
       archivedAt: (conversation.participantOneId === userId
@@ -149,7 +216,148 @@ chatRouter.get('/conversations/:id/messages', async (request: AuthRequest, respo
     orderBy: { createdAt: 'desc' },
     take: 100,
   });
-  response.json({ data: messages.reverse() });
+  response.json({ data: messages.reverse().map(serializeChatMessage) });
+});
+
+chatRouter.post('/conversations/:id/messages/media', parseChatMediaUpload, async (request: AuthRequest, response) => {
+  const conversationId = Number(request.params.id);
+  const media = request.file;
+  const caption = typeof request.body.caption === 'string' ? request.body.caption.trim() : '';
+  if (!Number.isInteger(conversationId) || conversationId < 1) {
+    response.status(400).json({ error: 'Identifiant de conversation invalide.' });
+    return;
+  }
+  if (!media || (!media.size && !caption)) {
+    response.status(400).json({ error: 'Sélectionnez une image, une vidéo ou un fichier audio à envoyer.' });
+    return;
+  }
+  const mimetype = baseMediaType(media.mimetype);
+  const mediaType = Object.hasOwn(chatMediaTypes, mimetype)
+    ? chatMediaTypes[mimetype as keyof typeof chatMediaTypes]
+    : undefined;
+  if (!mediaType || media.size < 1 || media.size > mediaType.maxBytes || !hasValidChatMediaSignature(mimetype, media.buffer)) {
+    response.status(400).json({
+      error: mimetype.startsWith('image/')
+        ? 'L’image est invalide ou dépasse 5 Mo.'
+        : 'Le média est invalide ou dépasse 25 Mo.',
+    });
+    return;
+  }
+  if (caption.length > 2000) {
+    response.status(400).json({ error: 'La légende ne doit pas dépasser 2 000 caractères.' });
+    return;
+  }
+  const conversation = await prisma.conversation.findFirst({
+    where: {
+      id: conversationId,
+      OR: [
+        { participantOneId: request.user!.id, participantOneDeletedAt: null },
+        { participantTwoId: request.user!.id, participantTwoDeletedAt: null },
+      ],
+    },
+    select: { id: true, participantOneId: true, participantTwoId: true },
+  });
+  if (!conversation) { response.status(404).json({ error: 'Conversation introuvable.' }); return; }
+  const recipientId = conversation.participantOneId === request.user!.id
+    ? conversation.participantTwoId
+    : conversation.participantOneId;
+  const recipient = await prisma.user.findFirst({
+    where: { id: recipientId, role: 'AGENT', status: 'ACTIF' },
+    select: { id: true },
+  });
+  if (!recipient) { response.status(404).json({ error: 'Cet agent n’est plus actif.' }); return; }
+
+  await mkdir(chatMediaDirectory, { recursive: true, mode: 0o700 });
+  const mediaStorageKey = `${randomUUID()}.${mediaType.extension}`;
+  const mediaPath = join(chatMediaDirectory, mediaStorageKey);
+  await writeFile(mediaPath, media.buffer, { flag: 'wx', mode: 0o600 });
+  let created;
+  try {
+    created = await prisma.$transaction(async (transaction) => {
+      const message = await transaction.directMessage.create({
+        data: {
+          conversationId,
+          senderId: request.user!.id,
+          content: caption,
+          mediaStorageKey,
+          mediaMimeType: media.mimetype,
+        },
+      });
+      await transaction.conversation.update({
+        where: { id: conversationId },
+        data: {
+          updatedAt: message.createdAt,
+          participantOneArchivedAt: null,
+          participantTwoArchivedAt: null,
+          participantOneDeletedAt: null,
+          participantTwoDeletedAt: null,
+        },
+      });
+      return message;
+    });
+  } catch (error) {
+    await unlink(mediaPath);
+    throw error;
+  }
+
+  const messageData = serializeChatMessage(created);
+  const sender = await prisma.user.findFirst({
+    where: { id: request.user!.id },
+    select: { agentProfile: { select: { firstName: true, lastName: true } } },
+  });
+  const senderName = [sender?.agentProfile?.firstName, sender?.agentProfile?.lastName].filter(Boolean).join(' ') || `Agent #${request.user!.id}`;
+  try {
+    await notifyUser(recipientId, {
+      type: 'PRIVATE_MESSAGE',
+      title: `Nouveau média de ${senderName}`,
+      body: caption || (mimetype.startsWith('image/') ? 'Vous avez reçu une image.' : mimetype.startsWith('audio/') ? 'Vous avez reçu un message vocal.' : 'Vous avez reçu une vidéo.'),
+      pushBody: 'Vous avez reçu un nouveau média privé. Connectez-vous pour le consulter.',
+      link: `/messages?conversationId=${conversationId}`,
+      actorId: request.user!.id,
+    });
+  } catch (error) {
+    console.error('Unable to create private chat media notification:', error);
+  }
+  emitChatMediaMessage(recipientId, messageData);
+  response.status(201).json({ data: messageData });
+});
+
+chatRouter.get('/conversations/:id/messages/:messageId/media', async (request: AuthRequest, response) => {
+  if (!requireActiveAgent(request, response)) return;
+  const conversationId = Number(request.params.id);
+  const messageId = Number(request.params.messageId);
+  if (!Number.isInteger(conversationId) || conversationId < 1 || !Number.isInteger(messageId) || messageId < 1) {
+    response.status(400).json({ error: 'Identifiant de média invalide.' });
+    return;
+  }
+  const message = await prisma.directMessage.findFirst({
+    where: {
+      id: messageId,
+      conversationId,
+      deletedAt: null,
+      hiddenFor: { none: { userId: request.user!.id } },
+      conversation: {
+        OR: [
+          { participantOneId: request.user!.id, participantOneDeletedAt: null },
+          { participantTwoId: request.user!.id, participantTwoDeletedAt: null },
+        ],
+      },
+    },
+    select: { mediaStorageKey: true, mediaMimeType: true },
+  });
+  if (!message?.mediaStorageKey || !message.mediaMimeType || !/^[0-9a-f-]{36}\.(jpg|png|webp|mp4|webm|ogg|m4a|mp3|wav|aac|flac)$/.test(message.mediaStorageKey)) {
+    response.status(404).json({ error: 'Média introuvable.' });
+    return;
+  }
+  response.setHeader('Content-Type', message.mediaMimeType);
+  response.setHeader('Content-Disposition', 'inline');
+  response.setHeader('Cache-Control', 'private, no-store');
+  response.setHeader('X-Content-Type-Options', 'nosniff');
+  response.sendFile(join(chatMediaDirectory, message.mediaStorageKey), { dotfiles: 'deny' }, (error) => {
+    if (!error) return;
+    if (!response.headersSent) response.status(404).json({ error: 'Média introuvable.' });
+    else console.error('Unable to stream private chat media:', error);
+  });
 });
 
 chatRouter.delete('/conversations/:id/messages/:messageId/me', async (request: AuthRequest, response) => {
@@ -173,9 +381,9 @@ chatRouter.delete('/conversations/:id/messages/:messageId/me', async (request: A
   if (!conversation) { response.status(404).json({ error: 'Conversation introuvable.' }); return; }
   const message = await prisma.directMessage.findFirst({
     where: { id: messageId, conversationId },
-    select: { id: true, senderId: true, readAt: true },
+    select: { id: true, senderId: true, readAt: true, deletedAt: true },
   });
-  if (!message) { response.status(404).json({ error: 'Message introuvable.' }); return; }
+  if (!message || message.deletedAt) { response.status(404).json({ error: 'Message introuvable.' }); return; }
 
   await prisma.directMessageHidden.upsert({
     where: { messageId_userId: { messageId, userId: request.user!.id } },
@@ -186,19 +394,21 @@ chatRouter.delete('/conversations/:id/messages/:messageId/me', async (request: A
     prisma.directMessage.findFirst({
       where: { conversationId, hiddenFor: { none: { userId: request.user!.id } } },
       orderBy: { createdAt: 'desc' },
-      select: { id: true, conversationId: true, senderId: true, content: true, readAt: true, createdAt: true },
+      select: { id: true, conversationId: true, senderId: true, content: true, readAt: true, createdAt: true, deletedAt: true, mediaStorageKey: true, mediaMimeType: true },
     }),
     prisma.directMessage.count({
       where: {
         conversationId,
         senderId: { not: request.user!.id },
         readAt: null,
+        deletedAt: null,
         hiddenFor: { none: { userId: request.user!.id } },
       },
     }),
   ]);
-  emitChatMessageHidden(request.user!.id, conversationId, messageId, lastMessage, unreadCount);
-  response.json({ data: { deleted: true, messageId, lastMessage, updatedAt: conversation.updatedAt, unreadCount } });
+  const lastMessageData = lastMessage ? serializeChatMessage(lastMessage) : null;
+  emitChatMessageHidden(request.user!.id, conversationId, messageId, lastMessageData, unreadCount);
+  response.json({ data: { deleted: true, messageId, lastMessage: lastMessageData, updatedAt: conversation.updatedAt, unreadCount } });
 });
 
 chatRouter.patch('/conversations/:id/read', async (request: AuthRequest, response) => {
@@ -279,17 +489,24 @@ chatRouter.delete('/conversations/:id/messages/:messageId', async (request: Auth
   if (!conversation) { response.status(404).json({ error: 'Conversation introuvable.' }); return; }
   const message = await prisma.directMessage.findFirst({
     where: { id: messageId, conversationId, senderId: request.user!.id, deletedAt: null },
-    select: { id: true, senderId: true, readAt: true },
+    select: { id: true, senderId: true, readAt: true, mediaStorageKey: true },
   });
   if (!message) { response.status(404).json({ error: 'Message introuvable ou suppression non autorisée.' }); return; }
 
   const result = await prisma.$transaction(async (transaction) => {
     const deletedMessage = await transaction.directMessage.update({
       where: { id: messageId },
-      data: { content: '', deletedAt: new Date() },
+      data: { content: '', deletedAt: new Date(), mediaStorageKey: null, mediaMimeType: null },
     });
     return deletedMessage;
   });
+  if (message.mediaStorageKey) {
+    try {
+      await unlink(join(chatMediaDirectory, message.mediaStorageKey));
+    } catch (error) {
+      if (!(error instanceof Error && 'code' in error && error.code === 'ENOENT')) throw error;
+    }
+  }
   const recipients = await Promise.all([conversation.participantOneId, conversation.participantTwoId].map(async (userId) => {
     const [lastMessage, unreadCount] = await Promise.all([
       prisma.directMessage.findFirst({
@@ -301,7 +518,7 @@ chatRouter.delete('/conversations/:id/messages/:messageId', async (request: Auth
           ],
         },
         orderBy: { createdAt: 'desc' },
-        select: { id: true, conversationId: true, senderId: true, content: true, readAt: true, createdAt: true, deletedAt: true },
+        select: { id: true, conversationId: true, senderId: true, content: true, readAt: true, createdAt: true, deletedAt: true, mediaStorageKey: true, mediaMimeType: true },
       }),
       prisma.directMessage.count({
         where: {
@@ -313,17 +530,18 @@ chatRouter.delete('/conversations/:id/messages/:messageId', async (request: Auth
         },
       }),
     ]);
-    return { userId, lastMessage, unreadCount };
+    return { userId, lastMessage: lastMessage ? serializeChatMessage(lastMessage) : null, unreadCount };
   }));
+  const deletedMessage = serializeChatMessage(result);
   emitChatMessageDeleted(
     recipients,
     conversationId,
     messageId,
-    result,
+    deletedMessage,
     conversation.updatedAt,
   );
   const recipientResult = recipients.find((recipient) => recipient.userId === request.user!.id)!;
-  response.json({ data: { deleted: true, messageId, deletedMessage: result, lastMessage: recipientResult.lastMessage, unreadCount: recipientResult.unreadCount, updatedAt: conversation.updatedAt } });
+  response.json({ data: { deleted: true, messageId, deletedMessage, lastMessage: recipientResult.lastMessage, unreadCount: recipientResult.unreadCount, updatedAt: conversation.updatedAt } });
 });
 
 chatRouter.delete('/conversations/:id', async (request: AuthRequest, response) => {

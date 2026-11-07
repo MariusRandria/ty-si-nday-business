@@ -14,6 +14,7 @@ import {
   Send,
   Sparkles,
   Trash2,
+  Video,
   X,
 } from 'lucide-react'
 import api, { type CommunityAuthor, type CommunityFeed, type CommunityPost } from '../api/client'
@@ -54,6 +55,10 @@ function safeComments(comments?: CommunityPost['comments']) {
   return Array.isArray(comments) ? comments : []
 }
 
+function isCommunityVideo(url: string) {
+  return /\.(mp4|webm)(?:$|[?#])/i.test(url)
+}
+
 export default function CommunityPage({ onOpenChat, focusPostId, currentUserId }: { onOpenChat: () => void; focusPostId?: number; currentUserId: number }) {
   const [feed, setFeed] = useState<CommunityFeed>({ posts: [], offers: [] })
   const [filter, setFilter] = useState<FeedFilter>('ALL')
@@ -62,11 +67,11 @@ export default function CommunityPage({ onOpenChat, focusPostId, currentUserId }
   const [composer, setComposer] = useState(false)
   const [title, setTitle] = useState('')
   const [content, setContent] = useState('')
-  const [image, setImage] = useState<File | null>(null)
-  const [imagePreview, setImagePreview] = useState('')
-  const [imageError, setImageError] = useState('')
-  const imageInput = useRef<HTMLInputElement>(null)
-  const imagePreviewUrl = useRef<string | null>(null)
+  const [media, setMedia] = useState<File | null>(null)
+  const [mediaPreview, setMediaPreview] = useState('')
+  const [mediaError, setMediaError] = useState('')
+  const mediaInput = useRef<HTMLInputElement>(null)
+  const mediaPreviewUrl = useRef<string | null>(null)
   const [category, setCategory] = useState<'Discussion' | 'Question' | 'Astuce'>('Discussion')
   const [saving, setSaving] = useState(false)
   const [commentDrafts, setCommentDrafts] = useState<Record<string, string>>({})
@@ -85,7 +90,7 @@ export default function CommunityPage({ onOpenChat, focusPostId, currentUserId }
   const [openActionsMenu, setOpenActionsMenu] = useState<string | null>(null)
 
   useEffect(() => () => {
-    if (imagePreviewUrl.current) URL.revokeObjectURL(imagePreviewUrl.current)
+    if (mediaPreviewUrl.current) URL.revokeObjectURL(mediaPreviewUrl.current)
   }, [])
 
   useEffect(() => {
@@ -135,40 +140,47 @@ export default function CommunityPage({ onOpenChat, focusPostId, currentUserId }
     setSaving(true)
     setError('')
     try {
-      const post = await api.createCommunityPost({ title, content, category }, image)
+      const post = await api.createCommunityPost({ title, content, category }, media)
       setFeed((current) => ({ ...current, posts: [post, ...current.posts] }))
       setTitle('')
       setContent('')
-      setSelectedImage(null)
-      setImageError('')
+      setSelectedMedia(null)
+      setMediaError('')
       setComposer(false)
     } catch (caught) { setError(caught instanceof Error ? caught.message : 'Impossible de publier le message.') }
     finally { setSaving(false) }
   }
 
-  function selectImage(event: ChangeEvent<HTMLInputElement>) {
+  function selectMedia(event: ChangeEvent<HTMLInputElement>) {
     const file = event.currentTarget.files?.[0]
     event.currentTarget.value = ''
     if (!file) return
-    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
-      setSelectedImage(null)
-      setImageError('Choisissez une image JPEG, PNG ou WebP.')
+    const isImage = ['image/jpeg', 'image/png', 'image/webp'].includes(file.type)
+    const isVideo = ['video/mp4', 'video/webm'].includes(file.type)
+    if (!isImage && !isVideo) {
+      setSelectedMedia(null)
+      setMediaError('Choisissez une image JPEG, PNG, WebP ou une vidéo MP4/WebM.')
       return
     }
-    if (file.size > 5 * 1024 * 1024) {
-      setSelectedImage(null)
-      setImageError('La photo ne doit pas dépasser 5 Mo.')
+    if (isImage && file.size > 5 * 1024 * 1024) {
+      setSelectedMedia(null)
+      setMediaError('Une image ne doit pas dépasser 5 Mo.')
       return
     }
-    setImageError('')
-    setSelectedImage(file)
+    if (isVideo && file.size > 50 * 1024 * 1024) {
+      setSelectedMedia(null)
+      setMediaError('Une vidéo ne doit pas dépasser 50 Mo.')
+      return
+    }
+    setMediaError('')
+    setSelectedMedia(file)
   }
 
-  function setSelectedImage(file: File | null) {
-    if (imagePreviewUrl.current) URL.revokeObjectURL(imagePreviewUrl.current)
-    imagePreviewUrl.current = file ? URL.createObjectURL(file) : null
-    setImagePreview(imagePreviewUrl.current ?? '')
-    setImage(file)
+  function setSelectedMedia(file: File | null) {
+    if (mediaPreviewUrl.current) URL.revokeObjectURL(mediaPreviewUrl.current)
+    mediaPreviewUrl.current = file ? URL.createObjectURL(file) : null
+    setMediaPreview(mediaPreviewUrl.current ?? '')
+    setMedia(file)
   }
 
   async function comment(postId: number, parentCommentId: number | null = null) {
@@ -338,7 +350,9 @@ export default function CommunityPage({ onOpenChat, focusPostId, currentUserId }
             <label>Catégorie<select value={editPostCategory} onChange={(event) => setEditPostCategory(event.target.value as typeof editPostCategory)}><option>Discussion</option><option>Question</option><option>Astuce</option></select></label>
             <div className="community-inline-edit-actions"><button type="submit" className="outline-button compact" disabled={postBusy || !editPostTitle.trim() || !editPostContent.trim()}><Save size={14} /> {postBusy ? 'Enregistrement…' : 'Enregistrer'}</button><button type="button" className="outline-button compact" onClick={() => setEditingPostId(null)}>Annuler</button></div>
           </form> : <><h3>{post.title}</h3><p className="community-post-content">{post.content}</p></>}
-          {post.imageUrl && <img className="community-post-image" src={post.imageUrl} alt={`Photo publiée avec « ${post.title} »`} loading="lazy" />}
+          {post.imageUrl && (isCommunityVideo(post.imageUrl)
+            ? <video className="community-post-image community-post-video" src={post.imageUrl} controls preload="metadata" playsInline aria-label={`Vidéo publiée avec « ${post.title} »`} />
+            : <img className="community-post-image" src={post.imageUrl} alt={`Photo publiée avec « ${post.title} »`} loading="lazy" />)}
           <div className="community-post-summary"><span><Heart size={14} aria-hidden="true" /> {post.likesCount ?? 0} réaction{(post.likesCount ?? 0) === 1 ? '' : 's'}</span><span>{comments.length} commentaire{comments.length === 1 ? '' : 's'}</span></div>
           <div className="community-post-actions"><button type="button" className={post.likedByMe ? 'like-button liked' : 'like-button'} onClick={() => void toggleLike(post)} aria-pressed={post.likedByMe} disabled={post.isAuthorHidden || pendingLikeIds.has(post.id)}><Heart size={17} fill={post.likedByMe ? 'currentColor' : 'none'} aria-hidden="true" /> J’aime</button><button type="button" className="like-button" onClick={() => document.getElementById(`community-comment-input-${post.id}`)?.focus()} disabled={post.isAuthorHidden}><MessageCircle size={17} aria-hidden="true" /> Commenter</button><button type="button" className="like-button" onClick={onOpenChat}><Send size={17} aria-hidden="true" /> Message</button></div>
           <div className="community-comments" aria-live="polite" hidden={comments.length === 0}>
@@ -386,7 +400,7 @@ export default function CommunityPage({ onOpenChat, focusPostId, currentUserId }
         {offer.publishedAt && <time>{new Date(offer.publishedAt).toLocaleDateString('fr-FR')}</time>}
       </article>)}</div>}
     </section>}
-    {composer && <div className="modal-backdrop community-composer-backdrop" onClick={() => setComposer(false)}><form className="modal community-composer" onSubmit={publish} onClick={(event) => event.stopPropagation()}><button type="button" className="modal-close" onClick={() => setComposer(false)}>×</button><p className="eyebrow">COMMUNAUTÉ TY SY NDAY</p><h2>Nouvelle publication</h2><label>Catégorie<select value={category} onChange={(event) => setCategory(event.target.value as typeof category)}><option>Discussion</option><option>Question</option><option>Astuce</option></select></label><label>Titre<input required minLength={3} maxLength={200} value={title} onChange={(event) => setTitle(event.target.value)} /></label><label>Message<textarea className="community-textarea" required maxLength={3000} value={content} onChange={(event) => setContent(event.target.value)} placeholder="Partagez une astuce ou posez une question..." /></label><div className="community-image-picker"><input ref={imageInput} id="community-post-image-input" type="file" accept="image/jpeg,image/png,image/webp" onChange={selectImage} aria-describedby={imageError ? 'community-image-error' : undefined} /><button type="button" className="outline-button community-image-select" onClick={() => imageInput.current?.click()}><ImagePlus size={17} aria-hidden="true" /> Ajouter une photo</button><small>JPEG, PNG ou WebP · 5 Mo maximum</small></div>{imageError && <p className="community-image-error" id="community-image-error" role="alert">{imageError}</p>}{image && imagePreview && <div className="community-image-preview"><img src={imagePreview} alt={`Aperçu de ${image.name}`} /><div><strong>{image.name}</strong><small>{(image.size / (1024 * 1024)).toFixed(1)} Mo</small></div><button type="button" className="community-image-remove" aria-label="Retirer la photo" onClick={() => { setSelectedImage(null); setImageError('') }}><X size={17} aria-hidden="true" /></button></div>}<div className="modal-actions"><button type="button" className="outline-button" onClick={() => setComposer(false)}>Annuler</button><button className="primary-button" disabled={saving}>{saving ? 'Publication...' : 'Publier'}</button></div></form></div>}
+    {composer && <div className="modal-backdrop community-composer-backdrop" onClick={() => setComposer(false)}><form className="modal community-composer" onSubmit={publish} onClick={(event) => event.stopPropagation()}><button type="button" className="modal-close" onClick={() => setComposer(false)}>×</button><p className="eyebrow">COMMUNAUTÉ TY SY NDAY</p><h2>Nouvelle publication</h2><label>Catégorie<select value={category} onChange={(event) => setCategory(event.target.value as typeof category)}><option>Discussion</option><option>Question</option><option>Astuce</option></select></label><label>Titre<input required minLength={3} maxLength={200} value={title} onChange={(event) => setTitle(event.target.value)} /></label><label>Message<textarea className="community-textarea" required maxLength={3000} value={content} onChange={(event) => setContent(event.target.value)} placeholder="Partagez une astuce ou posez une question..." /></label><div className="community-image-picker"><input ref={mediaInput} id="community-post-media-input" type="file" accept="image/jpeg,image/png,image/webp,video/mp4,video/webm" onChange={selectMedia} aria-describedby={mediaError ? 'community-media-error' : undefined} /><button type="button" className="outline-button community-image-select" onClick={() => mediaInput.current?.click()}><ImagePlus size={17} aria-hidden="true" /><Video size={17} aria-hidden="true" /> Ajouter une photo ou vidéo</button><small>Images JPEG/PNG/WebP · 5 Mo max. | Vidéos MP4/WebM · 50 Mo max.</small></div>{mediaError && <p className="community-image-error" id="community-media-error" role="alert">{mediaError}</p>}{media && mediaPreview && <div className="community-image-preview">{media.type.startsWith('video/') ? <video src={mediaPreview} controls playsInline /> : <img src={mediaPreview} alt={`Aperçu de ${media.name}`} />}<div><strong>{media.name}</strong><small>{(media.size / (1024 * 1024)).toFixed(1)} Mo</small></div><button type="button" className="community-image-remove" aria-label="Retirer le média" onClick={() => { setSelectedMedia(null); setMediaError('') }}><X size={17} aria-hidden="true" /></button></div>}<div className="modal-actions"><button type="button" className="outline-button" onClick={() => setComposer(false)}>Annuler</button><button className="primary-button" disabled={saving}>{saving ? 'Publication...' : 'Publier'}</button></div></form></div>}
     {reportTarget && <div className="modal-backdrop" onClick={() => setReportTarget(null)}><form className="modal" onSubmit={submitReport} onClick={(event) => event.stopPropagation()}><button type="button" className="modal-close" onClick={() => setReportTarget(null)}>×</button><p className="eyebrow">MODÉRATION</p><h2>Signaler ce contenu</h2><p className="modal-intro">Le signalement sera transmis à l’administration pour examen.</p><label>Motif<input required minLength={5} maxLength={500} value={reportReason} onChange={(event) => setReportReason(event.target.value)} /></label><div className="modal-actions"><button type="button" className="outline-button" onClick={() => setReportTarget(null)}>Annuler</button><button className="primary-button" disabled={saving}>{saving ? 'Envoi...' : 'Envoyer le signalement'}</button></div></form></div>}
   </>
 }
