@@ -3,6 +3,7 @@ import type { Response } from 'express';
 import { z } from 'zod';
 import { prisma } from '../../lib/prisma.js';
 import type { AuthRequest } from '../auth/auth.middleware.js';
+import { emitConversationArchiveChanged, emitConversationDeleted } from './chat.gateway.js';
 
 export const chatRouter = Router();
 
@@ -53,7 +54,12 @@ chatRouter.get('/conversations', async (request: AuthRequest, response) => {
   const userId = request.user!.id;
   const selectedAgent = agentSelect(new Date());
   const conversations = await prisma.conversation.findMany({
-    where: { OR: [{ participantOneId: userId }, { participantTwoId: userId }] },
+    where: {
+      OR: [
+        { participantOneId: userId, participantOneDeletedAt: null },
+        { participantTwoId: userId, participantTwoDeletedAt: null },
+      ],
+    },
     orderBy: { updatedAt: 'desc' },
     include: {
       participantOne: { select: selectedAgent },
@@ -69,6 +75,9 @@ chatRouter.get('/conversations', async (request: AuthRequest, response) => {
       lastMessage: conversation.messages[0] ?? null,
       unreadCount: conversation._count.messages,
       updatedAt: conversation.updatedAt,
+      archivedAt: (conversation.participantOneId === userId
+        ? conversation.participantOneArchivedAt
+        : conversation.participantTwoArchivedAt)?.toISOString() ?? null,
     })),
   });
 });
@@ -89,7 +98,9 @@ chatRouter.post('/conversations', async (request: AuthRequest, response) => {
   const ids = participantIds(request.user!.id, recipient.id);
   const conversation = await prisma.conversation.upsert({
     where: { participantOneId_participantTwoId: ids },
-    update: {},
+    update: request.user!.id === ids.participantOneId
+      ? { participantOneArchivedAt: null, participantOneDeletedAt: null }
+      : { participantTwoArchivedAt: null, participantTwoDeletedAt: null },
     create: ids,
   });
   response.status(200).json({ data: { id: conversation.id } });
@@ -105,7 +116,10 @@ chatRouter.get('/conversations/:id/messages', async (request: AuthRequest, respo
   const conversation = await prisma.conversation.findFirst({
     where: {
       id: conversationId,
-      OR: [{ participantOneId: request.user!.id }, { participantTwoId: request.user!.id }],
+      OR: [
+        { participantOneId: request.user!.id, participantOneDeletedAt: null },
+        { participantTwoId: request.user!.id, participantTwoDeletedAt: null },
+      ],
     },
     select: { id: true },
   });
@@ -133,7 +147,10 @@ chatRouter.patch('/conversations/:id/read', async (request: AuthRequest, respons
   const conversation = await prisma.conversation.findFirst({
     where: {
       id: conversationId,
-      OR: [{ participantOneId: request.user!.id }, { participantTwoId: request.user!.id }],
+      OR: [
+        { participantOneId: request.user!.id, participantOneDeletedAt: null },
+        { participantTwoId: request.user!.id, participantTwoDeletedAt: null },
+      ],
     },
     select: { id: true },
   });
@@ -143,4 +160,83 @@ chatRouter.patch('/conversations/:id/read', async (request: AuthRequest, respons
     data: { readAt: new Date() },
   });
   response.json({ data: { read: true } });
+});
+
+chatRouter.patch('/conversations/:id/archive', async (request: AuthRequest, response) => {
+  if (!requireActiveAgent(request, response)) return;
+  const conversationId = Number(request.params.id);
+  const result = z.object({ archived: z.boolean() }).safeParse(request.body);
+  if (!Number.isInteger(conversationId) || conversationId < 1 || !result.success) {
+    response.status(400).json({ error: 'Requête d’archivage invalide.' });
+    return;
+  }
+  const conversation = await prisma.conversation.findFirst({
+    where: {
+      id: conversationId,
+      OR: [
+        { participantOneId: request.user!.id, participantOneDeletedAt: null },
+        { participantTwoId: request.user!.id, participantTwoDeletedAt: null },
+      ],
+    },
+    select: { participantOneId: true, participantTwoId: true },
+  });
+  if (!conversation) { response.status(404).json({ error: 'Conversation introuvable.' }); return; }
+
+  const archivedAt = result.data.archived ? new Date() : null;
+  const isParticipantOne = conversation.participantOneId === request.user!.id;
+  await prisma.conversation.update({
+    where: { id: conversationId },
+    data: isParticipantOne
+      ? { participantOneArchivedAt: archivedAt }
+      : { participantTwoArchivedAt: archivedAt },
+  });
+  emitConversationArchiveChanged(request.user!.id, conversationId, archivedAt);
+  response.json({ data: { archivedAt: archivedAt?.toISOString() ?? null } });
+});
+
+chatRouter.delete('/conversations/:id', async (request: AuthRequest, response) => {
+  if (!requireActiveAgent(request, response)) return;
+  const conversationId = Number(request.params.id);
+  const result = z.object({ scope: z.enum(['me', 'everyone']) }).safeParse(request.body);
+  if (!Number.isInteger(conversationId) || conversationId < 1 || !result.success) {
+    response.status(400).json({ error: 'Requête de suppression invalide.' });
+    return;
+  }
+  const conversation = await prisma.conversation.findFirst({
+    where: {
+      id: conversationId,
+      OR: [{ participantOneId: request.user!.id }, { participantTwoId: request.user!.id }],
+    },
+    select: { participantOneId: true, participantTwoId: true },
+  });
+  if (!conversation) { response.status(404).json({ error: 'Conversation introuvable.' }); return; }
+
+  if (result.data.scope === 'everyone') {
+    await prisma.$transaction(async (transaction) => {
+      await transaction.notification.deleteMany({
+        where: { type: 'PRIVATE_MESSAGE', link: `/messages?conversationId=${conversationId}` },
+      });
+      await transaction.conversation.delete({ where: { id: conversationId } });
+    });
+    emitConversationDeleted([conversation.participantOneId, conversation.participantTwoId], conversationId, true);
+  } else {
+    const isParticipantOne = conversation.participantOneId === request.user!.id;
+    await prisma.$transaction(async (transaction) => {
+      await transaction.conversation.update({
+        where: { id: conversationId },
+        data: isParticipantOne
+          ? { participantOneDeletedAt: new Date(), participantOneArchivedAt: null }
+          : { participantTwoDeletedAt: new Date(), participantTwoArchivedAt: null },
+      });
+      await transaction.notification.deleteMany({
+        where: {
+          userId: request.user!.id,
+          type: 'PRIVATE_MESSAGE',
+          link: `/messages?conversationId=${conversationId}`,
+        },
+      });
+    });
+    emitConversationDeleted([request.user!.id], conversationId, false);
+  }
+  response.json({ data: { deleted: true, scope: result.data.scope } });
 });

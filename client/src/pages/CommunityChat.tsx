@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { io, type Socket } from 'socket.io-client'
 import api, { type ChatAgent, type ChatConversation, type ChatMessage, type CommunityAuthor } from '../api/client'
-import { ArrowLeft, FileText, Maximize2, MessageCircle, Mic, MoreHorizontal, Paperclip, Phone, Search, Send, ShieldCheck, SquarePen, X } from 'lucide-react'
+import { Archive, ArchiveRestore, ArrowLeft, FileText, Maximize2, MessageCircle, Mic, MoreHorizontal, Paperclip, Phone, Search, Send, ShieldCheck, SquarePen, Trash2, X } from 'lucide-react'
 import { notify } from '../utils/toast'
 import { SubscriberBadge } from '../components/ui/SubscriberBadge'
 
@@ -35,7 +35,9 @@ export default function CommunityChat({ currentUserId, initialConversationId }: 
   const [loading, setLoading] = useState(true)
   const [sending, setSending] = useState(false)
   const [attachment, setAttachment] = useState<File | null>(null)
-  const [conversationFilter, setConversationFilter] = useState<'all' | 'unread' | 'groups'>('all')
+  const [conversationFilter, setConversationFilter] = useState<'all' | 'unread' | 'archived'>('all')
+  const [conversationMenuOpen, setConversationMenuOpen] = useState(false)
+  const [conversationActionBusy, setConversationActionBusy] = useState(false)
   const [socketConnected, setSocketConnected] = useState(false)
   const [error, setError] = useState(() => window.localStorage.getItem('innovcom-token')
     ? ''
@@ -73,6 +75,22 @@ export default function CommunityChat({ currentUserId, initialConversationId }: 
   }, [initialConversationId, conversations])
 
   useEffect(() => {
+    if (!conversationMenuOpen) return
+    function closeMenuOnOutsideClick(event: PointerEvent) {
+      if (event.target instanceof Element && !event.target.closest('.chat-conversation-actions')) setConversationMenuOpen(false)
+    }
+    function closeMenuOnEscape(event: KeyboardEvent) {
+      if (event.key === 'Escape') setConversationMenuOpen(false)
+    }
+    document.addEventListener('pointerdown', closeMenuOnOutsideClick)
+    document.addEventListener('keydown', closeMenuOnEscape)
+    return () => {
+      document.removeEventListener('pointerdown', closeMenuOnOutsideClick)
+      document.removeEventListener('keydown', closeMenuOnEscape)
+    }
+  }, [conversationMenuOpen])
+
+  useEffect(() => {
     const token = window.localStorage.getItem('innovcom-token')
     if (!token) return
     const socket = io({ auth: { token } })
@@ -93,13 +111,26 @@ export default function CommunityChat({ currentUserId, initialConversationId }: 
         })
       }
       setConversations((current) => current.map((conversation) => conversation.id === message.conversationId
-        ? { ...conversation, lastMessage: message, unreadCount: activeIdRef.current === message.conversationId ? 0 : conversation.unreadCount + 1, updatedAt: message.createdAt }
+        ? { ...conversation, lastMessage: message, unreadCount: activeIdRef.current === message.conversationId ? 0 : conversation.unreadCount + 1, updatedAt: message.createdAt, archivedAt: null }
         : conversation).sort((first, second) => Date.parse(second.updatedAt) - Date.parse(first.updatedAt)))
       if (activeIdRef.current === message.conversationId) {
         setMessages((current) => current.some((item) => item.id === message.id) ? current : [...current, message])
         void api.markCommunityChatRead(message.conversationId).catch((caught) => {
           setError(caught instanceof Error ? caught.message : 'Impossible de marquer le message comme lu.')
         })
+      }
+    })
+    socket.on('conversation:archive-changed', (event: { conversationId: number; archivedAt: string | null }) => {
+      setConversations((current) => current.map((conversation) => conversation.id === event.conversationId
+        ? { ...conversation, archivedAt: event.archivedAt }
+        : conversation))
+    })
+    socket.on('conversation:deleted', (event: { conversationId: number }) => {
+      setConversations((current) => current.filter((conversation) => conversation.id !== event.conversationId))
+      setMessages((current) => current.filter((message) => message.conversationId !== event.conversationId))
+      if (activeIdRef.current === event.conversationId) {
+        activeIdRef.current = null
+        setActiveId(null)
       }
     })
     return () => {
@@ -137,6 +168,46 @@ export default function CommunityChat({ currentUserId, initialConversationId }: 
     }
   }
 
+  async function toggleActiveConversationArchive() {
+    if (!activeConversation || conversationActionBusy) return
+    setConversationActionBusy(true)
+    setError('')
+    try {
+      const archivedAt = await api.setCommunityChatArchived(activeConversation.id, !activeConversation.archivedAt)
+      setConversations((current) => current.map((conversation) => conversation.id === activeConversation.id
+        ? { ...conversation, archivedAt }
+        : conversation))
+      if (!archivedAt && conversationFilter === 'archived') setConversationFilter('all')
+      setConversationMenuOpen(false)
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'Impossible de modifier l’archivage.')
+    } finally {
+      setConversationActionBusy(false)
+    }
+  }
+
+  async function deleteActiveConversation(scope: 'me' | 'everyone') {
+    if (!activeConversation || conversationActionBusy) return
+    const confirmation = scope === 'everyone'
+      ? 'Supprimer définitivement cette conversation et tous ses messages pour vous et l’autre agent ? Cette action est irréversible.'
+      : 'Retirer cette conversation et son historique de votre liste ? L’autre agent conservera la conversation.'
+    if (!window.confirm(confirmation)) return
+    setConversationActionBusy(true)
+    setError('')
+    try {
+      await api.deleteCommunityChatConversation(activeConversation.id, scope)
+      setConversations((current) => current.filter((conversation) => conversation.id !== activeConversation.id))
+      setMessages((current) => current.filter((message) => message.conversationId !== activeConversation.id))
+      activeIdRef.current = null
+      setActiveId(null)
+      setConversationMenuOpen(false)
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'Impossible de supprimer la conversation.')
+    } finally {
+      setConversationActionBusy(false)
+    }
+  }
+
   function sendMessage(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     const content = draft.trim() || (attachment ? `Pièce jointe : ${attachment.name}` : '')
@@ -161,7 +232,7 @@ export default function CommunityChat({ currentUserId, initialConversationId }: 
       }
       setMessages((current) => current.some((item) => item.id === message.id) ? current : [...current, message])
       setConversations((current) => current.map((item) => item.id === activeId
-        ? { ...item, lastMessage: message, updatedAt: message.createdAt }
+        ? { ...item, lastMessage: message, updatedAt: message.createdAt, archivedAt: null }
         : item).sort((first, second) => Date.parse(second.updatedAt) - Date.parse(first.updatedAt)))
       setDraft('')
       setAttachment(null)
@@ -174,7 +245,9 @@ export default function CommunityChat({ currentUserId, initialConversationId }: 
   const visibleConversations = conversations.filter((conversation) => {
     const matchesSearch = nameOf(conversation.agent).toLocaleLowerCase('fr').includes(search.toLocaleLowerCase('fr'))
       || (conversation.lastMessage?.content ?? '').toLocaleLowerCase('fr').includes(search.toLocaleLowerCase('fr'))
-    const matchesFilter = conversationFilter === 'all' || (conversationFilter === 'unread' && conversation.unreadCount > 0)
+    const matchesFilter = conversationFilter === 'archived'
+      ? Boolean(conversation.archivedAt)
+      : !conversation.archivedAt && (conversationFilter === 'all' || conversation.unreadCount > 0)
     return matchesSearch && matchesFilter
   })
 
@@ -198,19 +271,19 @@ export default function CommunityChat({ currentUserId, initialConversationId }: 
         <div className="chat-mobile-tabs" aria-label="Filtrer les discussions">
           <button type="button" className={conversationFilter === 'all' ? 'active' : ''} onClick={() => setConversationFilter('all')}>Tout</button>
           <button type="button" className={conversationFilter === 'unread' ? 'active' : ''} onClick={() => setConversationFilter('unread')}>Non lu</button>
-          <button type="button" className={conversationFilter === 'groups' ? 'active' : ''} onClick={() => setConversationFilter('groups')}>Groupes</button>
+          <button type="button" className={conversationFilter === 'archived' ? 'active' : ''} onClick={() => setConversationFilter('archived')}>Archivées</button>
         </div>
         {loading ? <p className="chat-empty">Chargement des conversations…</p> : <>
-          <h3 className="chat-list-title">Conversations</h3>
+          <h3 className="chat-list-title">{conversationFilter === 'archived' ? 'Conversations archivées' : 'Conversations'}</h3>
           <div className="chat-contact-list">
-            {(conversationFilter === 'groups' ? [] : visibleConversations).map((conversation) => {
+            {visibleConversations.map((conversation) => {
               const name = nameOf(conversation.agent)
               return <button type="button" key={conversation.id} className={`chat-contact ${activeId === conversation.id ? 'active' : ''}`} onClick={() => setActiveId(conversation.id)}>
                 <span className="chat-avatar" aria-hidden="true">{avatarContent(conversation.agent, name)}</span><span className="chat-contact-copy"><strong><span>{name}</span>{conversation.agent.isSubscriber && <SubscriberBadge />}</strong><small>{conversation.lastMessage?.content ?? 'Démarrer la conversation'}</small></span>
                 {conversation.unreadCount > 0 && <span className="chat-unread">{conversation.unreadCount}</span>}
               </button>
             })}
-            {conversations.length === 0 && <p className="chat-empty">Vos conversations apparaîtront ici.</p>}
+            {visibleConversations.length === 0 && <p className="chat-empty">{conversationFilter === 'archived' ? 'Aucune conversation archivée.' : conversationFilter === 'unread' ? 'Aucun message non lu.' : 'Vos conversations apparaîtront ici.'}</p>}
           </div>
           <h3 className="chat-list-title chat-agents-title">Agents disponibles</h3>
           <div className="chat-contact-list">
@@ -232,7 +305,21 @@ export default function CommunityChat({ currentUserId, initialConversationId }: 
             <span className="chat-thread-person"><strong><span>{nameOf(activeConversation.agent)}</span>{activeConversation.agent.isSubscriber && <SubscriberBadge />}</strong><small>Agent Ty sy Nday Business · conversation privée</small></span>
             <div className="chat-thread-actions">
               <button className="chat-tool-button" type="button" aria-label="Démarrer un appel vocal" title="Appel vocal" onClick={() => notify('Appel vocal prêt à être lancé avec cet agent.', 'info')}><Phone size={20} /></button>
-              <button className="chat-tool-button" type="button" aria-label="Options de conversation" onClick={() => notify('Aucune autre action disponible pour cette conversation.', 'info')}><MoreHorizontal size={21} /></button>
+              <div className="chat-conversation-actions">
+                <button className="chat-tool-button" type="button" aria-label="Options de conversation" aria-haspopup="menu" aria-expanded={conversationMenuOpen} onClick={() => setConversationMenuOpen((open) => !open)} disabled={conversationActionBusy}><MoreHorizontal size={21} /></button>
+                {conversationMenuOpen && <div className="chat-conversation-menu" role="menu">
+                  <button type="button" role="menuitem" onClick={() => void toggleActiveConversationArchive()} disabled={conversationActionBusy}>
+                    {activeConversation.archivedAt ? <ArchiveRestore size={16} aria-hidden="true" /> : <Archive size={16} aria-hidden="true" />}
+                    {activeConversation.archivedAt ? 'Désarchiver' : 'Archiver'}
+                  </button>
+                  <button type="button" role="menuitem" className="danger" onClick={() => void deleteActiveConversation('me')} disabled={conversationActionBusy}>
+                    <Trash2 size={16} aria-hidden="true" /> Supprimer pour moi
+                  </button>
+                  <button type="button" role="menuitem" className="danger" onClick={() => void deleteActiveConversation('everyone')} disabled={conversationActionBusy}>
+                    <Trash2 size={16} aria-hidden="true" /> Supprimer pour tout le monde
+                  </button>
+                </div>}
+              </div>
             </div>
           </header>
           <div className="chat-messages" aria-live="polite">

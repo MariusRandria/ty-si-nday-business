@@ -15,8 +15,24 @@ const messageSchema = z.object({
 type ChatSocketData = { userId: number; expiresAt: number };
 type SendAck = (result: { data?: { id: number; conversationId: number; senderId: number; content: string; createdAt: Date }; error?: string }) => void;
 
+let chatIo: Server | null = null;
+
+export function emitConversationArchiveChanged(userId: number, conversationId: number, archivedAt: Date | null) {
+  chatIo?.to(`agent:${userId}`).emit('conversation:archive-changed', {
+    conversationId,
+    archivedAt: archivedAt?.toISOString() ?? null,
+  });
+}
+
+export function emitConversationDeleted(userIds: number[], conversationId: number, deletedForEveryone: boolean) {
+  for (const userId of userIds) {
+    chatIo?.to(`agent:${userId}`).emit('conversation:deleted', { conversationId, deletedForEveryone });
+  }
+}
+
 export function attachChatGateway(server: HttpServer) {
   const io = new Server(server, { cors: { origin: env.clientOrigins } });
+  chatIo = io;
   setNotificationServer(io);
 
   io.use(async (socket, next) => {
@@ -71,7 +87,10 @@ export function attachChatGateway(server: HttpServer) {
         const conversation = await prisma.conversation.findFirst({
           where: {
             id: result.data.conversationId,
-            OR: [{ participantOneId: userId }, { participantTwoId: userId }],
+            OR: [
+              { participantOneId: userId, participantOneDeletedAt: null },
+              { participantTwoId: userId, participantTwoDeletedAt: null },
+            ],
           },
           select: { id: true, participantOneId: true, participantTwoId: true },
         });
@@ -101,7 +120,13 @@ export function attachChatGateway(server: HttpServer) {
           });
           await transaction.conversation.update({
             where: { id: conversation.id },
-            data: { updatedAt: created.createdAt },
+            data: {
+              updatedAt: created.createdAt,
+              participantOneArchivedAt: null,
+              participantTwoArchivedAt: null,
+              participantOneDeletedAt: null,
+              participantTwoDeletedAt: null,
+            },
           });
           return created;
         });
