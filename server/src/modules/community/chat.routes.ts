@@ -3,7 +3,7 @@ import type { Response } from 'express';
 import { z } from 'zod';
 import { prisma } from '../../lib/prisma.js';
 import type { AuthRequest } from '../auth/auth.middleware.js';
-import { emitChatMessageDeleted, emitConversationArchiveChanged, emitConversationDeleted } from './chat.gateway.js';
+import { emitChatMessageDeleted, emitChatMessageHidden, emitConversationArchiveChanged, emitConversationDeleted } from './chat.gateway.js';
 
 export const chatRouter = Router();
 
@@ -64,8 +64,12 @@ chatRouter.get('/conversations', async (request: AuthRequest, response) => {
     include: {
       participantOne: { select: selectedAgent },
       participantTwo: { select: selectedAgent },
-      messages: { orderBy: { createdAt: 'desc' }, take: 1 },
-      _count: { select: { messages: { where: { senderId: { not: userId }, readAt: null } } } },
+      messages: {
+        where: { hiddenFor: { none: { userId } } },
+        orderBy: { createdAt: 'desc' },
+        take: 1,
+      },
+      _count: { select: { messages: { where: { senderId: { not: userId }, readAt: null, hiddenFor: { none: { userId } } } } } },
     },
   });
   response.json({
@@ -130,11 +134,60 @@ chatRouter.get('/conversations/:id/messages', async (request: AuthRequest, respo
     data: { readAt: new Date() },
   });
   const messages = await prisma.directMessage.findMany({
-    where: { conversationId },
+    where: { conversationId, hiddenFor: { none: { userId: request.user!.id } } },
     orderBy: { createdAt: 'desc' },
     take: 100,
   });
   response.json({ data: messages.reverse() });
+});
+
+chatRouter.delete('/conversations/:id/messages/:messageId/me', async (request: AuthRequest, response) => {
+  if (!requireActiveAgent(request, response)) return;
+  const conversationId = Number(request.params.id);
+  const messageId = Number(request.params.messageId);
+  if (!Number.isInteger(conversationId) || conversationId < 1 || !Number.isInteger(messageId) || messageId < 1) {
+    response.status(400).json({ error: 'Identifiant de message invalide.' });
+    return;
+  }
+  const conversation = await prisma.conversation.findFirst({
+    where: {
+      id: conversationId,
+      OR: [
+        { participantOneId: request.user!.id, participantOneDeletedAt: null },
+        { participantTwoId: request.user!.id, participantTwoDeletedAt: null },
+      ],
+    },
+    select: { updatedAt: true },
+  });
+  if (!conversation) { response.status(404).json({ error: 'Conversation introuvable.' }); return; }
+  const message = await prisma.directMessage.findFirst({
+    where: { id: messageId, conversationId },
+    select: { id: true, senderId: true, readAt: true },
+  });
+  if (!message) { response.status(404).json({ error: 'Message introuvable.' }); return; }
+
+  await prisma.directMessageHidden.upsert({
+    where: { messageId_userId: { messageId, userId: request.user!.id } },
+    update: {},
+    create: { messageId, userId: request.user!.id },
+  });
+  const [lastMessage, unreadCount] = await Promise.all([
+    prisma.directMessage.findFirst({
+      where: { conversationId, hiddenFor: { none: { userId: request.user!.id } } },
+      orderBy: { createdAt: 'desc' },
+      select: { id: true, conversationId: true, senderId: true, content: true, readAt: true, createdAt: true },
+    }),
+    prisma.directMessage.count({
+      where: {
+        conversationId,
+        senderId: { not: request.user!.id },
+        readAt: null,
+        hiddenFor: { none: { userId: request.user!.id } },
+      },
+    }),
+  ]);
+  emitChatMessageHidden(request.user!.id, conversationId, messageId, lastMessage, unreadCount);
+  response.json({ data: { deleted: true, messageId, lastMessage, updatedAt: conversation.updatedAt, unreadCount } });
 });
 
 chatRouter.patch('/conversations/:id/read', async (request: AuthRequest, response) => {
@@ -230,15 +283,33 @@ chatRouter.delete('/conversations/:id/messages/:messageId', async (request: Auth
     await transaction.conversation.update({ where: { id: conversationId }, data: { updatedAt } });
     return { lastMessage, updatedAt };
   });
+  const recipients = await Promise.all([conversation.participantOneId, conversation.participantTwoId].map(async (userId) => {
+    const [lastMessage, unreadCount] = await Promise.all([
+      prisma.directMessage.findFirst({
+        where: { conversationId, hiddenFor: { none: { userId } } },
+        orderBy: { createdAt: 'desc' },
+        select: { id: true, conversationId: true, senderId: true, content: true, readAt: true, createdAt: true },
+      }),
+      prisma.directMessage.count({
+        where: {
+          conversationId,
+          senderId: { not: userId },
+          readAt: null,
+          hiddenFor: { none: { userId } },
+        },
+      }),
+    ]);
+    return { userId, lastMessage, unreadCount };
+  }));
   emitChatMessageDeleted(
-    [conversation.participantOneId, conversation.participantTwoId],
+    recipients,
     conversationId,
     messageId,
     { senderId: message.senderId, readAt: message.readAt },
-    result.lastMessage,
     result.updatedAt,
   );
-  response.json({ data: { deleted: true, messageId, lastMessage: result.lastMessage, updatedAt: result.updatedAt } });
+  const recipientResult = recipients.find((recipient) => recipient.userId === request.user!.id)!;
+  response.json({ data: { deleted: true, messageId, lastMessage: recipientResult.lastMessage, unreadCount: recipientResult.unreadCount, updatedAt: result.updatedAt } });
 });
 
 chatRouter.delete('/conversations/:id', async (request: AuthRequest, response) => {

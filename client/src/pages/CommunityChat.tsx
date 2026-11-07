@@ -145,18 +145,34 @@ export default function CommunityChat({ currentUserId, initialConversationId }: 
       deletedMessage: { senderId: number; readAt: string | null }
       lastMessage: ChatMessage | null
       updatedAt: string
+      unreadCount: number
     }) => {
       setMessages((current) => current.filter((message) => message.id !== event.messageId))
+      setOpenMessageMenuId((current) => current === event.messageId ? null : current)
       setConversations((current) => current.map((conversation) => conversation.id === event.conversationId
         ? {
           ...conversation,
           lastMessage: conversation.lastMessage?.id === event.messageId ? event.lastMessage : conversation.lastMessage,
           updatedAt: event.updatedAt,
-          unreadCount: event.deletedMessage.senderId !== currentUserId && !event.deletedMessage.readAt
-            ? Math.max(0, conversation.unreadCount - 1)
-            : conversation.unreadCount,
+          unreadCount: event.unreadCount,
         }
         : conversation).sort((first, second) => Date.parse(second.updatedAt) - Date.parse(first.updatedAt)))
+    })
+    socket.on('message:hidden', (event: {
+      conversationId: number
+      messageId: number
+      lastMessage: ChatMessage | null
+      unreadCount: number
+    }) => {
+      setMessages((current) => current.filter((message) => message.id !== event.messageId))
+      setOpenMessageMenuId((current) => current === event.messageId ? null : current)
+      setConversations((current) => current.map((conversation) => conversation.id === event.conversationId
+        ? {
+          ...conversation,
+          lastMessage: conversation.lastMessage?.id === event.messageId ? event.lastMessage : conversation.lastMessage,
+          unreadCount: event.unreadCount,
+        }
+        : conversation))
     })
     return () => {
       socket.disconnect()
@@ -244,11 +260,35 @@ export default function CommunityChat({ currentUserId, initialConversationId }: 
           ...conversation,
           lastMessage: conversation.lastMessage?.id === message.id ? result.lastMessage : conversation.lastMessage,
           updatedAt: result.updatedAt,
+          unreadCount: result.unreadCount,
         }
         : conversation).sort((first, second) => Date.parse(second.updatedAt) - Date.parse(first.updatedAt)))
       setOpenMessageMenuId(null)
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Impossible de supprimer le message.')
+    } finally {
+      setConversationActionBusy(false)
+    }
+  }
+
+  async function deleteMessageForMe(message: ChatMessage) {
+    if (!activeConversation || conversationActionBusy) return
+    if (!window.confirm('Retirer ce message de votre affichage uniquement ? Il restera visible pour l’autre participant.')) return
+    setConversationActionBusy(true)
+    setError('')
+    try {
+      const result = await api.hideCommunityChatMessage(activeConversation.id, message.id)
+      setMessages((current) => current.filter((item) => item.id !== message.id))
+      setConversations((current) => current.map((conversation) => conversation.id === activeConversation.id
+        ? {
+          ...conversation,
+          lastMessage: conversation.lastMessage?.id === message.id ? result.lastMessage : conversation.lastMessage,
+          unreadCount: result.unreadCount,
+        }
+        : conversation))
+      setOpenMessageMenuId(null)
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'Impossible de supprimer le message pour vous.')
     } finally {
       setConversationActionBusy(false)
     }
@@ -372,6 +412,7 @@ export default function CommunityChat({ currentUserId, initialConversationId }: 
                 {message.senderId === currentUserId && <div className="chat-message-actions">
                   <button type="button" className="chat-message-menu-trigger" aria-label="Options de ce message" aria-haspopup="menu" aria-expanded={openMessageMenuId === message.id} onClick={() => setOpenMessageMenuId((current) => current === message.id ? null : message.id)} disabled={conversationActionBusy}><MoreHorizontal size={17} aria-hidden="true" /></button>
                   {openMessageMenuId === message.id && <div className="chat-message-menu" role="menu">
+                    <button type="button" role="menuitem" onClick={() => void deleteMessageForMe(message)} disabled={conversationActionBusy}><Trash2 size={15} aria-hidden="true" /> Supprimer pour moi</button>
                     <button type="button" role="menuitem" className="danger" onClick={() => void deleteMessageForEveryone(message)} disabled={conversationActionBusy}><Trash2 size={15} aria-hidden="true" /> Supprimer pour tout le monde</button>
                   </div>}
                 </div>}

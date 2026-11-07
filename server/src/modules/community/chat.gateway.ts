@@ -31,22 +31,41 @@ export function emitConversationDeleted(userIds: number[], conversationId: numbe
 }
 
 export function emitChatMessageDeleted(
-  userIds: number[],
+  recipients: {
+    userId: number;
+    lastMessage: { id: number; conversationId: number; senderId: number; content: string; readAt: Date | null; createdAt: Date } | null;
+    unreadCount: number;
+  }[],
   conversationId: number,
   messageId: number,
   deletedMessage: { senderId: number; readAt: Date | null },
-  lastMessage: { id: number; conversationId: number; senderId: number; content: string; readAt: Date | null; createdAt: Date } | null,
   updatedAt: Date,
 ) {
-  for (const userId of userIds) {
-    chatIo?.to(`agent:${userId}`).emit('message:deleted', {
+  for (const recipient of recipients) {
+    chatIo?.to(`agent:${recipient.userId}`).emit('message:deleted', {
       conversationId,
       messageId,
       deletedMessage,
-      lastMessage,
+      lastMessage: recipient.lastMessage,
       updatedAt: updatedAt.toISOString(),
+      unreadCount: recipient.unreadCount,
     });
   }
+}
+
+export function emitChatMessageHidden(
+  userId: number,
+  conversationId: number,
+  messageId: number,
+  lastMessage: { id: number; conversationId: number; senderId: number; content: string; readAt: Date | null; createdAt: Date } | null,
+  unreadCount: number,
+) {
+  chatIo?.to(`agent:${userId}`).emit('message:hidden', {
+    conversationId,
+    messageId,
+    lastMessage,
+    unreadCount,
+  });
 }
 
 export function attachChatGateway(server: HttpServer) {
