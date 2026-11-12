@@ -25,7 +25,7 @@ export function createApp() {
   const app = express();
   app.use(helmet({
     crossOriginOpenerPolicy: { policy: 'same-origin-allow-popups' },
-    contentSecurityPolicy: { directives: { imgSrc: ["'self'", 'blob:'] } },
+    contentSecurityPolicy: { directives: { imgSrc: ["'self'", 'blob:'], mediaSrc: ["'self'", 'blob:'] } },
   }));
   app.use(cors({ origin: env.clientOrigins }));
   app.use(express.json());

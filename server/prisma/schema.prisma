@@ -197,6 +197,7 @@ model User {
   role                                UserRole                            @default(AGENT)
   status                              UserStatus                          @default(EN_ATTENTE_ACTIVATION)
   lastLoginAt                         DateTime?                           @map("last_login_at")
+  lastActiveAt                        DateTime?                           @map("last_active_at")
   createdAt                           DateTime                            @default(now()) @map("created_at")
   updatedAt                           DateTime                            @updatedAt @map("updated_at")
   agentProfile                        AgentProfile?
@@ -222,6 +223,7 @@ model User {
   conversationsAsFirst                Conversation[]                      @relation("ConversationParticipantOne")
   conversationsAsSecond               Conversation[]                      @relation("ConversationParticipantTwo")
   directMessages                      DirectMessage[]
+  hiddenDirectMessages                DirectMessageHidden[]
   prospectContactsCreated             ProspectContact[]                   @relation("ProspectContactCreator")
   subscriptionRequests                SubscriptionRequest[]               @relation("SubscriptionAgent")
   reviewedSubscriptionRequests        SubscriptionRequest[]               @relation("SubscriptionReviewer")
@@ -916,21 +918,21 @@ model PostCategory {
 }
 
 model Post {
-  id         Int          @id @default(autoincrement())
-  authorId   Int          @map("author_id")
-  categoryId Int          @map("category_id")
-  title      String       @db.VarChar(200)
-  content    String       @db.Text
-  imageUrl   String?      @map("image_url") @db.VarChar(500)
-  isPinned   Boolean      @default(false) @map("is_pinned")
-  isHidden   Boolean      @default(false) @map("is_hidden")
-  authorHidden Boolean    @default(false) @map("author_hidden")
-  createdAt  DateTime     @default(now()) @map("created_at")
-  updatedAt  DateTime     @updatedAt @map("updated_at")
-  author     User         @relation(fields: [authorId], references: [id])
-  category   PostCategory @relation(fields: [categoryId], references: [id])
-  comments   Comment[]
-  likes      PostLike[]
+  id           Int          @id @default(autoincrement())
+  authorId     Int          @map("author_id")
+  categoryId   Int          @map("category_id")
+  title        String       @db.VarChar(200)
+  content      String       @db.Text
+  imageUrl     String?      @map("image_url") @db.VarChar(500)
+  isPinned     Boolean      @default(false) @map("is_pinned")
+  isHidden     Boolean      @default(false) @map("is_hidden")
+  authorHidden Boolean      @default(false) @map("author_hidden")
+  createdAt    DateTime     @default(now()) @map("created_at")
+  updatedAt    DateTime     @updatedAt @map("updated_at")
+  author       User         @relation(fields: [authorId], references: [id])
+  category     PostCategory @relation(fields: [categoryId], references: [id])
+  comments     Comment[]
+  likes        PostLike[]
 
   @@index([categoryId, createdAt])
   @@map("posts")
@@ -983,14 +985,18 @@ model ContentReport {
 }
 
 model Conversation {
-  id               Int             @id @default(autoincrement())
-  participantOneId Int             @map("participant_one_id")
-  participantTwoId Int             @map("participant_two_id")
-  createdAt        DateTime        @default(now()) @map("created_at")
-  updatedAt        DateTime        @updatedAt @map("updated_at")
-  participantOne   User            @relation("ConversationParticipantOne", fields: [participantOneId], references: [id])
-  participantTwo   User            @relation("ConversationParticipantTwo", fields: [participantTwoId], references: [id])
-  messages         DirectMessage[]
+  id                       Int             @id @default(autoincrement())
+  participantOneId         Int             @map("participant_one_id")
+  participantTwoId         Int             @map("participant_two_id")
+  participantOneArchivedAt DateTime?       @map("participant_one_archived_at")
+  participantTwoArchivedAt DateTime?       @map("participant_two_archived_at")
+  participantOneDeletedAt  DateTime?       @map("participant_one_deleted_at")
+  participantTwoDeletedAt  DateTime?       @map("participant_two_deleted_at")
+  createdAt                DateTime        @default(now()) @map("created_at")
+  updatedAt                DateTime        @updatedAt @map("updated_at")
+  participantOne           User            @relation("ConversationParticipantOne", fields: [participantOneId], references: [id])
+  participantTwo           User            @relation("ConversationParticipantTwo", fields: [participantTwoId], references: [id])
+  messages                 DirectMessage[]
 
   @@unique([participantOneId, participantTwoId])
   @@index([participantOneId, updatedAt])
@@ -999,18 +1005,35 @@ model Conversation {
 }
 
 model DirectMessage {
-  id             Int          @id @default(autoincrement())
-  conversationId Int          @map("conversation_id")
-  senderId       Int          @map("sender_id")
-  content        String       @db.Text
-  readAt         DateTime?    @map("read_at")
-  createdAt      DateTime     @default(now()) @map("created_at")
-  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
-  sender         User         @relation(fields: [senderId], references: [id])
+  id              Int                   @id @default(autoincrement())
+  conversationId  Int                   @map("conversation_id")
+  senderId        Int                   @map("sender_id")
+  content         String                @db.Text
+  mediaStorageKey String?               @map("media_storage_key") @db.VarChar(100)
+  mediaMimeType   String?               @map("media_mime_type") @db.VarChar(100)
+  readAt          DateTime?             @map("read_at")
+  createdAt       DateTime              @default(now()) @map("created_at")
+  deletedAt       DateTime?             @map("deleted_at")
+  conversation    Conversation          @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender          User                  @relation(fields: [senderId], references: [id])
+  hiddenFor       DirectMessageHidden[]
 
   @@index([conversationId, createdAt])
   @@index([senderId, readAt])
   @@map("direct_messages")
+}
+
+model DirectMessageHidden {
+  id        Int           @id @default(autoincrement())
+  messageId Int           @map("message_id")
+  userId    Int           @map("user_id")
+  createdAt DateTime      @default(now()) @map("created_at")
+  message   DirectMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([messageId, userId])
+  @@index([userId, createdAt])
+  @@map("direct_message_hidden")
 }
 
 model Notification {

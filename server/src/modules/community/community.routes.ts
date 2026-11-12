@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { Router } from 'express';
 import multer from 'multer';
 import type { NextFunction, Response } from 'express';
+import type { Prisma } from '@prisma/client';
 import { z } from 'zod';
 import { prisma } from '../../lib/prisma.js';
 import type { AuthRequest } from '../auth/auth.middleware.js';
@@ -14,35 +15,40 @@ import { notifyAgents, notifyUser } from '../notifications/notifications.service
 export const communityRouter = Router();
 communityRouter.use('/chat', chatRouter);
 
-const postImageUpload = multer({
+const postMediaUpload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 5 * 1024 * 1024, files: 1 },
+  limits: { fileSize: 50 * 1024 * 1024, files: 1 },
   fileFilter: (_request, file, callback) => {
-    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.mimetype)) {
-      callback(new Error('La photo doit être au format JPEG, PNG ou WebP.'));
+    if (!['image/jpeg', 'image/png', 'image/webp', 'video/mp4', 'video/webm'].includes(file.mimetype)) {
+      callback(new Error('Le média doit être une image JPEG, PNG, WebP ou une vidéo MP4/WebM.'));
       return;
     }
     callback(null, true);
   },
-}).single('image');
+}).single('media');
 
-function parsePostImage(request: AuthRequest, response: Response, next: NextFunction) {
-  postImageUpload(request, response, (error: unknown) => {
+function parsePostMedia(request: AuthRequest, response: Response, next: NextFunction) {
+  postMediaUpload(request, response, (error: unknown) => {
     if (!error) { next(); return; }
     if (error instanceof multer.MulterError && error.code === 'LIMIT_FILE_SIZE') {
-      response.status(413).json({ error: 'La photo ne doit pas dépasser 5 Mo.' });
+      response.status(413).json({ error: 'Une vidéo ne doit pas dépasser 50 Mo.' });
       return;
     }
-    response.status(400).json({ error: error instanceof Error ? error.message : 'Impossible de lire la photo envoyée.' });
+    response.status(400).json({ error: error instanceof Error ? error.message : 'Impossible de lire le média envoyé.' });
   });
 }
 
-function communityImageExtension(buffer: Buffer): 'jpg' | 'png' | 'webp' | null {
+function communityMediaExtension(buffer: Buffer, mimeType: string): 'jpg' | 'png' | 'webp' | 'mp4' | 'webm' | null {
   if (buffer.length >= 8 && buffer.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))) return 'png';
   if (buffer.length >= 3 && buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff) return 'jpg';
   if (buffer.length >= 12 && buffer.toString('ascii', 0, 4) === 'RIFF' && buffer.toString('ascii', 8, 12) === 'WEBP') return 'webp';
+  if (mimeType === 'video/mp4' && buffer.length >= 12 && buffer.toString('ascii', 4, 8) === 'ftyp') return 'mp4';
+  if (mimeType === 'video/webm' && buffer.length >= 4 && buffer.subarray(0, 4).equals(Buffer.from([0x1a, 0x45, 0xdf, 0xa3]))) return 'webm';
   return null;
 }
+
+const COMMUNITY_IMAGE_MAX_SIZE = 5 * 1024 * 1024;
+const COMMUNITY_VIDEO_MAX_SIZE = 50 * 1024 * 1024;
 
 const postSchema = z.object({
   title: z.string().trim().min(3).max(200),
@@ -73,6 +79,8 @@ function requireAgent(request: AuthRequest, response: Response) {
 function authorSelect(now: Date) {
   return {
     id: true,
+    role: true,
+    lastActiveAt: true,
     agentProfile: { select: { firstName: true, lastName: true, imageUrl: true } },
     subscriptionRequests: {
       where: { status: 'APPROVED', startsAt: { lte: now }, expiresAt: { gt: now } },
@@ -151,19 +159,94 @@ communityRouter.get('/feed', async (request: AuthRequest, response) => {
   });
 });
 
-communityRouter.post('/posts', (request: AuthRequest, response: Response, next: NextFunction) => {
-  if (requireAgent(request, response)) next();
-}, parsePostImage, async (request: AuthRequest, response) => {
+communityRouter.get('/search', async (request: AuthRequest, response) => {
+  if (request.user?.status !== 'ACTIF') { response.status(403).json({ error: 'Un compte actif est requis pour consulter le forum.' }); return; }
+  const parsed = z.object({
+    q: z.string().trim().min(2).max(100),
+    offset: z.coerce.number().int().min(0).max(10000).default(0),
+  }).safeParse(request.query);
+  if (!parsed.success) { response.status(400).json({ error: 'Saisissez au moins deux caractères pour rechercher.' }); return; }
+
+  const terms = parsed.data.q.normalize('NFD').replace(/[\u0300-\u036f]/g, '').split(/[^\p{L}\p{N}]+/u).filter(Boolean).slice(0, 8);
+  const searchWhere: Prisma.PostWhereInput = {
+    category: { adminOnly: false },
+    OR: [
+      { isHidden: false, authorHidden: false },
+      { isHidden: false, authorId: request.user.id },
+    ],
+    AND: terms.map((term): Prisma.PostWhereInput => {
+      const officialNameMatch = ['TY', 'SY', 'NDAY'].some((part) => part.includes(term.toLocaleUpperCase('fr')) || term.toLocaleUpperCase('fr').includes(part));
+      const matches: Prisma.PostWhereInput[] = [
+        { title: { contains: term } },
+        { content: { contains: term } },
+        { category: { name: { contains: term } } },
+        { author: { is: { agentProfile: { is: { firstName: { contains: term } } } } } },
+        { author: { is: { agentProfile: { is: { lastName: { contains: term } } } } } },
+        { comments: { some: {
+          isHidden: false,
+          authorHidden: false,
+          OR: [
+            { content: { contains: term } },
+            { author: { is: { agentProfile: { is: { firstName: { contains: term } } } } } },
+            { author: { is: { agentProfile: { is: { lastName: { contains: term } } } } } },
+          ],
+        } } },
+      ];
+      if (officialNameMatch) matches.push({ author: { is: { role: { in: ['ADMIN', 'SUPER_ADMIN'] } } } });
+      return { OR: matches };
+    }),
+  };
+  const posts = await prisma.post.findMany({
+    where: searchWhere,
+    orderBy: [{ isPinned: 'desc' }, { createdAt: 'desc' }],
+    skip: parsed.data.offset,
+    take: 21,
+    include: postInclude(new Date(), request.user.id),
+  });
+  const hasMore = posts.length > 20;
+  response.json({
+    data: {
+      posts: posts.slice(0, 20).map(({ authorHidden, ...post }) => ({
+        ...post,
+        isAuthorHidden: authorHidden,
+        author: withSubscriberBadge(post.author),
+        comments: post.comments.map(({ authorHidden: commentAuthorHidden, ...comment }) => ({
+          ...comment,
+          isAuthorHidden: commentAuthorHidden,
+          author: withSubscriberBadge(comment.author),
+        })),
+        likesCount: post._count.likes,
+        likedByMe: post.likes.some((like) => like.userId === request.user?.id),
+        likes: undefined,
+        _count: undefined,
+      })),
+      hasMore,
+    },
+  });
+});
+
+async function publishCommunityPost(request: AuthRequest, response: Response) {
   const result = postSchema.safeParse(request.body);
   if (!result.success) { response.status(400).json({ error: 'Titre, contenu ou catégorie invalide.', details: result.error.flatten() }); return; }
   const file = request.file;
-  const extension = file ? communityImageExtension(file.buffer) : null;
-  if (file && (!extension || !({
-    jpg: file.mimetype === 'image/jpeg',
-    png: file.mimetype === 'image/png',
-    webp: file.mimetype === 'image/webp',
-  }[extension]))) {
-    response.status(400).json({ error: 'La photo envoyée doit être une image JPEG, PNG ou WebP valide.' });
+  const extension = file ? communityMediaExtension(file.buffer, file.mimetype) : null;
+  const validMimeType = extension ? ({
+    jpg: file?.mimetype === 'image/jpeg',
+    png: file?.mimetype === 'image/png',
+    webp: file?.mimetype === 'image/webp',
+    mp4: file?.mimetype === 'video/mp4',
+    webm: file?.mimetype === 'video/webm',
+  }[extension]) : false;
+  if (file && (!extension || !validMimeType)) {
+    response.status(400).json({ error: 'Le média doit être une image valide (JPEG, PNG ou WebP) ou une vidéo valide (MP4 ou WebM).' });
+    return;
+  }
+  if (file && extension && ['jpg', 'png', 'webp'].includes(extension) && file.size > COMMUNITY_IMAGE_MAX_SIZE) {
+    response.status(413).json({ error: 'Une image ne doit pas dépasser 5 Mo.' });
+    return;
+  }
+  if (file && extension && ['mp4', 'webm'].includes(extension) && file.size > COMMUNITY_VIDEO_MAX_SIZE) {
+    response.status(413).json({ error: 'Une vidéo ne doit pas dépasser 50 Mo.' });
     return;
   }
 
@@ -200,7 +283,8 @@ communityRouter.post('/posts', (request: AuthRequest, response: Response, next: 
     }
     throw error;
   }
-  const authorName = [post.author.agentProfile?.firstName, post.author.agentProfile?.lastName].filter(Boolean).join(' ') || `Agent #${request.user!.id}`;
+  const authorName = [post.author.agentProfile?.firstName, post.author.agentProfile?.lastName].filter(Boolean).join(' ')
+    || (post.author.role === 'ADMIN' || post.author.role === 'SUPER_ADMIN' ? 'L’administration' : `Agent #${request.user!.id}`);
   await notifyAgents({
     type: 'COMMUNITY_POST',
     title: 'Nouvelle publication dans le forum',
@@ -210,7 +294,11 @@ communityRouter.post('/posts', (request: AuthRequest, response: Response, next: 
   });
   const { authorHidden, ...publicPost } = post;
   response.status(201).json({ data: { ...publicPost, isAuthorHidden: authorHidden, author: withSubscriberBadge(post.author), comments: post.comments.map(({ authorHidden: commentAuthorHidden, ...comment }) => ({ ...comment, isAuthorHidden: commentAuthorHidden, author: withSubscriberBadge(comment.author) })), likesCount: 0, likedByMe: false, likes: undefined, _count: undefined } });
-});
+}
+
+communityRouter.post('/posts', (request: AuthRequest, response: Response, next: NextFunction) => {
+  if (requireAgent(request, response)) next();
+}, parsePostMedia, publishCommunityPost);
 
 communityRouter.patch('/posts/:id', async (request: AuthRequest, response) => {
   if (!requireAgent(request, response)) return;
@@ -435,6 +523,31 @@ communityRouter.post('/reports', async (request: AuthRequest, response) => {
 });
 
 export const adminCommunityRouter = Router();
+
+adminCommunityRouter.get('/posts', async (_request, response) => {
+  const posts = await prisma.post.findMany({
+    where: { category: { adminOnly: false } },
+    orderBy: [{ isPinned: 'desc' }, { createdAt: 'desc' }],
+    take: 100,
+    include: postInclude(new Date(), 0),
+  });
+  response.json({ data: posts.map(({ authorHidden, ...post }) => ({
+    ...post,
+    isAuthorHidden: authorHidden,
+    author: withSubscriberBadge(post.author),
+    comments: post.comments.map(({ authorHidden: commentAuthorHidden, ...comment }) => ({
+      ...comment,
+      isAuthorHidden: commentAuthorHidden,
+      author: withSubscriberBadge(comment.author),
+    })),
+    likesCount: post._count.likes,
+    likedByMe: false,
+    likes: undefined,
+    _count: undefined,
+  })) });
+});
+
+adminCommunityRouter.post('/posts', parsePostMedia, publishCommunityPost);
 
 adminCommunityRouter.get('/reports', async (_request, response) => {
   const reports = await prisma.contentReport.findMany({

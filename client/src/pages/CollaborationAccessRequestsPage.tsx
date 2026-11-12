@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Check, Clock3, RefreshCw, ShieldCheck, UsersRound, X } from 'lucide-react'
 import api, { ApiRequestError, type CollaborationPendingAccessRequest } from '../api/client'
+import { useI18n } from '../i18n'
 import { Countdown } from '../components/collaboration/Countdown'
 import { StatusBadge } from '../components/collaboration/StatusBadge'
 import '../components/collaboration/collaboration.css'
@@ -24,6 +25,7 @@ export default function CollaborationAccessRequestsPage({
   onOpenDeal: (dealId: number) => void
   onPendingCountChange: (count: number) => void
 }) {
+  const { t, language } = useI18n()
   const [requests, setRequests] = useState<CollaborationPendingAccessRequest[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -73,11 +75,11 @@ export default function CollaborationAccessRequestsPage({
     setNotice('')
     try {
       const accepted = await confirmAction({
-        title: decision === 'APPROVE' ? 'Accepter cette demande ?' : 'Refuser cette demande ?',
+        title: t(decision === 'APPROVE' ? 'Accepter cette demande ?' : 'Refuser cette demande ?'),
         message: decision === 'APPROVE'
-          ? 'L’agent recevra un accès temporaire à ce prospect.'
-          : 'Cette demande sera refusée. Vous pourrez revoir les autres demandes encore en attente.',
-        confirmLabel: decision === 'APPROVE' ? 'Accepter' : 'Refuser',
+          ? t('L’agent recevra un accès temporaire à ce prospect.')
+          : t('Cette demande sera refusée. Vous pourrez revoir les autres demandes encore en attente.'),
+        confirmLabel: t(decision === 'APPROVE' ? 'Accepter' : 'Refuser'),
         destructive: decision === 'REJECT',
       })
       if (!accepted) return
@@ -107,50 +109,50 @@ export default function CollaborationAccessRequestsPage({
     <section className="collaboration-page collaboration-workspace-page" aria-labelledby="access-requests-title">
       <header className="collaboration-page-header collaboration-home-header collaboration-workspace-header">
         <div>
-          <p className="collaboration-eyebrow">ESPACE FOURNISSEUR</p>
-          <h1 id="access-requests-title">Demandes d’accès</h1>
-          <p>Évaluez les demandes et choisissez l’agent qui accompagnera chaque dossier.</p>
+          <p className="collaboration-eyebrow">{t('ESPACE FOURNISSEUR')}</p>
+          <h1 id="access-requests-title">{t('Demandes d’accès')}</h1>
+          <p>{t('Évaluez les demandes et choisissez l’agent qui accompagnera chaque dossier.')}</p>
         </div>
         <button className="ui-button ui-button-secondary collaboration-action" type="button" onClick={() => void load()}>
-          <RefreshCw size={17} aria-hidden="true" /> Actualiser
+          <RefreshCw size={17} aria-hidden="true" /> {t('Actualiser')}
         </button>
       </header>
 
       {!loading && !error && (
-        <div className="collaboration-overview" aria-label="Résumé des demandes">
+        <div className="collaboration-overview" aria-label={t('Résumé des demandes')}>
           <article className="collaboration-overview-card">
             <span className="collaboration-overview-icon"><UsersRound size={18} aria-hidden="true" /></span>
-            <span className="collaboration-overview-label">Demandes reçues</span>
+            <span className="collaboration-overview-label">{t('Demandes reçues')}</span>
             <strong>{requests.length}</strong>
           </article>
           <article className="collaboration-overview-card collaboration-overview-pending">
             <span className="collaboration-overview-icon"><Clock3 size={18} aria-hidden="true" /></span>
-            <span className="collaboration-overview-label">À examiner</span>
+            <span className="collaboration-overview-label">{t('À examiner')}</span>
             <strong>{activeRequestCount}</strong>
           </article>
           <article className="collaboration-overview-card collaboration-overview-closed">
             <span className="collaboration-overview-icon"><ShieldCheck size={18} aria-hidden="true" /></span>
-            <span className="collaboration-overview-label">Expirées</span>
+            <span className="collaboration-overview-label">{t('Expirées')}</span>
             <strong>{expiredRequestCount}</strong>
           </article>
         </div>
       )}
 
-      {notice && <p className="collaboration-success" role="status">{notice}</p>}
+      {notice && <p className="collaboration-success" role="status">{t(notice)}</p>}
       {error && (
         <div className="collaboration-panel" role="alert">
-          <p className="collaboration-error">{error}</p>
+          <p className="collaboration-error">{t(error)}</p>
           <button className="ui-button ui-button-secondary collaboration-action" type="button" onClick={() => void load()}>
-            <RefreshCw size={17} aria-hidden="true" /> Réessayer
+            <RefreshCw size={17} aria-hidden="true" /> {t('Réessayer')}
           </button>
         </div>
       )}
-      {loading && <div className="collaboration-panel" role="status">Chargement des demandes…</div>}
+      {loading && <div className="collaboration-panel" role="status">{t('Chargement des demandes…')}</div>}
       {!loading && !error && requests.length === 0 && (
         <div className="collaboration-panel collaboration-empty" role="status">
           <span className="collaboration-empty-icon"><Check size={24} aria-hidden="true" /></span>
-          <h2>Aucune demande en attente</h2>
-          <p>Les nouvelles demandes d’accès à vos prospects apparaîtront ici.</p>
+          <h2>{t('Aucune demande en attente')}</h2>
+          <p>{t('Les nouvelles demandes d’accès à vos prospects apparaîtront ici.')}</p>
         </div>
       )}
       {!loading && requests.length > 0 && (
@@ -163,17 +165,17 @@ export default function CollaborationAccessRequestsPage({
               <article className="collaboration-request-card" key={request.id}>
                 <div className="collaboration-supplied-top">
                   <div className="collaboration-card-title">
-                    <p className="collaboration-eyebrow">DEMANDEUR</p>
+                    <p className="collaboration-eyebrow">{t('DEMANDEUR')}</p>
                     <h2>{request.requester.name}</h2>
                   </div>
                   <StatusBadge status={expired ? 'EXPIRED' : 'PENDING'} />
                 </div>
                 <dl className="collaboration-request-details">
-                  <div className="collaboration-request-prospect"><dt>Prospect concerné</dt><dd>{request.prospectName}</dd></div>
+                  <div className="collaboration-request-prospect"><dt>{t('Prospect concerné')}</dt><dd>{request.prospectName}</dd></div>
                   <div className="collaboration-request-trust">
-                    <dt>Score de confiance</dt>
+                    <dt>{t('Score de confiance')}</dt>
                     <dd>
-                      <span>{request.requester.trustScore ? `${request.requester.trustScore.score}/100` : 'Non calculé'}</span>
+                      <span>{request.requester.trustScore ? `${request.requester.trustScore.score}/100` : t('Non calculé')}</span>
                       {request.requester.trustScore && (
                         <span className="collaboration-trust-meter" aria-hidden="true">
                           <span style={{ width: `${Math.min(100, Math.max(0, request.requester.trustScore.score))}%` }} />
@@ -181,20 +183,20 @@ export default function CollaborationAccessRequestsPage({
                       )}
                     </dd>
                   </div>
-                  <div><dt>Ventes réussies</dt><dd>{request.requester.successfulSales}</dd></div>
-                  <div><dt>Reçue le</dt><dd>{formatAntananarivoDate(request.requestedAt)}</dd></div>
-                  <div className={expired ? 'collaboration-request-expired' : ''}><dt>Échéance</dt><dd>{expired ? 'Demande expirée' : <Countdown expiresAt={request.expiresAt} />}</dd></div>
+                  <div><dt>{t('Ventes réussies')}</dt><dd>{request.requester.successfulSales}</dd></div>
+                  <div><dt>{t('Reçue le')}</dt><dd>{formatAntananarivoDate(request.requestedAt, language)}</dd></div>
+                  <div className={expired ? 'collaboration-request-expired' : ''}><dt>{t('Échéance')}</dt><dd>{expired ? t('Demande expirée') : <Countdown expiresAt={request.expiresAt} />}</dd></div>
                 </dl>
-                {!expired && <p className="collaboration-request-hint">L’accès est accordé temporairement après acceptation.</p>}
+                {!expired && <p className="collaboration-request-hint">{t('L’accès est accordé temporairement après acceptation.')}</p>}
                 <div className="collaboration-request-actions">
                   <button className="ui-button ui-button-secondary collaboration-action" type="button" onClick={() => onOpenDeal(request.dealId)} disabled={acting}>
-                    Voir le dossier
+                    {t('Voir le dossier')}
                   </button>
                   <button className="ui-button ui-button-primary collaboration-action" type="button" onClick={() => void decide(request, 'APPROVE')} disabled={expired || acting} aria-busy={acting}>
-                    <Check size={17} aria-hidden="true" /> Accepter
+                    <Check size={17} aria-hidden="true" /> {t('Accepter')}
                   </button>
                   <button className="ui-button ui-button-danger collaboration-action" type="button" onClick={() => void decide(request, 'REJECT')} disabled={expired || acting} aria-busy={acting}>
-                    <X size={17} aria-hidden="true" /> Refuser
+                    <X size={17} aria-hidden="true" /> {t('Refuser')}
                   </button>
                 </div>
               </article>

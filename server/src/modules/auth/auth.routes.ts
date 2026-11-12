@@ -2,6 +2,7 @@ import { Router } from 'express';
 import multer from 'multer';
 import {
   activate,
+  changePassword,
   googleAuth,
   login,
   register,
@@ -41,4 +42,5 @@ authRouter.post('/register/verify', verifyRegistrationOtp);
 authRouter.post('/register/resend', resendRegistrationOtp);
 authRouter.post('/google', googleAuth);
 authRouter.post('/activate', activate);
+authRouter.post('/password/change', requireAuth, changePassword);
 authRouter.post('/profile/photo', requireAuth, parseProfilePhoto, uploadProfilePhoto);

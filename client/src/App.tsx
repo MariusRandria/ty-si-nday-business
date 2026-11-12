@@ -12,6 +12,7 @@ const ProductsPage = lazy(() => import('./pages/ProductsPage'))
 const ReportsPage = lazy(() => import('./pages/ReportsPage'))
 const DashboardPage = lazy(() => import('./pages/AgentPages').then(({ DashboardPage }) => ({ default: DashboardPage })))
 const ProfilePage = lazy(() => import('./pages/AgentPages').then(({ ProfilePage }) => ({ default: ProfilePage })))
+const AgentSettingsPage = lazy(() => import('./pages/AgentSettingsPage'))
 const WalletPage = lazy(() => import('./pages/AgentPages').then(({ WalletPage }) => ({ default: WalletPage })))
 const AdminSidebar = lazy(() => import('./components/layout/AdminSidebar'))
 const AdminDashboardPage = lazy(() => import('./pages/admin/AdminDashboardLivePage'))
@@ -27,7 +28,9 @@ const AdminCollaborationReviewPage = lazy(() => import('./pages/admin/AdminColla
 const AdminTotpPage = lazy(() => import('./pages/admin/AdminTotpPage'))
 import type { Report, View } from './types/report'
 import type { SessionUser } from './api/client'
+import { I18nProvider } from './i18n'
 import { FeedbackCenter } from './components/ui/FeedbackCenter'
+import { AgentPresenceProvider } from './components/ui/AgentPresenceProvider'
 const AuthPage = lazy(() => import('./pages/AuthPage'))
 const ActivateAccountPage = lazy(() => import('./pages/ActivateAccountPage'))
 const CollaborationCommissionsPage = lazy(() => import('./pages/CollaborationCommissionsPage'))
@@ -242,15 +245,15 @@ function AuthenticatedApp() {
     ? <DashboardPage reports={visibleReports} user={session.user} onNewReport={() => setShowNewReport(true)} onViewReports={() => navigate('reports')} />
     : view === 'reports'
       ? <ReportsPage reports={visibleReports} onNewReport={() => setShowNewReport(true)} />
-        : view === 'products' ? <ProductsPage /> : view === 'prospects' ? <ProspectsPage onSubscribe={() => navigate('subscription')} /> : view === 'subscription' ? <SubscriptionPage onOpenProspects={() => navigate('prospects')} /> : view === 'community' ? <CommunityPage onOpenChat={() => navigate('messages')} focusPostId={notificationTarget?.postId} currentUserId={session.user.id} /> : view === 'messages' ? <CommunityChat currentUserId={session.user.id} initialConversationId={notificationTarget?.conversationId} /> : view === 'wallet' ? <WalletPage /> : view === 'commissions' ? <CollaborationCommissionsPage /> : <ProfilePage user={session.user} onUserUpdate={(user) => { window.localStorage.setItem('innovcom-user', JSON.stringify(user)); setSession((current) => current ? { ...current, user } : current) }} />
-      return <div className={`app-shell theme-${theme} ${mobileNavOpen ? 'mobile-nav-open' : ''}`}><Sidebar view={view} onNavigate={navigate} mobileOpen={mobileNavOpen} onMobileClose={() => setMobileNavOpen(false)} pendingRequestCount={pendingRequestCount} /><button className="mobile-nav-backdrop" type="button" aria-label="Fermer le menu" onClick={() => setMobileNavOpen(false)} /><main className="main-content"><Topbar view={view} apiOnline={apiOnline} theme={theme} onToggleTheme={toggleTheme} user={session.user} onNavigate={navigate} onMobileMenu={() => setMobileNavOpen(true)} /><div className="content-wrap">{page}</div></main><MobileBottomNav admin={false} view={view} onNavigate={navigate} pendingRequestCount={pendingRequestCount} />{showNewReport && <NewReportModal user={session.user} onClose={() => setShowNewReport(false)} onSaved={reloadReports} />}<FeedbackCenter /></div>
+        : view === 'products' ? <ProductsPage /> : view === 'prospects' ? <ProspectsPage onSubscribe={() => navigate('subscription')} /> : view === 'subscription' ? <SubscriptionPage onOpenProspects={() => navigate('prospects')} /> : view === 'community' ? <CommunityPage onOpenChat={() => navigate('messages')} focusPostId={notificationTarget?.postId} currentUserId={session.user.id} /> : view === 'messages' ? <CommunityChat currentUserId={session.user.id} initialConversationId={notificationTarget?.conversationId} />         : view === 'wallet' ? <WalletPage /> : view === 'commissions' ? <CollaborationCommissionsPage /> : view === 'account-settings' ? <AgentSettingsPage user={session.user} theme={theme} onToggleTheme={toggleTheme} /> : <ProfilePage user={session.user} onUserUpdate={(user) => { window.localStorage.setItem('innovcom-user', JSON.stringify(user)); setSession((current) => current ? { ...current, user } : current) }} />
+      return <AgentPresenceProvider userId={session.user.id} token={session.token}><div className={`app-shell theme-${theme} ${mobileNavOpen ? 'mobile-nav-open' : ''}`}><Sidebar view={view} onNavigate={navigate} mobileOpen={mobileNavOpen} onMobileClose={() => setMobileNavOpen(false)} pendingRequestCount={pendingRequestCount} /><button className="mobile-nav-backdrop" type="button" aria-label="Fermer le menu" onClick={() => setMobileNavOpen(false)} /><main className="main-content"><Topbar view={view} apiOnline={apiOnline} theme={theme} onToggleTheme={toggleTheme} user={session.user} onNavigate={navigate} onMobileMenu={() => setMobileNavOpen(true)} /><div className="content-wrap">{page}</div></main><MobileBottomNav admin={false} view={view} onNavigate={navigate} pendingRequestCount={pendingRequestCount} />{showNewReport && <NewReportModal user={session.user} onClose={() => setShowNewReport(false)} onSaved={reloadReports} />}<FeedbackCenter /></div></AgentPresenceProvider>
 }
 
 export default function App() {
   const path = window.location.pathname
   if (path === '/confirmation-client' || path.startsWith('/confirmation-client/')) {
-    const match = path.match(/^\/confirmation-client\/([A-Za-z0-9_-]{32})\/?$/)
-    return <ClientConfirmationPage confirmationToken={match?.[1] ?? null} />
+    return <ClientConfirmationPage confirmationToken={path.match(/^\/confirmation-client\/([A-Za-z0-9_-]{32})\/?$/)?.[1] ?? null} />
   }
-  return <AuthenticatedApp />
+  const app = <AuthenticatedApp />
+  return getPortalFromLocation() === 'agent' ? <I18nProvider>{app}</I18nProvider> : app
 }

@@ -437,7 +437,7 @@ export type Notification = {
   link?: string | null
   readAt?: string | null
   createdAt: string
-  actor?: { id: number; role: string; agentProfile: { firstName: string; lastName: string; imageUrl: string | null } | null } | null
+  actor?: { id: number; role: string; lastActiveAt?: string | null; agentProfile: { firstName: string; lastName: string; imageUrl: string | null } | null } | null
 }
 export type Setting = { id: number; key: string; value: string }
 export type AdminApplication = { id: number; fullName: string; email: string; phone: string; city: string; status: string; motivation: string; createdAt: string; userId?: number | null; userStatus?: string | null }
@@ -461,7 +461,7 @@ export type AdminReport = Report & {
   commissionAmount?: number
 }
 export type AdminWithdrawal = { id: number; amount: string | number; status: string; operator: string; phoneNumber: string; createdAt: string; agent: { agentProfile?: { firstName: string; lastName: string } | null } }
-export type CommunityAuthor = { id: number; agentProfile: { firstName: string; lastName: string; imageUrl?: string | null } | null; isSubscriber: boolean }
+export type CommunityAuthor = { id: number; role?: 'AGENT' | 'ADMIN' | 'SUPER_ADMIN'; lastActiveAt?: string | null; agentProfile: { firstName: string; lastName: string; imageUrl?: string | null } | null; isSubscriber: boolean }
 export type CommunityComment = { id: number; content: string; createdAt: string; parentCommentId: number | null; author: CommunityAuthor; isAuthorHidden: boolean }
 export type CommunityPost = {
   id: number
@@ -488,9 +488,9 @@ export type CommunityContentReport = {
   reporter: { id: number; email: string }
   target: { title?: string; content?: string; post?: { title: string } } | null
 }
-export type ChatAgent = { id: number; agentProfile: { firstName: string; lastName: string; city: string; imageUrl?: string | null } | null; isSubscriber: boolean }
-export type ChatMessage = { id: number; conversationId: number; senderId: number; content: string; readAt: string | null; createdAt: string }
-export type ChatConversation = { id: number; agent: CommunityAuthor; lastMessage: ChatMessage | null; unreadCount: number; updatedAt: string }
+export type ChatAgent = { id: number; lastActiveAt?: string | null; agentProfile: { firstName: string; lastName: string; city: string; imageUrl?: string | null } | null; isSubscriber: boolean }
+export type ChatMessage = { id: number; conversationId: number; senderId: number; content: string; readAt: string | null; createdAt: string; deletedAt?: string | null; mediaUrl?: string | null; mediaMimeType?: string | null }
+export type ChatConversation = { id: number; agent: CommunityAuthor; lastMessage: ChatMessage | null; unreadCount: number; updatedAt: string; archivedAt: string | null }
 
 export class ApiRequestError extends Error {
   constructor(message: string, public readonly status: number, public readonly attemptsRemaining?: number) {
@@ -524,6 +524,15 @@ const api = {
     const payload = await readJsonPayload<{ token?: string; user?: SessionUser; error?: string }>(response)
     if (!response.ok || !payload.token || !payload.user) throw new Error(payload.error ?? 'Connexion impossible')
     return { token: payload.token, user: payload.user }
+  },
+  async changePassword(currentPassword: string, newPassword: string): Promise<void> {
+    const response = await fetch('/api/auth/password/change', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...authHeaders() },
+      body: JSON.stringify({ currentPassword, newPassword }),
+    })
+    const payload = await readJsonPayload<{ error?: string }>(response)
+    if (!response.ok) throw new Error(payload.error ?? 'Impossible de modifier le mot de passe.')
   },
   async googleAuth(input: GoogleAuthInput): Promise<
     | { kind: 'LOGIN'; token: string; user: SessionUser }
@@ -1085,17 +1094,38 @@ const api = {
   },
   async search(query: string): Promise<SearchResult[]> { const params = new URLSearchParams({ q: query }); const response = await fetch(`/api/workspace/search?${params}`, { headers: authHeaders() }); const payload = await response.json() as { data?: SearchResult[]; error?: string }; if (!response.ok) throw new Error(payload.error ?? 'Recherche impossible'); return payload.data ?? [] },
   async communityFeed(): Promise<CommunityFeed> { const response = await fetch('/api/community/feed', { headers: authHeaders() }); const payload = await response.json() as { data?: CommunityFeed; error?: string }; if (!response.ok || !payload.data) throw new Error(payload.error ?? 'Impossible de charger le forum'); return payload.data },
-  async createCommunityPost(input: { title: string; content: string; category: 'Discussion' | 'Question' | 'Astuce' }, image?: File | null): Promise<CommunityPost> {
-    const body = image
-      ? (() => { const form = new FormData(); form.append('title', input.title); form.append('content', input.content); form.append('category', input.category); form.append('image', image); return form })()
+  async searchCommunityPosts(query: string, offset = 0): Promise<{ posts: CommunityPost[]; hasMore: boolean }> {
+    const params = new URLSearchParams({ q: query, offset: String(offset) })
+    const response = await fetch(`/api/community/search?${params}`, { headers: authHeaders() })
+    const payload = await response.json() as { data?: { posts: CommunityPost[]; hasMore: boolean }; error?: string }
+    if (!response.ok || !payload.data) throw new Error(payload.error ?? 'Impossible de rechercher dans la communauté')
+    return payload.data
+  },
+  async createCommunityPost(input: { title: string; content: string; category: 'Discussion' | 'Question' | 'Astuce' }, media?: File | null): Promise<CommunityPost> {
+    const body = media
+      ? (() => { const form = new FormData(); form.append('title', input.title); form.append('content', input.content); form.append('category', input.category); form.append('media', media); return form })()
       : JSON.stringify(input)
     const response = await fetch('/api/community/posts', {
       method: 'POST',
-      headers: image ? authHeaders() : { 'Content-Type': 'application/json', ...authHeaders() },
+      headers: media ? authHeaders() : { 'Content-Type': 'application/json', ...authHeaders() },
       body,
     })
     const payload = await response.json() as { data?: CommunityPost; error?: string }
     if (!response.ok || !payload.data) throw new Error(payload.error ?? 'Impossible de publier le message')
+    return payload.data
+  },
+  async adminCommunityPosts(): Promise<CommunityPost[]> { const response = await fetch('/api/admin/community/posts', { headers: authHeaders() }); const payload = await response.json() as { data?: CommunityPost[]; error?: string }; if (!response.ok || !payload.data) throw new Error(payload.error ?? 'Impossible de charger les actualités de la communauté'); return payload.data },
+  async createAdminCommunityPost(input: { title: string; content: string; category: 'Discussion' | 'Question' | 'Astuce' }, media?: File | null): Promise<CommunityPost> {
+    const body = media
+      ? (() => { const form = new FormData(); form.append('title', input.title); form.append('content', input.content); form.append('category', input.category); form.append('media', media); return form })()
+      : JSON.stringify(input)
+    const response = await fetch('/api/admin/community/posts', {
+      method: 'POST',
+      headers: media ? authHeaders() : { 'Content-Type': 'application/json', ...authHeaders() },
+      body,
+    })
+    const payload = await response.json() as { data?: CommunityPost; error?: string }
+    if (!response.ok || !payload.data) throw new Error(payload.error ?? 'Impossible de publier le contenu')
     return payload.data
   },
   async updateCommunityPost(postId: number, input: { title: string; content: string; category: 'Discussion' | 'Question' | 'Astuce' }): Promise<Pick<CommunityPost, 'id' | 'title' | 'content' | 'category'>> { const response = await fetch(`/api/community/posts/${postId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json', ...authHeaders() }, body: JSON.stringify(input) }); const payload = await response.json() as { data?: Pick<CommunityPost, 'id' | 'title' | 'content' | 'category'>; error?: string }; if (!response.ok || !payload.data) throw new Error(payload.error ?? 'Impossible de modifier la publication'); return payload.data },
@@ -1108,6 +1138,12 @@ const api = {
   async communityChatAgents(): Promise<ChatAgent[]> { const response = await fetch('/api/community/chat/agents', { headers: authHeaders() }); const payload = await response.json() as { data?: ChatAgent[]; error?: string }; if (!response.ok || !payload.data) throw new Error(payload.error ?? 'Impossible de charger les agents'); return payload.data },
   async communityChatConversations(): Promise<ChatConversation[]> { const response = await fetch('/api/community/chat/conversations', { headers: authHeaders() }); const payload = await response.json() as { data?: ChatConversation[]; error?: string }; if (!response.ok || !payload.data) throw new Error(payload.error ?? 'Impossible de charger les conversations'); return payload.data },
   async startCommunityChat(agentId: number): Promise<number> { const response = await fetch('/api/community/chat/conversations', { method: 'POST', headers: { 'Content-Type': 'application/json', ...authHeaders() }, body: JSON.stringify({ agentId }) }); const payload = await response.json() as { data?: { id: number }; error?: string }; if (!response.ok || !payload.data) throw new Error(payload.error ?? 'Impossible de démarrer la conversation'); return payload.data.id },
+  async setCommunityChatArchived(conversationId: number, archived: boolean): Promise<string | null> { const response = await fetch(`/api/community/chat/conversations/${conversationId}/archive`, { method: 'PATCH', headers: { 'Content-Type': 'application/json', ...authHeaders() }, body: JSON.stringify({ archived }) }); const payload = await response.json() as { data?: { archivedAt: string | null }; error?: string }; if (!response.ok || !payload.data) throw new Error(payload.error ?? 'Impossible de modifier l’archivage'); return payload.data.archivedAt },
+  async deleteCommunityChatConversation(conversationId: number): Promise<void> { const response = await fetch(`/api/community/chat/conversations/${conversationId}`, { method: 'DELETE', headers: { 'Content-Type': 'application/json', ...authHeaders() }, body: JSON.stringify({ scope: 'me' }) }); const payload = await response.json() as { error?: string }; if (!response.ok) throw new Error(payload.error ?? 'Impossible de supprimer la conversation'); },
+  async sendCommunityChatMedia(conversationId: number, media: File, caption: string): Promise<ChatMessage> { const form = new FormData(); form.append('media', media); form.append('caption', caption); const response = await fetch(`/api/community/chat/conversations/${conversationId}/messages/media`, { method: 'POST', headers: authHeaders(), body: form }); const payload = await response.json() as { data?: ChatMessage; error?: string }; if (!response.ok || !payload.data) throw new Error(payload.error ?? 'Impossible d’envoyer le média'); return payload.data },
+  async communityChatMedia(url: string): Promise<Blob> { const response = await fetch(url, { headers: authHeaders() }); if (!response.ok) throw new Error('Impossible de charger le média.'); return response.blob() },
+  async deleteCommunityChatMessage(conversationId: number, messageId: number): Promise<{ deletedMessage: ChatMessage; lastMessage: ChatMessage | null; updatedAt: string; unreadCount: number }> { const response = await fetch(`/api/community/chat/conversations/${conversationId}/messages/${messageId}`, { method: 'DELETE', headers: authHeaders() }); const payload = await response.json() as { data?: { deletedMessage: ChatMessage; lastMessage: ChatMessage | null; updatedAt: string; unreadCount: number }; error?: string }; if (!response.ok || !payload.data) throw new Error(payload.error ?? 'Impossible de supprimer le message'); return payload.data },
+  async hideCommunityChatMessage(conversationId: number, messageId: number): Promise<{ lastMessage: ChatMessage | null; updatedAt: string; unreadCount: number }> { const response = await fetch(`/api/community/chat/conversations/${conversationId}/messages/${messageId}/me`, { method: 'DELETE', headers: authHeaders() }); const payload = await response.json() as { data?: { lastMessage: ChatMessage | null; updatedAt: string; unreadCount: number }; error?: string }; if (!response.ok || !payload.data) throw new Error(payload.error ?? 'Impossible de supprimer le message pour vous'); return payload.data },
   async communityChatMessages(conversationId: number): Promise<ChatMessage[]> { const response = await fetch(`/api/community/chat/conversations/${conversationId}/messages`, { headers: authHeaders() }); const payload = await response.json() as { data?: ChatMessage[]; error?: string }; if (!response.ok || !payload.data) throw new Error(payload.error ?? 'Impossible de charger les messages'); return payload.data },
   async markCommunityChatRead(conversationId: number): Promise<void> { const response = await fetch(`/api/community/chat/conversations/${conversationId}/read`, { method: 'PATCH', headers: authHeaders() }); const payload = await response.json() as { error?: string }; if (!response.ok) throw new Error(payload.error ?? 'Impossible de marquer les messages comme lus'); },
   async setCommunityLike(postId: number, liked: boolean): Promise<{ liked: boolean; likesCount: number }> { const response = await fetch(`/api/community/posts/${postId}/like`, { method: liked ? 'POST' : 'DELETE', headers: authHeaders() }); const payload = await response.json() as { data?: { liked: boolean; likesCount: number }; error?: string }; if (!response.ok || !payload.data) throw new Error(payload.error ?? 'Impossible de modifier la réaction'); return payload.data; },
@@ -1121,7 +1157,7 @@ const api = {
   async adminReports(): Promise<AdminReport[]> { const response = await fetch('/api/admin/reports', { headers: authHeaders() }); const payload = await response.json() as { data?: AdminReport[]; error?: string }; if (!response.ok || !payload.data) throw new Error(payload.error ?? 'Impossible de charger les rapports admin'); return payload.data },
   async updateReport(id: number, status: string, options: { rejectionReason?: string; contractSigned?: boolean } = {}): Promise<void> { const response = await fetch(`/api/admin/reports/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json', ...authHeaders() }, body: JSON.stringify({ status, ...options }) }); const payload = await response.json().catch(() => ({})) as { error?: string }; if (!response.ok) throw new Error(payload.error ?? `Impossible de mettre à jour le rapport (${response.status})`) },
   async adminWithdrawals(): Promise<AdminWithdrawal[]> { const response = await fetch('/api/admin/withdrawals', { headers: authHeaders() }); const payload = await response.json() as { data?: AdminWithdrawal[]; error?: string }; if (!response.ok || !payload.data) throw new Error(payload.error ?? 'Impossible de charger les demandes de retrait'); return payload.data },
-  async updateWithdrawal(id: number, status: string, paymentReference?: string, rejectReason?: string): Promise<{ warning?: string }> { const response = await fetch(`/api/admin/withdrawals/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json', ...authHeaders() }, body: JSON.stringify({ status, paymentReference, rejectReason }) }); const payload = await response.json().catch(() => ({})) as { error?: string; warning?: string }; if (!response.ok) throw new Error(payload.error ?? `Impossible de mettre à jour le retrait (${response.status})`); return { warning: payload.warning } },
+  async updateWithdrawal(id: number, status: string, paymentReference?: string, rejectReason?: string, totp?: string): Promise<{ warning?: string }> { const response = await fetch(`/api/admin/withdrawals/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json', ...authHeaders(), ...(totp ? { 'x-admin-totp': totp } : {}) }, body: JSON.stringify({ status, paymentReference, rejectReason }) }); const payload = await response.json().catch(() => ({})) as { error?: string; warning?: string }; if (!response.ok) throw new Error(payload.error ?? `Impossible de mettre à jour le retrait (${response.status})`); return { warning: payload.warning } },
 }
 
 function authHeaders(): Record<string, string> { const token = window.localStorage.getItem('innovcom-token'); return token ? { Authorization: `Bearer ${token}` } : {} }

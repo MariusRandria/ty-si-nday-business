@@ -5,6 +5,14 @@ export const loginSchema = z.object({
   password: z.string().min(8).max(128),
 });
 
+export const changePasswordSchema = z.object({
+  currentPassword: z.string().min(1).max(128),
+  newPassword: z.string().min(8).max(128),
+}).refine((value) => value.currentPassword !== value.newPassword, {
+  path: ['newPassword'],
+  message: 'Le nouveau mot de passe doit être différent du mot de passe actuel.',
+})
+
 export const activateSchema = z.object({
   email: z.string().trim().email().transform((value) => value.toLowerCase()),
   token: z.string().min(32).max(128),

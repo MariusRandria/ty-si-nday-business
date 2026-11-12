@@ -10,19 +10,25 @@ import {
   MoreHorizontal,
   Pencil,
   Plus,
+  Search,
   Save,
   Send,
   Sparkles,
   Trash2,
+  Video,
   X,
 } from 'lucide-react'
 import api, { type CommunityAuthor, type CommunityFeed, type CommunityPost } from '../api/client'
+import { CommunityOfficialBadge } from '../components/ui/CommunityOfficialBadge'
 import { SubscriberBadge } from '../components/ui/SubscriberBadge'
+import { AgentPresenceDot } from '../components/ui/AgentPresence'
+import { useI18n } from '../i18n'
 
 type FeedFilter = 'ALL' | 'DISCUSSIONS' | 'OFFERS'
 type ReportTarget = { targetType: 'POST' | 'COMMENT'; targetId: number }
 
 function authorName(author: CommunityAuthor) {
+  if (author.role === 'ADMIN' || author.role === 'SUPER_ADMIN') return 'TY SY NDAY'
   const profile = author.agentProfile
   return profile ? `${profile.firstName} ${profile.lastName}` : `Agent #${author.id}`
 }
@@ -37,6 +43,7 @@ function CommunityAvatar({ author, className }: { author: CommunityAuthor; class
       {author.agentProfile?.imageUrl
         ? <img src={author.agentProfile.imageUrl} alt="" loading="lazy" />
         : avatarText(author)}
+      {author.role === 'AGENT' && <AgentPresenceDot userId={author.id} lastActiveAt={author.lastActiveAt} />}
     </span>
   )
 }
@@ -54,19 +61,32 @@ function safeComments(comments?: CommunityPost['comments']) {
   return Array.isArray(comments) ? comments : []
 }
 
+function isCommunityVideo(url: string) {
+  return /\.(mp4|webm)(?:$|[?#])/i.test(url)
+}
+
+function normalizeSearchText(value: string) {
+  return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase('fr')
+}
+
+type CommunitySearchData = { query: string; posts: CommunityPost[]; hasMore: boolean; error?: string }
+
 export default function CommunityPage({ onOpenChat, focusPostId, currentUserId }: { onOpenChat: () => void; focusPostId?: number; currentUserId: number }) {
+  const { t, language } = useI18n()
   const [feed, setFeed] = useState<CommunityFeed>({ posts: [], offers: [] })
   const [filter, setFilter] = useState<FeedFilter>('ALL')
+  const [communitySearch, setCommunitySearch] = useState('')
+  const [communitySearchData, setCommunitySearchData] = useState<CommunitySearchData | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [composer, setComposer] = useState(false)
   const [title, setTitle] = useState('')
   const [content, setContent] = useState('')
-  const [image, setImage] = useState<File | null>(null)
-  const [imagePreview, setImagePreview] = useState('')
-  const [imageError, setImageError] = useState('')
-  const imageInput = useRef<HTMLInputElement>(null)
-  const imagePreviewUrl = useRef<string | null>(null)
+  const [media, setMedia] = useState<File | null>(null)
+  const [mediaPreview, setMediaPreview] = useState('')
+  const [mediaError, setMediaError] = useState('')
+  const mediaInput = useRef<HTMLInputElement>(null)
+  const mediaPreviewUrl = useRef<string | null>(null)
   const [category, setCategory] = useState<'Discussion' | 'Question' | 'Astuce'>('Discussion')
   const [saving, setSaving] = useState(false)
   const [commentDrafts, setCommentDrafts] = useState<Record<string, string>>({})
@@ -85,7 +105,7 @@ export default function CommunityPage({ onOpenChat, focusPostId, currentUserId }
   const [openActionsMenu, setOpenActionsMenu] = useState<string | null>(null)
 
   useEffect(() => () => {
-    if (imagePreviewUrl.current) URL.revokeObjectURL(imagePreviewUrl.current)
+    if (mediaPreviewUrl.current) URL.revokeObjectURL(mediaPreviewUrl.current)
   }, [])
 
   useEffect(() => {
@@ -125,6 +145,30 @@ export default function CommunityPage({ onOpenChat, focusPostId, currentUserId }
     return () => { active = false }
   }, [])
 
+  const normalizedSearch = communitySearch.trim()
+  useEffect(() => {
+    if (normalizedSearch.length < 2 || filter === 'OFFERS') return
+    let active = true
+    const timer = window.setTimeout(() => {
+      api.searchCommunityPosts(normalizedSearch)
+        .then((result) => {
+          if (active) setCommunitySearchData({ query: normalizedSearch, ...result })
+        })
+        .catch((caught) => {
+          if (active) setCommunitySearchData({
+            query: normalizedSearch,
+            posts: [],
+            hasMore: false,
+            error: caught instanceof Error ? caught.message : 'Recherche impossible.',
+          })
+        })
+    }, 280)
+    return () => {
+      active = false
+      window.clearTimeout(timer)
+    }
+  }, [normalizedSearch, filter])
+
   useEffect(() => {
     if (loading || !focusPostId) return
     document.getElementById(`community-post-${focusPostId}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
@@ -135,40 +179,47 @@ export default function CommunityPage({ onOpenChat, focusPostId, currentUserId }
     setSaving(true)
     setError('')
     try {
-      const post = await api.createCommunityPost({ title, content, category }, image)
+      const post = await api.createCommunityPost({ title, content, category }, media)
       setFeed((current) => ({ ...current, posts: [post, ...current.posts] }))
       setTitle('')
       setContent('')
-      setSelectedImage(null)
-      setImageError('')
+      setSelectedMedia(null)
+      setMediaError('')
       setComposer(false)
     } catch (caught) { setError(caught instanceof Error ? caught.message : 'Impossible de publier le message.') }
     finally { setSaving(false) }
   }
 
-  function selectImage(event: ChangeEvent<HTMLInputElement>) {
+  function selectMedia(event: ChangeEvent<HTMLInputElement>) {
     const file = event.currentTarget.files?.[0]
     event.currentTarget.value = ''
     if (!file) return
-    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
-      setSelectedImage(null)
-      setImageError('Choisissez une image JPEG, PNG ou WebP.')
+    const isImage = ['image/jpeg', 'image/png', 'image/webp'].includes(file.type)
+    const isVideo = ['video/mp4', 'video/webm'].includes(file.type)
+    if (!isImage && !isVideo) {
+      setSelectedMedia(null)
+      setMediaError('Choisissez une image JPEG, PNG, WebP ou une vidéo MP4/WebM.')
       return
     }
-    if (file.size > 5 * 1024 * 1024) {
-      setSelectedImage(null)
-      setImageError('La photo ne doit pas dépasser 5 Mo.')
+    if (isImage && file.size > 5 * 1024 * 1024) {
+      setSelectedMedia(null)
+      setMediaError('Une image ne doit pas dépasser 5 Mo.')
       return
     }
-    setImageError('')
-    setSelectedImage(file)
+    if (isVideo && file.size > 50 * 1024 * 1024) {
+      setSelectedMedia(null)
+      setMediaError('Une vidéo ne doit pas dépasser 50 Mo.')
+      return
+    }
+    setMediaError('')
+    setSelectedMedia(file)
   }
 
-  function setSelectedImage(file: File | null) {
-    if (imagePreviewUrl.current) URL.revokeObjectURL(imagePreviewUrl.current)
-    imagePreviewUrl.current = file ? URL.createObjectURL(file) : null
-    setImagePreview(imagePreviewUrl.current ?? '')
-    setImage(file)
+  function setSelectedMedia(file: File | null) {
+    if (mediaPreviewUrl.current) URL.revokeObjectURL(mediaPreviewUrl.current)
+    mediaPreviewUrl.current = file ? URL.createObjectURL(file) : null
+    setMediaPreview(mediaPreviewUrl.current ?? '')
+    setMedia(file)
   }
 
   async function comment(postId: number, parentCommentId: number | null = null) {
@@ -216,7 +267,7 @@ export default function CommunityPage({ onOpenChat, focusPostId, currentUserId }
   }
 
   async function deletePost(post: CommunityPost) {
-    if (!window.confirm('Supprimer définitivement cette publication et ses commentaires ?')) return
+    if (!window.confirm(t('Supprimer définitivement cette publication et ses commentaires ?'))) return
     setSavingContentId(`post:${post.id}`)
     setError('')
     try {
@@ -249,7 +300,7 @@ export default function CommunityPage({ onOpenChat, focusPostId, currentUserId }
   }
 
   async function deleteComment(postId: number, item: CommunityPost['comments'][number]) {
-    if (!window.confirm(item.parentCommentId === null ? 'Supprimer ce commentaire et ses réponses ?' : 'Supprimer définitivement ce commentaire ?')) return
+    if (!window.confirm(t(item.parentCommentId === null ? 'Supprimer ce commentaire et ses réponses ?' : 'Supprimer définitivement ce commentaire ?'))) return
     setSavingContentId(`comment:${item.id}`)
     setError('')
     try {
@@ -292,101 +343,156 @@ export default function CommunityPage({ onOpenChat, focusPostId, currentUserId }
     finally { setSaving(false) }
   }
 
+  async function loadMoreCommunityResults() {
+    if (!communitySearchData?.hasMore || communitySearchData.query !== normalizedSearch) return
+    try {
+      const result = await api.searchCommunityPosts(normalizedSearch, communitySearchData.posts.length)
+      setCommunitySearchData((current) => current?.query === normalizedSearch
+        ? { query: normalizedSearch, posts: [...current.posts, ...result.posts], hasMore: result.hasMore }
+        : current)
+    } catch (caught) {
+      setCommunitySearchData((current) => current?.query === normalizedSearch
+        ? { ...current, error: caught instanceof Error ? caught.message : 'Impossible de charger plus de résultats.' }
+        : current)
+    }
+  }
+
   const showPosts = filter !== 'OFFERS'
   const showOffers = filter !== 'DISCUSSIONS'
+  const remoteSearchActive = normalizedSearch.length >= 2 && filter !== 'OFFERS'
+  const searchIsPending = remoteSearchActive && communitySearchData?.query !== normalizedSearch
+  const locallyMatchesPost = (post: CommunityPost) => {
+    const query = normalizeSearchText(normalizedSearch)
+    const searchable = normalizeSearchText([
+      post.title,
+      post.content,
+      post.category.name,
+      authorName(post.author),
+      ...safeComments(post.comments).flatMap((comment) => [comment.content, authorName(comment.author)]),
+    ].join(' '))
+    return query.split(/\s+/).filter(Boolean).every((term) => searchable.includes(term))
+  }
+  const visiblePosts = remoteSearchActive
+    ? communitySearchData?.query === normalizedSearch ? communitySearchData.posts : []
+    : normalizedSearch
+      ? feed.posts.filter(locallyMatchesPost)
+      : feed.posts
+  const normalizedOfferSearch = normalizeSearchText(normalizedSearch)
+  const visibleOffers = normalizedSearch
+    ? feed.offers.filter((offer) => {
+      const searchable = normalizeSearchText([offer.title, offer.description, offer.targetAudience, offer.salesPitch].join(' '))
+      return normalizedOfferSearch.split(/\s+/).filter(Boolean).every((term) => searchable.includes(term))
+    })
+    : feed.offers
 
   return <>
     <section className="community-hero">
       <div className="community-hero-visual" aria-hidden="true"><img src="/community-hero.png" alt="" fetchPriority="high" /></div>
-      <div className="community-hero-copy"><span className="community-hero-kicker">COMMUNAUTÉ TY SY NDAY</span><h1>Partageons, grandissons<br />ensemble.</h1><p>Échangez avec les agents, partagez vos réussites et découvrez les opportunités de notre réseau.</p><button type="button" className="community-hero-button" onClick={onOpenChat}><MessageCircle size={17} aria-hidden="true" /> Écrire à un agent <ArrowRight size={16} aria-hidden="true" /></button></div>
-      <div className="community-hero-stats"><span><strong>{feed.posts.length}</strong> échanges</span><i /> <span><strong>{feed.offers.length}</strong> offres actives</span></div>
+      <div className="community-hero-copy"><span className="community-hero-kicker">{t('COMMUNAUTÉ TY SY NDAY')}</span><h1>{t('Partageons, grandissons')}<br />{t('ensemble.')}</h1><p>{t('Échangez avec les agents, partagez vos réussites et découvrez les opportunités de notre réseau.')}</p><button type="button" className="community-hero-button" onClick={onOpenChat}><MessageCircle size={17} aria-hidden="true" /> {t('Écrire à un agent')} <ArrowRight size={16} aria-hidden="true" /></button></div>
+      <div className="community-hero-stats"><span><strong>{feed.posts.length}</strong> {t('échanges')}</span><i /> <span><strong>{feed.offers.length}</strong> {t('offres actives')}</span></div>
     </section>
-    <div className="community-toolbar" role="tablist" aria-label="Filtrer le forum">
-      <button type="button" className={filter === 'ALL' ? 'community-filter active' : 'community-filter'} onClick={() => setFilter('ALL')}>Tout le forum</button>
-      <button type="button" className={filter === 'DISCUSSIONS' ? 'community-filter active' : 'community-filter'} onClick={() => setFilter('DISCUSSIONS')}>Discussions</button>
-      <button type="button" className={filter === 'OFFERS' ? 'community-filter active' : 'community-filter'} onClick={() => setFilter('OFFERS')}>Offres catalogue <span>{feed.offers.length}</span></button>
-      <button type="button" className="community-chat-shortcut" onClick={onOpenChat}><MessageCircle size={16} aria-hidden="true" /> Messages privés <ArrowRight size={15} aria-hidden="true" /></button>
+    <div className="community-search-panel">
+      <Search size={19} aria-hidden="true" />
+      <input
+        type="search"
+        value={communitySearch}
+        onChange={(event) => setCommunitySearch(event.target.value)}
+        placeholder={t('Rechercher dans la communauté…')}
+        aria-label={t('Rechercher dans toute la communauté')}
+      />
+      {communitySearch && <button type="button" onClick={() => setCommunitySearch('')} aria-label={t('Effacer la recherche')}><X size={17} /></button>}
     </div>
-    {error && <p className="form-error community-error" role="alert">{error}</p>}
+    <div className="community-toolbar" role="tablist" aria-label={t('Filtrer le forum')}>
+      <button type="button" className={filter === 'ALL' ? 'community-filter active' : 'community-filter'} onClick={() => setFilter('ALL')}>{t('Tout le forum')}</button>
+      <button type="button" className={filter === 'DISCUSSIONS' ? 'community-filter active' : 'community-filter'} onClick={() => setFilter('DISCUSSIONS')}>{t('Discussions')}</button>
+      <button type="button" className={filter === 'OFFERS' ? 'community-filter active' : 'community-filter'} onClick={() => setFilter('OFFERS')}>{t('Offres catalogue')} <span>{feed.offers.length}</span></button>
+      <button type="button" className="community-chat-shortcut" onClick={onOpenChat}><MessageCircle size={16} aria-hidden="true" /> {t('Messages privés')} <ArrowRight size={15} aria-hidden="true" /></button>
+    </div>
+    {communitySearchData?.query === normalizedSearch && communitySearchData.error && <p className="form-error community-error" role="alert">{t(communitySearchData.error)}</p>}
+    {error && <p className="form-error community-error" role="alert">{t(error)}</p>}
     {showPosts && <section className="community-discussions">
-      <div className="community-section-heading"><div><span className="section-kicker">LE FIL DES AGENTS</span><h2>Discussions récentes</h2></div><button type="button" className="outline-button community-create-button" onClick={() => setComposer(true)}><Plus size={17} aria-hidden="true" /> Créer une publication</button></div>
-      <button type="button" className="community-create-prompt" onClick={() => setComposer(true)}><span className="community-prompt-avatar"><Sparkles size={18} aria-hidden="true" /></span><span><strong>Une question ou une idée à partager ?</strong><small>Publiez une pensée pour lancer l’échange</small></span><b>Créer un post <ArrowRight size={15} aria-hidden="true" /></b></button>
-      {loading ? <section className="panel empty-state">Chargement du forum...</section> : feed.posts.length === 0 ? <div className="panel empty-state">Pas encore de discussion. Lancez le premier échange entre agents.</div> : <div className="community-post-list">{feed.posts.map((post) => {
+      <div className="community-section-heading"><div><span className="section-kicker">{t('LE FIL DES AGENTS')}</span><h2>{t('Discussions récentes')}</h2></div><button type="button" className="outline-button community-create-button" onClick={() => setComposer(true)}><Plus size={17} aria-hidden="true" /> {t('Créer une publication')}</button></div>
+      <button type="button" className="community-create-prompt" onClick={() => setComposer(true)}><span className="community-prompt-avatar"><Sparkles size={18} aria-hidden="true" /></span><span><strong>{t('Une question ou une idée à partager ?')}</strong><small>{t('Publiez une pensée pour lancer l’échange')}</small></span><b>{t('Créer un post')} <ArrowRight size={15} aria-hidden="true" /></b></button>
+      {loading ? <section className="panel empty-state">{t('Chargement du forum...')}</section> : searchIsPending ? <section className="panel empty-state" role="status">{t('Recherche dans la communauté…')}</section> : visiblePosts.length === 0 ? <div className="panel empty-state">{t(normalizedSearch ? 'Aucun résultat dans les publications. Essayez un autre mot-clé.' : 'Pas encore de discussion. Lancez le premier échange entre agents.')}</div> : <div className="community-post-list">{visiblePosts.map((post) => {
         const comments = safeComments(post.comments)
         const rootComments = comments.filter((item) => item.parentCommentId === null)
         const isOwnPost = post.author.id === currentUserId
         const postBusy = savingContentId === `post:${post.id}`
-        return <article id={`community-post-${post.id}`} className={`panel community-post${post.isAuthorHidden ? ' author-hidden' : ''}`} key={post.id}>
-          <header className="community-post-header"><div className="post-meta"><CommunityAvatar author={post.author} className="avatar small community-person-avatar" /><span><strong>{authorName(post.author)}{post.author.isSubscriber && <SubscriberBadge />}</strong><small><span className="community-category">{categoryLabel(post.category)}</span> <i>·</i> {new Date(post.createdAt).toLocaleString('fr-FR')}</small></span></div>
+        const isAdminPost = post.author.role === 'ADMIN' || post.author.role === 'SUPER_ADMIN'
+        return <article id={`community-post-${post.id}`} className={`panel community-post${post.isAuthorHidden ? ' author-hidden' : ''}${isAdminPost ? ' community-admin-post' : ''}`} key={post.id}>
+          <header className={`community-post-header${post.author.role === 'ADMIN' || post.author.role === 'SUPER_ADMIN' ? ' community-admin-post' : ''}`}><div className="post-meta"><CommunityAvatar author={post.author} className="avatar small community-person-avatar" /><span><strong>{authorName(post.author)}{(post.author.role === 'ADMIN' || post.author.role === 'SUPER_ADMIN') && <CommunityOfficialBadge />}{post.author.isSubscriber && <SubscriberBadge />}</strong><small><span className="community-category">{t(categoryLabel(post.category))}</span> <i>·</i> {new Date(post.createdAt).toLocaleString(language === 'en' ? 'en-US' : 'fr-FR')}</small></span></div>
             <div className="community-actions-menu">
-              <button type="button" className="community-actions-trigger" aria-label="Plus d’options pour la publication" aria-haspopup="menu" aria-expanded={openActionsMenu === `post-${post.id}`} onClick={() => setOpenActionsMenu((current) => current === `post-${post.id}` ? null : `post-${post.id}`)}>
+              <button type="button" className="community-actions-trigger" aria-label={t('Plus d’options pour la publication')} aria-haspopup="menu" aria-expanded={openActionsMenu === `post-${post.id}`} onClick={() => setOpenActionsMenu((current) => current === `post-${post.id}` ? null : `post-${post.id}`)}>
                 <MoreHorizontal size={20} aria-hidden="true" />
               </button>
               {openActionsMenu === `post-${post.id}` && <div className="community-actions-dropdown" role="menu">
                 {isOwnPost ? <>
-                  <button type="button" role="menuitem" onClick={() => { setOpenActionsMenu(null); if (editingPostId === post.id) setEditingPostId(null); else startPostEdit(post) }} disabled={postBusy}><Pencil size={15} aria-hidden="true" /> Modifier</button>
-                  <button type="button" role="menuitem" onClick={() => { setOpenActionsMenu(null); void togglePostHidden(post) }} disabled={postBusy}>{post.isAuthorHidden ? <Eye size={15} aria-hidden="true" /> : <EyeOff size={15} aria-hidden="true" />}{post.isAuthorHidden ? 'Réafficher' : 'Masquer'}</button>
-                  <button type="button" role="menuitem" className="danger" onClick={() => { setOpenActionsMenu(null); void deletePost(post) }} disabled={postBusy}><Trash2 size={15} aria-hidden="true" /> Supprimer</button>
-                </> : <button type="button" role="menuitem" onClick={() => { setOpenActionsMenu(null); setReportTarget({ targetType: 'POST', targetId: post.id }) }}><Flag size={15} aria-hidden="true" /> Signaler</button>}
+                  <button type="button" role="menuitem" onClick={() => { setOpenActionsMenu(null); if (editingPostId === post.id) setEditingPostId(null); else startPostEdit(post) }} disabled={postBusy}><Pencil size={15} aria-hidden="true" /> {t('Modifier')}</button>
+                  <button type="button" role="menuitem" onClick={() => { setOpenActionsMenu(null); void togglePostHidden(post) }} disabled={postBusy}>{post.isAuthorHidden ? <Eye size={15} aria-hidden="true" /> : <EyeOff size={15} aria-hidden="true" />}{t(post.isAuthorHidden ? 'Réafficher' : 'Masquer')}</button>
+                  <button type="button" role="menuitem" className="danger" onClick={() => { setOpenActionsMenu(null); void deletePost(post) }} disabled={postBusy}><Trash2 size={15} aria-hidden="true" /> {t('Supprimer')}</button>
+                </> : <button type="button" role="menuitem" onClick={() => { setOpenActionsMenu(null); setReportTarget({ targetType: 'POST', targetId: post.id }) }}><Flag size={15} aria-hidden="true" /> {t('Signaler')}</button>}
               </div>}
             </div>
           </header>
-          {post.isAuthorHidden && <p className="community-hidden-notice"><EyeOff size={14} /> Publication masquée pour les autres agents. Vous seul pouvez la voir.</p>}
+          {post.isAuthorHidden && <p className="community-hidden-notice"><EyeOff size={14} /> {t('Publication masquée pour les autres agents. Vous seul pouvez la voir.')}</p>}
           {editingPostId === post.id ? <form className="community-inline-edit" onSubmit={(event) => void savePostEdit(event, post.id)}>
-            <label>Titre<input required minLength={3} maxLength={200} value={editPostTitle} onChange={(event) => setEditPostTitle(event.target.value)} /></label>
-            <label>Contenu<textarea required maxLength={3000} value={editPostContent} onChange={(event) => setEditPostContent(event.target.value)} /></label>
-            <label>Catégorie<select value={editPostCategory} onChange={(event) => setEditPostCategory(event.target.value as typeof editPostCategory)}><option>Discussion</option><option>Question</option><option>Astuce</option></select></label>
-            <div className="community-inline-edit-actions"><button type="submit" className="outline-button compact" disabled={postBusy || !editPostTitle.trim() || !editPostContent.trim()}><Save size={14} /> {postBusy ? 'Enregistrement…' : 'Enregistrer'}</button><button type="button" className="outline-button compact" onClick={() => setEditingPostId(null)}>Annuler</button></div>
+            <label>{t('Titre')}<input required minLength={3} maxLength={200} value={editPostTitle} onChange={(event) => setEditPostTitle(event.target.value)} /></label>
+            <label>{t('Contenu')}<textarea required maxLength={3000} value={editPostContent} onChange={(event) => setEditPostContent(event.target.value)} /></label>
+            <label>{t('Catégorie')}<select value={editPostCategory} onChange={(event) => setEditPostCategory(event.target.value as typeof editPostCategory)}><option value="Discussion">{t('Discussion')}</option><option value="Question">{t('Question')}</option><option value="Astuce">{t('Astuce')}</option></select></label>
+            <div className="community-inline-edit-actions"><button type="submit" className="outline-button compact" disabled={postBusy || !editPostTitle.trim() || !editPostContent.trim()}><Save size={14} /> {postBusy ? t('Enregistrement…') : t('Enregistrer')}</button><button type="button" className="outline-button compact" onClick={() => setEditingPostId(null)}>{t('Annuler')}</button></div>
           </form> : <><h3>{post.title}</h3><p className="community-post-content">{post.content}</p></>}
-          {post.imageUrl && <img className="community-post-image" src={post.imageUrl} alt={`Photo publiée avec « ${post.title} »`} loading="lazy" />}
-          <div className="community-post-summary"><span><Heart size={14} aria-hidden="true" /> {post.likesCount ?? 0} réaction{(post.likesCount ?? 0) === 1 ? '' : 's'}</span><span>{comments.length} commentaire{comments.length === 1 ? '' : 's'}</span></div>
-          <div className="community-post-actions"><button type="button" className={post.likedByMe ? 'like-button liked' : 'like-button'} onClick={() => void toggleLike(post)} aria-pressed={post.likedByMe} disabled={post.isAuthorHidden || pendingLikeIds.has(post.id)}><Heart size={17} fill={post.likedByMe ? 'currentColor' : 'none'} aria-hidden="true" /> J’aime</button><button type="button" className="like-button" onClick={() => document.getElementById(`community-comment-input-${post.id}`)?.focus()} disabled={post.isAuthorHidden}><MessageCircle size={17} aria-hidden="true" /> Commenter</button><button type="button" className="like-button" onClick={onOpenChat}><Send size={17} aria-hidden="true" /> Message</button></div>
+          {post.imageUrl && (isCommunityVideo(post.imageUrl)
+            ? <video className="community-post-image community-post-video" src={post.imageUrl} controls preload="metadata" playsInline aria-label={`${t('Vidéo publiée avec')} « ${post.title} »`} />
+            : <img className="community-post-image" src={post.imageUrl} alt={`${t('Photo publiée avec')} « ${post.title} »`} loading="lazy" />)}
+          <div className="community-post-summary"><span><Heart size={14} aria-hidden="true" /> {post.likesCount ?? 0} {t((post.likesCount ?? 0) === 1 ? 'réaction' : 'réactions')}</span><span>{comments.length} {t(comments.length === 1 ? 'commentaire' : 'commentaires')}</span></div>
+          <div className="community-post-actions"><button type="button" className={post.likedByMe ? 'like-button liked' : 'like-button'} onClick={() => void toggleLike(post)} aria-pressed={post.likedByMe} disabled={post.isAuthorHidden || pendingLikeIds.has(post.id)}><Heart size={17} fill={post.likedByMe ? 'currentColor' : 'none'} aria-hidden="true" /> {t('J’aime')}</button><button type="button" className="like-button" onClick={() => document.getElementById(`community-comment-input-${post.id}`)?.focus()} disabled={post.isAuthorHidden}><MessageCircle size={17} aria-hidden="true" /> {t('Commenter')}</button><button type="button" className="like-button" onClick={onOpenChat}><Send size={17} aria-hidden="true" /> {t('Message')}</button></div>
           <div className="community-comments" aria-live="polite" hidden={comments.length === 0}>
             {rootComments.map((item) => {
               const replies = comments.filter((reply) => reply.parentCommentId === item.id)
               const replyKey = commentKey(post.id, item.id)
               return <div className="community-comment-thread" key={item.id}>
-                <div className={`community-comment${item.isAuthorHidden ? ' author-hidden' : ''}`}><CommunityAvatar author={item.author} className="community-comment-avatar community-person-avatar" />{editingCommentId === item.id ? <form className="community-inline-edit comment-edit" onSubmit={(event) => void saveCommentEdit(event, post.id, item.id)}><textarea required maxLength={2000} value={editCommentContent} onChange={(event) => setEditCommentContent(event.target.value)} /><div className="community-inline-edit-actions"><button type="submit" className="outline-button compact" disabled={savingContentId === `comment:${item.id}` || !editCommentContent.trim()}><Save size={13} /> Enregistrer</button><button type="button" className="outline-button compact" onClick={() => setEditingCommentId(null)}>Annuler</button></div></form> : <p><strong>{authorName(item.author)}{item.author.isSubscriber && <SubscriberBadge />}</strong><span>{item.content}</span>{item.isAuthorHidden && <small className="community-hidden-label">Masqué par vous</small>}</p>}
+                <div className={`community-comment${item.isAuthorHidden ? ' author-hidden' : ''}`}><CommunityAvatar author={item.author} className="community-comment-avatar community-person-avatar" />{editingCommentId === item.id ? <form className="community-inline-edit comment-edit" onSubmit={(event) => void saveCommentEdit(event, post.id, item.id)}><textarea required maxLength={2000} value={editCommentContent} onChange={(event) => setEditCommentContent(event.target.value)} /><div className="community-inline-edit-actions"><button type="submit" className="outline-button compact" disabled={savingContentId === `comment:${item.id}` || !editCommentContent.trim()}><Save size={13} /> {t('Enregistrer')}</button><button type="button" className="outline-button compact" onClick={() => setEditingCommentId(null)}>{t('Annuler')}</button></div></form> : <p><strong>{authorName(item.author)}{(item.author.role === 'ADMIN' || item.author.role === 'SUPER_ADMIN') && <CommunityOfficialBadge />}{item.author.isSubscriber && <SubscriberBadge />}</strong><span>{item.content}</span>{item.isAuthorHidden && <small className="community-hidden-label">{t('Masqué par vous')}</small>}</p>}
                   <div className="community-actions-menu">
-                    <button type="button" className="community-actions-trigger community-comment-actions-trigger" aria-label="Plus d’options pour le commentaire" aria-haspopup="menu" aria-expanded={openActionsMenu === `comment-${item.id}`} onClick={() => setOpenActionsMenu((current) => current === `comment-${item.id}` ? null : `comment-${item.id}`)}><MoreHorizontal size={18} aria-hidden="true" /></button>
+                    <button type="button" className="community-actions-trigger community-comment-actions-trigger" aria-label={t('Plus d’options pour le commentaire')} aria-haspopup="menu" aria-expanded={openActionsMenu === `comment-${item.id}`} onClick={() => setOpenActionsMenu((current) => current === `comment-${item.id}` ? null : `comment-${item.id}`)}><MoreHorizontal size={18} aria-hidden="true" /></button>
                     {openActionsMenu === `comment-${item.id}` && <div className="community-actions-dropdown" role="menu">
                       {item.author.id === currentUserId ? <>
-                        <button type="button" role="menuitem" onClick={() => { setOpenActionsMenu(null); setEditingCommentId(item.id); setEditCommentContent(item.content) }} disabled={savingContentId === `comment:${item.id}`}><Pencil size={15} aria-hidden="true" /> Modifier</button>
-                        <button type="button" role="menuitem" onClick={() => { setOpenActionsMenu(null); void toggleCommentHidden(post.id, item) }} disabled={savingContentId === `comment:${item.id}`}>{item.isAuthorHidden ? <Eye size={15} aria-hidden="true" /> : <EyeOff size={15} aria-hidden="true" />}{item.isAuthorHidden ? 'Réafficher' : 'Masquer'}</button>
-                        <button type="button" role="menuitem" className="danger" onClick={() => { setOpenActionsMenu(null); void deleteComment(post.id, item) }} disabled={savingContentId === `comment:${item.id}`}><Trash2 size={15} aria-hidden="true" /> Supprimer</button>
-                      </> : <button type="button" role="menuitem" onClick={() => { setOpenActionsMenu(null); setReportTarget({ targetType: 'COMMENT', targetId: item.id }) }}><Flag size={15} aria-hidden="true" /> Signaler</button>}
+                        <button type="button" role="menuitem" onClick={() => { setOpenActionsMenu(null); setEditingCommentId(item.id); setEditCommentContent(item.content) }} disabled={savingContentId === `comment:${item.id}`}><Pencil size={15} aria-hidden="true" /> {t('Modifier')}</button>
+                        <button type="button" role="menuitem" onClick={() => { setOpenActionsMenu(null); void toggleCommentHidden(post.id, item) }} disabled={savingContentId === `comment:${item.id}`}>{item.isAuthorHidden ? <Eye size={15} aria-hidden="true" /> : <EyeOff size={15} aria-hidden="true" />}{t(item.isAuthorHidden ? 'Réafficher' : 'Masquer')}</button>
+                        <button type="button" role="menuitem" className="danger" onClick={() => { setOpenActionsMenu(null); void deleteComment(post.id, item) }} disabled={savingContentId === `comment:${item.id}`}><Trash2 size={15} aria-hidden="true" /> {t('Supprimer')}</button>
+                      </> : <button type="button" role="menuitem" onClick={() => { setOpenActionsMenu(null); setReportTarget({ targetType: 'COMMENT', targetId: item.id }) }}><Flag size={15} aria-hidden="true" /> {t('Signaler')}</button>}
                     </div>}
                   </div>
                 </div>
-                <div className="community-comment-links">{!post.isAuthorHidden && !item.isAuthorHidden && <button type="button" onClick={() => setReplyingTo((current) => current?.commentId === item.id ? null : { postId: post.id, commentId: item.id })}>Répondre</button>}<small>{new Date(item.createdAt).toLocaleString('fr-FR')}</small></div>
-                {replies.map((reply) => <div className={`community-comment community-comment-reply${reply.isAuthorHidden ? ' author-hidden' : ''}`} key={reply.id}><CommunityAvatar author={reply.author} className="community-comment-avatar community-person-avatar" />{editingCommentId === reply.id ? <form className="community-inline-edit comment-edit" onSubmit={(event) => void saveCommentEdit(event, post.id, reply.id)}><textarea required maxLength={2000} value={editCommentContent} onChange={(event) => setEditCommentContent(event.target.value)} /><div className="community-inline-edit-actions"><button type="submit" className="outline-button compact" disabled={savingContentId === `comment:${reply.id}` || !editCommentContent.trim()}><Save size={13} /> Enregistrer</button><button type="button" className="outline-button compact" onClick={() => setEditingCommentId(null)}>Annuler</button></div></form> : <p><strong>{authorName(reply.author)}{reply.author.isSubscriber && <SubscriberBadge />}</strong><span>{reply.content}</span>{reply.isAuthorHidden && <small className="community-hidden-label">Masqué par vous</small>}</p>}
+                <div className="community-comment-links">{!post.isAuthorHidden && !item.isAuthorHidden && <button type="button" onClick={() => setReplyingTo((current) => current?.commentId === item.id ? null : { postId: post.id, commentId: item.id })}>{t('Répondre')}</button>}<small>{new Date(item.createdAt).toLocaleString(language === 'en' ? 'en-US' : 'fr-FR')}</small></div>
+                {replies.map((reply) => <div className={`community-comment community-comment-reply${reply.isAuthorHidden ? ' author-hidden' : ''}`} key={reply.id}><CommunityAvatar author={reply.author} className="community-comment-avatar community-person-avatar" />{editingCommentId === reply.id ? <form className="community-inline-edit comment-edit" onSubmit={(event) => void saveCommentEdit(event, post.id, reply.id)}><textarea required maxLength={2000} value={editCommentContent} onChange={(event) => setEditCommentContent(event.target.value)} /><div className="community-inline-edit-actions"><button type="submit" className="outline-button compact" disabled={savingContentId === `comment:${reply.id}` || !editCommentContent.trim()}><Save size={13} /> {t('Enregistrer')}</button><button type="button" className="outline-button compact" onClick={() => setEditingCommentId(null)}>{t('Annuler')}</button></div></form> : <p><strong>{authorName(reply.author)}{(reply.author.role === 'ADMIN' || reply.author.role === 'SUPER_ADMIN') && <CommunityOfficialBadge />}{reply.author.isSubscriber && <SubscriberBadge />}</strong><span>{reply.content}</span>{reply.isAuthorHidden && <small className="community-hidden-label">{t('Masqué par vous')}</small>}</p>}
                   <div className="community-actions-menu">
-                    <button type="button" className="community-actions-trigger community-comment-actions-trigger" aria-label="Plus d’options pour la réponse" aria-haspopup="menu" aria-expanded={openActionsMenu === `comment-${reply.id}`} onClick={() => setOpenActionsMenu((current) => current === `comment-${reply.id}` ? null : `comment-${reply.id}`)}><MoreHorizontal size={18} aria-hidden="true" /></button>
+                    <button type="button" className="community-actions-trigger community-comment-actions-trigger" aria-label={t('Plus d’options pour la réponse')} aria-haspopup="menu" aria-expanded={openActionsMenu === `comment-${reply.id}`} onClick={() => setOpenActionsMenu((current) => current === `comment-${reply.id}` ? null : `comment-${reply.id}`)}><MoreHorizontal size={18} aria-hidden="true" /></button>
                     {openActionsMenu === `comment-${reply.id}` && <div className="community-actions-dropdown" role="menu">
                       {reply.author.id === currentUserId ? <>
-                        <button type="button" role="menuitem" onClick={() => { setOpenActionsMenu(null); setEditingCommentId(reply.id); setEditCommentContent(reply.content) }} disabled={savingContentId === `comment:${reply.id}`}><Pencil size={15} aria-hidden="true" /> Modifier</button>
-                        <button type="button" role="menuitem" onClick={() => { setOpenActionsMenu(null); void toggleCommentHidden(post.id, reply) }} disabled={savingContentId === `comment:${reply.id}`}>{reply.isAuthorHidden ? <Eye size={15} aria-hidden="true" /> : <EyeOff size={15} aria-hidden="true" />}{reply.isAuthorHidden ? 'Réafficher' : 'Masquer'}</button>
-                        <button type="button" role="menuitem" className="danger" onClick={() => { setOpenActionsMenu(null); void deleteComment(post.id, reply) }} disabled={savingContentId === `comment:${reply.id}`}><Trash2 size={15} aria-hidden="true" /> Supprimer</button>
-                      </> : <button type="button" role="menuitem" onClick={() => { setOpenActionsMenu(null); setReportTarget({ targetType: 'COMMENT', targetId: reply.id }) }}><Flag size={15} aria-hidden="true" /> Signaler</button>}
+                        <button type="button" role="menuitem" onClick={() => { setOpenActionsMenu(null); setEditingCommentId(reply.id); setEditCommentContent(reply.content) }} disabled={savingContentId === `comment:${reply.id}`}><Pencil size={15} aria-hidden="true" /> {t('Modifier')}</button>
+                        <button type="button" role="menuitem" onClick={() => { setOpenActionsMenu(null); void toggleCommentHidden(post.id, reply) }} disabled={savingContentId === `comment:${reply.id}`}>{reply.isAuthorHidden ? <Eye size={15} aria-hidden="true" /> : <EyeOff size={15} aria-hidden="true" />}{t(reply.isAuthorHidden ? 'Réafficher' : 'Masquer')}</button>
+                        <button type="button" role="menuitem" className="danger" onClick={() => { setOpenActionsMenu(null); void deleteComment(post.id, reply) }} disabled={savingContentId === `comment:${reply.id}`}><Trash2 size={15} aria-hidden="true" /> {t('Supprimer')}</button>
+                      </> : <button type="button" role="menuitem" onClick={() => { setOpenActionsMenu(null); setReportTarget({ targetType: 'COMMENT', targetId: reply.id }) }}><Flag size={15} aria-hidden="true" /> {t('Signaler')}</button>}
                     </div>}
                   </div>
                 </div>)}
-                {!post.isAuthorHidden && !item.isAuthorHidden && replyingTo?.postId === post.id && replyingTo.commentId === item.id && <form className="community-comment-form community-reply-form" onSubmit={(event) => { event.preventDefault(); void comment(post.id, item.id) }}><input autoFocus aria-label={`Répondre à ${authorName(item.author)}`} maxLength={2000} value={commentDrafts[replyKey] ?? ''} onChange={(event) => setCommentDrafts((current) => ({ ...current, [replyKey]: event.target.value }))} placeholder={`Répondre à ${authorName(item.author)}…`} /><button className="outline-button compact" disabled={!commentDrafts[replyKey]?.trim() || pendingCommentIds.has(replyKey)}>{pendingCommentIds.has(replyKey) ? 'Envoi…' : 'Répondre'}</button></form>}
+                {!post.isAuthorHidden && !item.isAuthorHidden && replyingTo?.postId === post.id && replyingTo.commentId === item.id && <form className="community-comment-form community-reply-form" onSubmit={(event) => { event.preventDefault(); void comment(post.id, item.id) }}><input autoFocus aria-label={`${t('Répondre à')} ${authorName(item.author)}`} maxLength={2000} value={commentDrafts[replyKey] ?? ''} onChange={(event) => setCommentDrafts((current) => ({ ...current, [replyKey]: event.target.value }))} placeholder={`${t('Répondre à')} ${authorName(item.author)}…`} /><button className="outline-button compact" disabled={!commentDrafts[replyKey]?.trim() || pendingCommentIds.has(replyKey)}>{pendingCommentIds.has(replyKey) ? t('Envoi…') : t('Répondre')}</button></form>}
               </div>
             })}
           </div>
-          {!post.isAuthorHidden && <form className="community-comment-form community-main-comment" onSubmit={(event) => { event.preventDefault(); void comment(post.id) }}><div className="community-comment-avatar">A</div><input id={`community-comment-input-${post.id}`} aria-label={`Commenter ${post.title}`} maxLength={2000} value={commentDrafts[commentKey(post.id, null)] ?? ''} onChange={(event) => setCommentDrafts((current) => ({ ...current, [commentKey(post.id, null)]: event.target.value }))} placeholder="Écrire un commentaire..." /><button className="outline-button compact" disabled={!commentDrafts[commentKey(post.id, null)]?.trim() || pendingCommentIds.has(commentKey(post.id, null))}>{pendingCommentIds.has(commentKey(post.id, null)) ? 'Envoi…' : 'Publier'}</button></form>}
+          {!post.isAuthorHidden && <form className="community-comment-form community-main-comment" onSubmit={(event) => { event.preventDefault(); void comment(post.id) }}><div className="community-comment-avatar">A</div><input id={`community-comment-input-${post.id}`} aria-label={`${t('Commenter')} ${post.title}`} maxLength={2000} value={commentDrafts[commentKey(post.id, null)] ?? ''} onChange={(event) => setCommentDrafts((current) => ({ ...current, [commentKey(post.id, null)]: event.target.value }))} placeholder={t('Écrire un commentaire...')} /><button className="outline-button compact" disabled={!commentDrafts[commentKey(post.id, null)]?.trim() || pendingCommentIds.has(commentKey(post.id, null))}>{pendingCommentIds.has(commentKey(post.id, null)) ? t('Envoi…') : t('Publier')}</button></form>}
         </article>
       })}</div>}
+      {remoteSearchActive && communitySearchData?.query === normalizedSearch && communitySearchData.hasMore && <button type="button" className="outline-button community-search-more" onClick={() => void loadMoreCommunityResults()}>{t('Afficher plus de résultats')}</button>}
     </section>}
     {showOffers && <section className="community-offers">
-      <div className="community-section-heading"><div><span className="section-kicker">PUBLIÉES PAR L’ADMINISTRATION</span><h2>Nouvelles offres catalogue</h2></div></div>
-      {loading ? <section className="panel empty-state">Chargement des offres...</section> : feed.offers.length === 0 ? <div className="panel empty-state">Aucune offre publiée pour le moment.</div> : <div className="community-offer-grid">{feed.offers.map((offer) => <article className="community-offer" key={offer.id}>
-        <span className="product-tag">OFFRE CATALOGUE</span><h3>{offer.title}</h3><p>{offer.description}</p><div><strong>Public cible</strong><p>{offer.targetAudience}</p></div><div><strong>Argumentaire</strong><p>{offer.salesPitch}</p></div>
-        {offer.publishedAt && <time>{new Date(offer.publishedAt).toLocaleDateString('fr-FR')}</time>}
+      <div className="community-section-heading"><div><span className="section-kicker">{t('PUBLIÉES PAR L’ADMINISTRATION')}</span><h2>{t('Nouvelles offres catalogue')}</h2></div></div>
+      {loading ? <section className="panel empty-state">{t('Chargement des offres...')}</section> : visibleOffers.length === 0 ? <div className="panel empty-state">{t(normalizedSearch ? 'Aucune offre ne correspond à la recherche.' : 'Aucune offre publiée pour le moment.')}</div> : <div className="community-offer-grid">{visibleOffers.map((offer) => <article className="community-offer" key={offer.id}>
+        <span className="product-tag">{t('OFFRE CATALOGUE')}</span><h3>{offer.title}</h3><p>{offer.description}</p><div><strong>{t('Public cible')}</strong><p>{offer.targetAudience}</p></div><div><strong>{t('Argumentaire')}</strong><p>{offer.salesPitch}</p></div>
+        {offer.publishedAt && <time>{new Date(offer.publishedAt).toLocaleDateString(language === 'en' ? 'en-US' : 'fr-FR')}</time>}
       </article>)}</div>}
     </section>}
-    {composer && <div className="modal-backdrop community-composer-backdrop" onClick={() => setComposer(false)}><form className="modal community-composer" onSubmit={publish} onClick={(event) => event.stopPropagation()}><button type="button" className="modal-close" onClick={() => setComposer(false)}>×</button><p className="eyebrow">COMMUNAUTÉ TY SY NDAY</p><h2>Nouvelle publication</h2><label>Catégorie<select value={category} onChange={(event) => setCategory(event.target.value as typeof category)}><option>Discussion</option><option>Question</option><option>Astuce</option></select></label><label>Titre<input required minLength={3} maxLength={200} value={title} onChange={(event) => setTitle(event.target.value)} /></label><label>Message<textarea className="community-textarea" required maxLength={3000} value={content} onChange={(event) => setContent(event.target.value)} placeholder="Partagez une astuce ou posez une question..." /></label><div className="community-image-picker"><input ref={imageInput} id="community-post-image-input" type="file" accept="image/jpeg,image/png,image/webp" onChange={selectImage} aria-describedby={imageError ? 'community-image-error' : undefined} /><button type="button" className="outline-button community-image-select" onClick={() => imageInput.current?.click()}><ImagePlus size={17} aria-hidden="true" /> Ajouter une photo</button><small>JPEG, PNG ou WebP · 5 Mo maximum</small></div>{imageError && <p className="community-image-error" id="community-image-error" role="alert">{imageError}</p>}{image && imagePreview && <div className="community-image-preview"><img src={imagePreview} alt={`Aperçu de ${image.name}`} /><div><strong>{image.name}</strong><small>{(image.size / (1024 * 1024)).toFixed(1)} Mo</small></div><button type="button" className="community-image-remove" aria-label="Retirer la photo" onClick={() => { setSelectedImage(null); setImageError('') }}><X size={17} aria-hidden="true" /></button></div>}<div className="modal-actions"><button type="button" className="outline-button" onClick={() => setComposer(false)}>Annuler</button><button className="primary-button" disabled={saving}>{saving ? 'Publication...' : 'Publier'}</button></div></form></div>}
-    {reportTarget && <div className="modal-backdrop" onClick={() => setReportTarget(null)}><form className="modal" onSubmit={submitReport} onClick={(event) => event.stopPropagation()}><button type="button" className="modal-close" onClick={() => setReportTarget(null)}>×</button><p className="eyebrow">MODÉRATION</p><h2>Signaler ce contenu</h2><p className="modal-intro">Le signalement sera transmis à l’administration pour examen.</p><label>Motif<input required minLength={5} maxLength={500} value={reportReason} onChange={(event) => setReportReason(event.target.value)} /></label><div className="modal-actions"><button type="button" className="outline-button" onClick={() => setReportTarget(null)}>Annuler</button><button className="primary-button" disabled={saving}>{saving ? 'Envoi...' : 'Envoyer le signalement'}</button></div></form></div>}
+    {composer && <div className="modal-backdrop community-composer-backdrop" onClick={() => setComposer(false)}><form className="modal community-composer" onSubmit={publish} onClick={(event) => event.stopPropagation()}><button type="button" className="modal-close" onClick={() => setComposer(false)} aria-label={t('Fermer')}>×</button><p className="eyebrow">{t('COMMUNAUTÉ TY SY NDAY')}</p><h2>{t('Nouvelle publication')}</h2><label>{t('Catégorie')}<select value={category} onChange={(event) => setCategory(event.target.value as typeof category)}><option value="Discussion">{t('Discussion')}</option><option value="Question">{t('Question')}</option><option value="Astuce">{t('Astuce')}</option></select></label><label>{t('Titre')}<input required minLength={3} maxLength={200} value={title} onChange={(event) => setTitle(event.target.value)} /></label><label>{t('Message')}<textarea className="community-textarea" required maxLength={3000} value={content} onChange={(event) => setContent(event.target.value)} placeholder={t('Partagez une astuce ou posez une question...')} /></label><div className="community-image-picker"><input ref={mediaInput} id="community-post-media-input" type="file" accept="image/jpeg,image/png,image/webp,video/mp4,video/webm" onChange={selectMedia} aria-describedby={mediaError ? 'community-media-error' : undefined} /><button type="button" className="outline-button community-image-select" onClick={() => mediaInput.current?.click()}><ImagePlus size={17} aria-hidden="true" /><Video size={17} aria-hidden="true" /> {t('Ajouter une photo ou vidéo')}</button><small>{t('Images JPEG/PNG/WebP · 5 Mo max. | Vidéos MP4/WebM · 50 Mo max.')}</small></div>{mediaError && <p className="community-image-error" id="community-media-error" role="alert">{t(mediaError)}</p>}{media && mediaPreview && <div className="community-image-preview">{media.type.startsWith('video/') ? <video src={mediaPreview} controls playsInline /> : <img src={mediaPreview} alt={`${t('Aperçu de')} ${media.name}`} />}<div><strong>{media.name}</strong><small>{(media.size / (1024 * 1024)).toLocaleString(language === 'en' ? 'en-US' : 'fr-FR', { maximumFractionDigits: 1 })} {language === 'en' ? 'MB' : 'Mo'}</small></div><button type="button" className="community-image-remove" aria-label={t('Retirer le média')} onClick={() => { setSelectedMedia(null); setMediaError('') }}><X size={17} aria-hidden="true" /></button></div>}<div className="modal-actions"><button type="button" className="outline-button" onClick={() => setComposer(false)}>{t('Annuler')}</button><button className="primary-button" disabled={saving}>{saving ? t('Publication...') : t('Publier')}</button></div></form></div>}
+    {reportTarget && <div className="modal-backdrop" onClick={() => setReportTarget(null)}><form className="modal" onSubmit={submitReport} onClick={(event) => event.stopPropagation()}><button type="button" className="modal-close" onClick={() => setReportTarget(null)} aria-label={t('Fermer')}>×</button><p className="eyebrow">{t('MODÉRATION')}</p><h2>{t('Signaler ce contenu')}</h2><p className="modal-intro">{t('Le signalement sera transmis à l’administration pour examen.')}</p><label>{t('Motif')}<input required minLength={5} maxLength={500} value={reportReason} onChange={(event) => setReportReason(event.target.value)} /></label><div className="modal-actions"><button type="button" className="outline-button" onClick={() => setReportTarget(null)}>{t('Annuler')}</button><button className="primary-button" disabled={saving}>{saving ? t('Envoi...') : t('Envoyer le signalement')}</button></div></form></div>}
   </>
 }

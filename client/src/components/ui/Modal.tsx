@@ -3,8 +3,8 @@ import { X } from 'lucide-react'
 import { Button } from './Button'
 import './ui.css'
 
-type Props = { open: boolean; title: string; children: ReactNode; onClose: () => void; footer?: ReactNode }
-export function Modal({ open, title, children, onClose, footer }: Props) {
+type Props = { open: boolean; title: string; children: ReactNode; onClose: () => void; footer?: ReactNode; className?: string }
+export function Modal({ open, title, children, onClose, footer, className }: Props) {
   const titleId = useId()
   const dialogRef = useRef<HTMLElement>(null)
   const onCloseRef = useRef(onClose)
@@ -49,7 +49,7 @@ export function Modal({ open, title, children, onClose, footer }: Props) {
   if (!open) return null
   return (
     <div className="ui-modal-backdrop" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
-      <section ref={dialogRef} className="ui-modal" role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1}>
+      <section ref={dialogRef} className={className ? `ui-modal ${className}` : 'ui-modal'} role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1}>
         <header className="ui-modal-header"><h2 id={titleId}>{title}</h2><Button variant="ghost" aria-label="Fermer" onClick={onClose}><X size={20} /></Button></header>
         <div className="ui-modal-body">{children}</div>
         {footer && <footer className="ui-modal-footer">{footer}</footer>}

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useState } from 'react'
 import { ShieldCheck } from 'lucide-react'
 import api, { type SessionUser } from '../api/client'
 import { Alert } from '../components/ui/Alert'
@@ -19,12 +19,8 @@ export default function AuthPage({ onLogin, portal }: Props) {
   const [loading, setLoading] = useState(false)
   const [pendingRegistrationEmail, setPendingRegistrationEmail] = useState('')
   const [otpCode, setOtpCode] = useState('')
+  const [registrationStep, setRegistrationStep] = useState(1)
   const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID ?? ''
-
-  useEffect(() => {
-    document.body.dataset.portal = portal
-    return () => { delete document.body.dataset.portal }
-  }, [portal])
 
   const update = (field: keyof typeof form, value: string | boolean) => {
     setForm((current) => ({ ...current, [field]: value }))
@@ -32,6 +28,10 @@ export default function AuthPage({ onLogin, portal }: Props) {
 
   async function submit(event: React.FormEvent) {
     event.preventDefault()
+    if (mode === 'register' && audience === 'agent' && !pendingRegistrationEmail && registrationStep === 1) {
+      continueRegistration()
+      return
+    }
     setError('')
     setMessage('')
     setLoading(true)
@@ -120,6 +120,24 @@ export default function AuthPage({ onLogin, portal }: Props) {
     setOtpCode('')
     setMessage('')
     setError('')
+    setRegistrationStep(1)
+  }
+
+  function continueRegistration() {
+    setError('')
+    if (!form.firstName.trim() || !form.lastName.trim()) {
+      setError('Le prénom et le nom sont obligatoires.')
+      return
+    }
+    if (form.phone.trim().length < 7) {
+      setError('Le téléphone doit contenir au moins 7 caractères.')
+      return
+    }
+    if (form.city.trim().length < 2) {
+      setError('La ville est obligatoire.')
+      return
+    }
+    setRegistrationStep(2)
   }
 
   return (
@@ -139,33 +157,46 @@ export default function AuthPage({ onLogin, portal }: Props) {
             <button type="button" role="tab" aria-selected={audience === 'agent'} className={audience === 'agent' ? 'active' : ''} onClick={() => { setAudience('agent'); setMode('login'); restartRegistration() }}>Espace agent</button>
             <button type="button" role="tab" aria-selected={audience === 'admin'} className={audience === 'admin' ? 'active' : ''} onClick={() => { setAudience('admin'); setMode('login'); restartRegistration() }}>Administration</button>
           </div>
-          {audience === 'agent' && <div className="auth-tabs" role="tablist" aria-label="Connexion ou inscription"><button type="button" role="tab" aria-selected={mode === 'login'} className={mode === 'login' ? 'active' : ''} onClick={() => setMode('login')}>Connexion</button><button type="button" role="tab" aria-selected={mode === 'register'} className={mode === 'register' ? 'active' : ''} onClick={() => setMode('register')}>Inscription agent</button></div>}
-          <span className="auth-kicker">{audience === 'admin' ? 'Accès administrateur' : mode === 'login' ? 'Espace sécurisé' : pendingRegistrationEmail ? 'Vérifier votre adresse email' : 'Créer une candidature'}</span>
-          <h2>{audience === 'admin' ? 'Connexion administration' : mode === 'login' ? 'Ravi de vous revoir' : pendingRegistrationEmail ? 'Confirmez votre email' : 'Rejoindre Ty sy Nday Business'}</h2>
-          <p className="auth-intro">{audience === 'admin' ? 'Réservé aux administrateurs autorisés.' : mode === 'login' ? 'Connectez-vous à votre espace professionnel.' : pendingRegistrationEmail ? `Saisissez le code à 6 chiffres envoyé à ${pendingRegistrationEmail}.` : 'Votre demande sera examinée par notre équipe.'}</p>
+          {audience === 'agent' && <div className="auth-tabs" role="tablist" aria-label="Connexion ou inscription"><button type="button" role="tab" aria-selected={mode === 'login'} className={mode === 'login' ? 'active' : ''} onClick={() => { setMode('login'); setRegistrationStep(1) }}>Connexion</button><button type="button" role="tab" aria-selected={mode === 'register'} className={mode === 'register' ? 'active' : ''} onClick={() => { setMode('register'); setRegistrationStep(1) }}>Inscription agent</button></div>}
+          <span className="auth-kicker">{audience === 'admin' ? 'Accès administrateur' : mode === 'login' ? 'Espace sécurisé' : pendingRegistrationEmail ? 'Vérifier votre adresse email' : `Inscription · étape ${registrationStep} sur 2`}</span>
+          <h2>{audience === 'admin' ? 'Connexion administration' : mode === 'login' ? 'Ravi de vous revoir' : pendingRegistrationEmail ? 'Confirmez votre email' : registrationStep === 1 ? 'Vos informations' : 'Sécurisez votre compte'}</h2>
+          <p className="auth-intro">{audience === 'admin' ? 'Réservé aux administrateurs autorisés.' : mode === 'login' ? 'Connectez-vous à votre espace professionnel.' : pendingRegistrationEmail ? `Saisissez le code à 6 chiffres envoyé à ${pendingRegistrationEmail}.` : registrationStep === 1 ? 'Renseignez vos coordonnées pour commencer.' : 'Ajoutez votre email et choisissez un mot de passe.'}</p>
           <form onSubmit={submit}>
-            {mode === 'register' && pendingRegistrationEmail ? (
-              <Input name="otpCode" label="Code de vérification" inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]{6}" maxLength={6} value={otpCode} onChange={(event) => setOtpCode(event.target.value.replace(/\D/g, '').slice(0, 6))} required />
-            ) : <>
-              {mode === 'register' && audience === 'agent' && <div className="auth-row"><Input name="firstName" label="Prénom" value={form.firstName} onChange={(event) => update('firstName', event.target.value)} required /><Input name="lastName" label="Nom" value={form.lastName} onChange={(event) => update('lastName', event.target.value)} required /></div>}
-              {mode === 'register' && audience === 'agent' && <div className="auth-row"><Input name="phone" label="Téléphone" value={form.phone} onChange={(event) => update('phone', event.target.value)} required /><Input name="city" label="Ville" value={form.city} onChange={(event) => update('city', event.target.value)} required /></div>}
-              <Input name="email" type="email" label="Email professionnel" autoComplete="email" value={form.email} onChange={(event) => update('email', event.target.value)} required />
-              <Input name="password" type="password" label="Mot de passe" autoComplete={mode === 'login' ? 'current-password' : 'new-password'} minLength={8} value={form.password} onChange={(event) => update('password', event.target.value)} required />
-              {mode === 'register' && audience === 'agent' && <label className="auth-check"><input type="checkbox" checked={form.consent} onChange={(event) => update('consent', event.target.checked)} required /> J’accepte les conditions d’utilisation.</label>}
+            {mode === 'register' && audience === 'agent' && !pendingRegistrationEmail ? <>
+              {registrationStep === 1 ? <>
+                <div className="auth-row"><Input name="firstName" label="Prénom" value={form.firstName} onChange={(event) => update('firstName', event.target.value)} required /><Input name="lastName" label="Nom" value={form.lastName} onChange={(event) => update('lastName', event.target.value)} required /></div>
+                <div className="auth-row"><Input name="phone" label="Téléphone" value={form.phone} onChange={(event) => update('phone', event.target.value)} required /><Input name="city" label="Ville" value={form.city} onChange={(event) => update('city', event.target.value)} required /></div>
+                {error && <Alert tone="error">{error}</Alert>}
+                <Button type="button" className="auth-submit" onClick={continueRegistration}>Continuer</Button>
+              </> : <>
+                <button type="button" className="auth-back-link" onClick={() => { setRegistrationStep(1); setError('') }}>Modifier mes coordonnées</button>
+                <Input name="email" type="email" label="Email professionnel" autoComplete="email" value={form.email} onChange={(event) => update('email', event.target.value)} required />
+                <Input name="password" type="password" label="Mot de passe" autoComplete="new-password" minLength={8} value={form.password} onChange={(event) => update('password', event.target.value)} required />
+                <label className="auth-check"><input type="checkbox" checked={form.consent} onChange={(event) => update('consent', event.target.checked)} required /> J’accepte les conditions d’utilisation.</label>
+                {error && <Alert tone="error">{error}</Alert>}
+                <Button type="submit" loading={loading} className="auth-submit">Recevoir un code de vérification</Button>
+              </>}
+            </> : <>
+              {mode === 'register' && pendingRegistrationEmail
+                ? <Input name="otpCode" label="Code de vérification" inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]{6}" maxLength={6} value={otpCode} onChange={(event) => setOtpCode(event.target.value.replace(/\D/g, '').slice(0, 6))} required />
+                : <>
+                  <Input name="email" type="email" label="Email professionnel" autoComplete="email" value={form.email} onChange={(event) => update('email', event.target.value)} required />
+                  <Input name="password" type="password" label="Mot de passe" autoComplete={mode === 'login' ? 'current-password' : 'new-password'} minLength={8} value={form.password} onChange={(event) => update('password', event.target.value)} required />
+                </>}
+              {error && <Alert tone="error">{error}</Alert>}
+              {message && <Alert tone="success">{message}</Alert>}
+              <Button type="submit" loading={loading} className="auth-submit">{audience === 'admin' ? 'Ouvrir l’administration' : mode === 'login' ? 'Se connecter' : pendingRegistrationEmail ? 'Vérifier et confirmer' : 'Recevoir un code de vérification'}</Button>
             </>}
-            {error && <Alert tone="error">{error}</Alert>}
-            {message && <Alert tone="success">{message}</Alert>}
-            <Button type="submit" loading={loading} className="auth-submit">{audience === 'admin' ? 'Ouvrir l’administration' : mode === 'login' ? 'Se connecter' : pendingRegistrationEmail ? 'Vérifier et confirmer' : 'Recevoir un code de vérification'}</Button>
           </form>
           {audience === 'agent' && mode === 'register' && pendingRegistrationEmail && <>
             <Button type="button" variant="secondary" disabled={loading} className="auth-submit" onClick={() => void resendRegistrationCode()}>Renvoyer le code</Button>
             <Button type="button" variant="secondary" disabled={loading} className="auth-submit" onClick={restartRegistration}>Modifier mes informations</Button>
           </>}
-          {audience === 'agent' && !pendingRegistrationEmail && <>
+          {audience === 'agent' && !pendingRegistrationEmail && (mode === 'login' || registrationStep === 2) && <>
             <div className="auth-divider"><span>ou continuer avec</span></div>
             {googleClientId
               ? mode === 'register' && (!form.firstName.trim() || !form.lastName.trim() || form.phone.trim().length < 7 || form.city.trim().length < 2 || !form.consent)
-                ? <Button type="button" variant="secondary" disabled className="google-signin-placeholder">Complétez vos coordonnées et acceptez les conditions pour continuer avec Google</Button>
+                ? <Button type="button" variant="secondary" disabled className="google-signin-placeholder">Acceptez les conditions pour continuer avec Google</Button>
                 : <GoogleSignInButton clientId={googleClientId} mode={mode} onCredential={(credential) => void submitGoogleCredential(credential)} onError={setError} />
               : <Button type="button" variant="secondary" disabled className="google-signin-placeholder">Connexion Google indisponible</Button>}
           </>}
