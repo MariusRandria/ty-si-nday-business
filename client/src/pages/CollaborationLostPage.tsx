@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react'
 import { ArrowLeft, CircleOff } from 'lucide-react'
 import { confirmAction } from '../utils/confirmation'
+import { useI18n } from '../i18n'
 import api, { ApiRequestError, type CollaborationLostReason } from '../api/client'
 import '../components/collaboration/collaboration.css'
 import '../components/ui/ui.css'
@@ -27,6 +28,7 @@ function messageFor(error: unknown): string {
 }
 
 export default function CollaborationLostPage({ dealId, onBack, onComplete }: Props) {
+  const { t } = useI18n()
   const [reason, setReason] = useState<CollaborationLostReason | ''>('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -35,9 +37,9 @@ export default function CollaborationLostPage({ dealId, onBack, onComplete }: Pr
   async function submit() {
     if (!reason || actionLock.current) return
     const confirmed = await confirmAction({
-      title: 'Déclarer ce prospect perdu ?',
-      message: 'Cette déclaration sera enregistrée dans le suivi du dossier.',
-      confirmLabel: 'Confirmer la perte',
+      title: t('Déclarer ce prospect perdu ?'),
+      message: t('Cette déclaration sera enregistrée dans le suivi du dossier.'),
+      confirmLabel: t('Confirmer la perte'),
     })
     if (!confirmed) return
     actionLock.current = true
@@ -47,7 +49,7 @@ export default function CollaborationLostPage({ dealId, onBack, onComplete }: Pr
       await api.declareCollaborationLost(dealId, reason)
       onComplete()
     } catch (caught) {
-      setError(messageFor(caught))
+      setError(t(messageFor(caught)))
     } finally {
       actionLock.current = false
       setSaving(false)
@@ -56,23 +58,23 @@ export default function CollaborationLostPage({ dealId, onBack, onComplete }: Pr
 
   return (
     <section className="collaboration-page" aria-labelledby="lost-title">
-      <button className="collaboration-back-button" type="button" onClick={onBack}><ArrowLeft size={17} aria-hidden="true" /> Retour au rapport</button>
+      <button className="collaboration-back-button" type="button" onClick={onBack}><ArrowLeft size={17} aria-hidden="true" /> {t('Retour au rapport')}</button>
       <header className="collaboration-page-header">
-        <p className="collaboration-eyebrow">SUIVI DU PROSPECT</p>
-        <h1 id="lost-title">Déclarer perdu</h1>
-        <p>Choisissez le motif correspondant à la situation. Il sera enregistré avec le dossier.</p>
+        <p className="collaboration-eyebrow">{t('SUIVI DU PROSPECT')}</p>
+        <h1 id="lost-title">{t('Déclarer perdu')}</h1>
+        <p>{t('Choisissez le motif correspondant à la situation. Il sera enregistré avec le dossier.')}</p>
       </header>
       <div className="collaboration-panel collaboration-lost-panel">
         <label className="ui-field">
-          <span>Motif de la perte</span>
+          <span>{t('Motif de la perte')}</span>
           <select className="ui-control" value={reason} onChange={(event) => setReason(event.target.value as CollaborationLostReason | '')} disabled={saving}>
-            <option value="">Choisir un motif</option>
-            {reasons.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
+            <option value="">{t('Choisir un motif')}</option>
+            {reasons.map((item) => <option key={item.value} value={item.value}>{t(item.label)}</option>)}
           </select>
         </label>
         {error && <p className="collaboration-error" role="alert">{error}</p>}
         <button className="ui-button ui-button-primary collaboration-action" type="button" onClick={() => void submit()} disabled={!reason || saving} aria-busy={saving}>
-          <CircleOff size={17} aria-hidden="true" /> {saving ? 'Enregistrement…' : 'Confirmer la perte'}
+          <CircleOff size={17} aria-hidden="true" /> {saving ? t('Enregistrement…') : t('Confirmer la perte')}
         </button>
       </div>
     </section>

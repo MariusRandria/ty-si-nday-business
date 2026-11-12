@@ -111,7 +111,7 @@ workspaceRouter.get('/notifications', async (request: AuthRequest, response) => 
     where: { userId: request.user!.id },
     orderBy: { createdAt: 'desc' },
     take: 30,
-    include: { actor: { select: { id: true, role: true, agentProfile: { select: { firstName: true, lastName: true, imageUrl: true } } } } },
+    include: { actor: { select: { id: true, role: true, lastActiveAt: true, agentProfile: { select: { firstName: true, lastName: true, imageUrl: true } } } } },
   });
   const legacyActorNames = new Map<number, string>();
   const actorNamePattern = /^(.+?)\s+(?:a\s+(?:commenté|publié|déclaré)|demande l’accès)\b/u;
@@ -130,7 +130,7 @@ workspaceRouter.get('/notifications', async (request: AuthRequest, response) => 
         role: 'AGENT',
         agentProfile: { is: { OR: nameParts } },
       },
-      select: { id: true, role: true, agentProfile: { select: { firstName: true, lastName: true, imageUrl: true } } },
+      select: { id: true, role: true, lastActiveAt: true, agentProfile: { select: { firstName: true, lastName: true, imageUrl: true } } },
     })
     : [];
   const usersByName = new Map<string, typeof matchedUsers>();

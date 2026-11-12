@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { Router } from 'express';
 import multer from 'multer';
 import type { NextFunction, Response } from 'express';
+import type { Prisma } from '@prisma/client';
 import { z } from 'zod';
 import { prisma } from '../../lib/prisma.js';
 import type { AuthRequest } from '../auth/auth.middleware.js';
@@ -78,6 +79,8 @@ function requireAgent(request: AuthRequest, response: Response) {
 function authorSelect(now: Date) {
   return {
     id: true,
+    role: true,
+    lastActiveAt: true,
     agentProfile: { select: { firstName: true, lastName: true, imageUrl: true } },
     subscriptionRequests: {
       where: { status: 'APPROVED', startsAt: { lte: now }, expiresAt: { gt: now } },
@@ -156,9 +159,73 @@ communityRouter.get('/feed', async (request: AuthRequest, response) => {
   });
 });
 
-communityRouter.post('/posts', (request: AuthRequest, response: Response, next: NextFunction) => {
-  if (requireAgent(request, response)) next();
-}, parsePostMedia, async (request: AuthRequest, response) => {
+communityRouter.get('/search', async (request: AuthRequest, response) => {
+  if (request.user?.status !== 'ACTIF') { response.status(403).json({ error: 'Un compte actif est requis pour consulter le forum.' }); return; }
+  const parsed = z.object({
+    q: z.string().trim().min(2).max(100),
+    offset: z.coerce.number().int().min(0).max(10000).default(0),
+  }).safeParse(request.query);
+  if (!parsed.success) { response.status(400).json({ error: 'Saisissez au moins deux caractères pour rechercher.' }); return; }
+
+  const terms = parsed.data.q.normalize('NFD').replace(/[\u0300-\u036f]/g, '').split(/[^\p{L}\p{N}]+/u).filter(Boolean).slice(0, 8);
+  const searchWhere: Prisma.PostWhereInput = {
+    category: { adminOnly: false },
+    OR: [
+      { isHidden: false, authorHidden: false },
+      { isHidden: false, authorId: request.user.id },
+    ],
+    AND: terms.map((term): Prisma.PostWhereInput => {
+      const officialNameMatch = ['TY', 'SY', 'NDAY'].some((part) => part.includes(term.toLocaleUpperCase('fr')) || term.toLocaleUpperCase('fr').includes(part));
+      const matches: Prisma.PostWhereInput[] = [
+        { title: { contains: term } },
+        { content: { contains: term } },
+        { category: { name: { contains: term } } },
+        { author: { is: { agentProfile: { is: { firstName: { contains: term } } } } } },
+        { author: { is: { agentProfile: { is: { lastName: { contains: term } } } } } },
+        { comments: { some: {
+          isHidden: false,
+          authorHidden: false,
+          OR: [
+            { content: { contains: term } },
+            { author: { is: { agentProfile: { is: { firstName: { contains: term } } } } } },
+            { author: { is: { agentProfile: { is: { lastName: { contains: term } } } } } },
+          ],
+        } } },
+      ];
+      if (officialNameMatch) matches.push({ author: { is: { role: { in: ['ADMIN', 'SUPER_ADMIN'] } } } });
+      return { OR: matches };
+    }),
+  };
+  const posts = await prisma.post.findMany({
+    where: searchWhere,
+    orderBy: [{ isPinned: 'desc' }, { createdAt: 'desc' }],
+    skip: parsed.data.offset,
+    take: 21,
+    include: postInclude(new Date(), request.user.id),
+  });
+  const hasMore = posts.length > 20;
+  response.json({
+    data: {
+      posts: posts.slice(0, 20).map(({ authorHidden, ...post }) => ({
+        ...post,
+        isAuthorHidden: authorHidden,
+        author: withSubscriberBadge(post.author),
+        comments: post.comments.map(({ authorHidden: commentAuthorHidden, ...comment }) => ({
+          ...comment,
+          isAuthorHidden: commentAuthorHidden,
+          author: withSubscriberBadge(comment.author),
+        })),
+        likesCount: post._count.likes,
+        likedByMe: post.likes.some((like) => like.userId === request.user?.id),
+        likes: undefined,
+        _count: undefined,
+      })),
+      hasMore,
+    },
+  });
+});
+
+async function publishCommunityPost(request: AuthRequest, response: Response) {
   const result = postSchema.safeParse(request.body);
   if (!result.success) { response.status(400).json({ error: 'Titre, contenu ou catégorie invalide.', details: result.error.flatten() }); return; }
   const file = request.file;
@@ -216,7 +283,8 @@ communityRouter.post('/posts', (request: AuthRequest, response: Response, next: 
     }
     throw error;
   }
-  const authorName = [post.author.agentProfile?.firstName, post.author.agentProfile?.lastName].filter(Boolean).join(' ') || `Agent #${request.user!.id}`;
+  const authorName = [post.author.agentProfile?.firstName, post.author.agentProfile?.lastName].filter(Boolean).join(' ')
+    || (post.author.role === 'ADMIN' || post.author.role === 'SUPER_ADMIN' ? 'L’administration' : `Agent #${request.user!.id}`);
   await notifyAgents({
     type: 'COMMUNITY_POST',
     title: 'Nouvelle publication dans le forum',
@@ -226,7 +294,11 @@ communityRouter.post('/posts', (request: AuthRequest, response: Response, next: 
   });
   const { authorHidden, ...publicPost } = post;
   response.status(201).json({ data: { ...publicPost, isAuthorHidden: authorHidden, author: withSubscriberBadge(post.author), comments: post.comments.map(({ authorHidden: commentAuthorHidden, ...comment }) => ({ ...comment, isAuthorHidden: commentAuthorHidden, author: withSubscriberBadge(comment.author) })), likesCount: 0, likedByMe: false, likes: undefined, _count: undefined } });
-});
+}
+
+communityRouter.post('/posts', (request: AuthRequest, response: Response, next: NextFunction) => {
+  if (requireAgent(request, response)) next();
+}, parsePostMedia, publishCommunityPost);
 
 communityRouter.patch('/posts/:id', async (request: AuthRequest, response) => {
   if (!requireAgent(request, response)) return;
@@ -451,6 +523,31 @@ communityRouter.post('/reports', async (request: AuthRequest, response) => {
 });
 
 export const adminCommunityRouter = Router();
+
+adminCommunityRouter.get('/posts', async (_request, response) => {
+  const posts = await prisma.post.findMany({
+    where: { category: { adminOnly: false } },
+    orderBy: [{ isPinned: 'desc' }, { createdAt: 'desc' }],
+    take: 100,
+    include: postInclude(new Date(), 0),
+  });
+  response.json({ data: posts.map(({ authorHidden, ...post }) => ({
+    ...post,
+    isAuthorHidden: authorHidden,
+    author: withSubscriberBadge(post.author),
+    comments: post.comments.map(({ authorHidden: commentAuthorHidden, ...comment }) => ({
+      ...comment,
+      isAuthorHidden: commentAuthorHidden,
+      author: withSubscriberBadge(comment.author),
+    })),
+    likesCount: post._count.likes,
+    likedByMe: false,
+    likes: undefined,
+    _count: undefined,
+  })) });
+});
+
+adminCommunityRouter.post('/posts', parsePostMedia, publishCommunityPost);
 
 adminCommunityRouter.get('/reports', async (_request, response) => {
   const reports = await prisma.contentReport.findMany({

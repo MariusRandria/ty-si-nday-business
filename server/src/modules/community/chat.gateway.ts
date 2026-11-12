@@ -30,6 +30,7 @@ type SendAck = (result: { data?: ChatMessageData; error?: string }) => void;
 type VoiceCall = {
   id: string;
   conversationId: number;
+  callType: 'audio' | 'video';
   callerId: number;
   callerSocketId: string;
   calleeId: number;
@@ -42,7 +43,10 @@ type VoiceCall = {
 type VoiceCallAck = (result: { callId?: string; error?: string }) => void;
 type VoiceSignalAck = (result: { error?: string } | undefined) => void;
 
-const voiceCallStartSchema = z.object({ conversationId: z.number().int().positive() });
+const voiceCallStartSchema = z.object({
+  conversationId: z.number().int().positive(),
+  callType: z.enum(['audio', 'video']).default('audio'),
+});
 const voiceCallIdSchema = z.object({ callId: z.string().uuid() });
 const voiceCallSignalSchema = z.discriminatedUnion('type', [
   z.object({ callId: z.string().uuid(), type: z.literal('offer'), sdp: z.string().min(1).max(20000) }),
@@ -61,6 +65,7 @@ const voiceCallSignalSchema = z.discriminatedUnion('type', [
 
 let chatIo: Server | null = null;
 const voiceCalls = new Map<string, VoiceCall>();
+const onlineAgentSockets = new Map<number, Set<string>>();
 
 function finishVoiceCall(
   io: Server,
@@ -77,15 +82,16 @@ function finishVoiceCall(
   const durationSeconds = call.connectedAt
     ? Math.max(0, Math.floor((Date.now() - call.connectedAt.getTime()) / 1000))
     : null;
+  const callLabel = call.callType === 'video' ? 'Appel vidéo' : 'Appel';
   const label = call.connectedAt
-    ? `Appel passé · ${Math.floor((durationSeconds ?? 0) / 60).toString().padStart(2, '0')}:${((durationSeconds ?? 0) % 60).toString().padStart(2, '0')}`
+    ? `${callLabel} passé · ${Math.floor((durationSeconds ?? 0) / 60).toString().padStart(2, '0')}:${((durationSeconds ?? 0) % 60).toString().padStart(2, '0')}`
     : reason === 'timeout'
-      ? 'Appel manqué'
+      ? `${callLabel} manqué`
       : reason === 'declined'
-        ? 'Appel refusé'
+        ? `${callLabel} refusé`
         : reason === 'cancelled'
-          ? 'Appel annulé'
-          : 'Appel interrompu';
+          ? `${callLabel} annulé`
+          : `${callLabel} interrompu`;
 
   void prisma.$transaction(async (transaction) => {
     const message = await transaction.directMessage.create({
@@ -204,6 +210,14 @@ export function emitChatMessageHidden(
   });
 }
 
+export function emitChatReadReceipt(recipientId: number, conversationId: number, readerId: number, readAt: Date) {
+  chatIo?.to(`agent:${recipientId}`).emit('message:read', {
+    conversationId,
+    readerId,
+    readAt: readAt.toISOString(),
+  });
+}
+
 export function emitChatMediaMessage(userId: number, message: ChatMessageData) {
   chatIo?.to(`agent:${userId}`).emit('message:new', message);
 }
@@ -241,9 +255,29 @@ export function attachChatGateway(server: HttpServer) {
   io.on('connection', (socket) => {
     const userId = (socket.data as ChatSocketData).userId;
     socket.join(`agent:${userId}`);
+    const agentSockets = onlineAgentSockets.get(userId) ?? new Set<string>();
+    const wasOnline = agentSockets.size > 0;
+    agentSockets.add(socket.id);
+    onlineAgentSockets.set(userId, agentSockets);
+    if (!wasOnline) io.emit('presence:update', { userId, isOnline: true, lastActiveAt: null });
+    socket.emit('presence:snapshot', { onlineAgentIds: [...onlineAgentSockets.keys()] });
+
     const expiryTimer = setTimeout(() => socket.disconnect(true), Math.max(0, (socket.data as ChatSocketData).expiresAt - Date.now()));
     expiryTimer.unref();
-    socket.once('disconnect', () => clearTimeout(expiryTimer));
+    socket.once('disconnect', () => {
+      clearTimeout(expiryTimer);
+      const currentSockets = onlineAgentSockets.get(userId);
+      if (!currentSockets?.delete(socket.id) || currentSockets.size > 0) return;
+      onlineAgentSockets.delete(userId);
+      const lastActiveAt = new Date();
+      void prisma.user.update({ where: { id: userId }, data: { lastActiveAt } }).then(() => {
+        if (!onlineAgentSockets.has(userId)) {
+          io.emit('presence:update', { userId, isOnline: false, lastActiveAt: lastActiveAt.toISOString() });
+        }
+      }).catch((error: unknown) => {
+        console.error('Unable to save agent last-active time:', error);
+      });
+    });
 
     socket.on('voice-call:start', async (payload: unknown, acknowledge?: VoiceCallAck) => {
       const result = voiceCallStartSchema.safeParse(payload);
@@ -311,6 +345,7 @@ export function attachChatGateway(server: HttpServer) {
         const call: VoiceCall = {
           id: callId,
           conversationId: conversation.id,
+          callType: result.data.callType,
           callerId: userId,
           callerSocketId: socket.id,
           calleeId,
@@ -329,6 +364,7 @@ export function attachChatGateway(server: HttpServer) {
           conversationId: conversation.id,
           callerId: userId,
           callerName,
+          callType: call.callType,
         });
         acknowledge?.({ callId });
       } catch (error) {

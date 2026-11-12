@@ -4,6 +4,8 @@ import api, { type Notification, type SearchResult, type SessionUser } from '../
 import type { View } from '../../types/report'
 import { Bell, BellRing, CheckCircle2, ClipboardList, Grid2X2, LayoutDashboard, MessageCircle, Menu, Moon, PackageOpen, Search, Settings, ShieldCheck, Sun, UsersRound, UserRound, WalletCards, MapPinned, X } from 'lucide-react'
 import tySyNdayLogo from '../../assets/TD.png'
+import { useI18n } from '../../i18n'
+import { AgentPresenceDot } from '../ui/AgentPresence'
 
 function notificationIcon(type: string) {
   if (type.includes('COMMUNITY') || type === 'PRIVATE_MESSAGE') return MessageCircle
@@ -22,6 +24,8 @@ function notificationTime(value: string) {
 }
 
 export default function Topbar({ view, apiOnline, theme, onToggleTheme, user, onNavigate, onMobileMenu }: { view: View; apiOnline: boolean; theme: 'light' | 'dark'; onToggleTheme: () => void; user: SessionUser; onNavigate: (view: View) => void; onMobileMenu: () => void }) {
+  const { t } = useI18n()
+  const localize = user.role === 'AGENT' ? t : (text: string) => text
   const [notifications, setNotifications] = useState<Notification[]>([]); const [open, setOpen] = useState(false)
   const [searchOpen, setSearchOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
@@ -100,7 +104,7 @@ export default function Topbar({ view, apiOnline, theme, onToggleTheme, user, on
       const target = new URL(notification.link, window.location.origin)
       const segments = target.pathname.split('/').filter(Boolean)
       const route = segments[0]
-      const views: View[] = ['dashboard', 'collaboration-home', 'collaboration-requests', 'reports', 'products', 'prospects', 'subscription', 'community', 'messages', 'wallet', 'commissions', 'profile', 'admin-dashboard', 'admin-applications', 'admin-reports', 'admin-collaboration', 'admin-withdrawals', 'admin-products', 'admin-prospects', 'admin-subscriptions', 'admin-settings', 'admin-community', 'admin-security']
+      const views: View[] = ['dashboard', 'collaboration-home', 'collaboration-requests', 'reports', 'products', 'prospects', 'subscription', 'community', 'messages', 'wallet', 'commissions', 'profile', 'account-settings', 'admin-dashboard', 'admin-applications', 'admin-reports', 'admin-collaboration', 'admin-withdrawals', 'admin-products', 'admin-prospects', 'admin-subscriptions', 'admin-settings', 'admin-community', 'admin-security']
       const collaborationDealId = route === 'collaboration' && Number.isSafeInteger(Number(segments[1]))
         ? Number(segments[1])
         : undefined
@@ -157,49 +161,51 @@ export default function Topbar({ view, apiOnline, theme, onToggleTheme, user, on
   }, [openNotification, user.id, user.role])
   return (
     <header className="topbar">
-      <button className="mobile-menu-button" type="button" aria-label="Ouvrir le menu principal" onClick={onMobileMenu}><Menu size={22} /></button>
+      <button className="mobile-menu-button" type="button" aria-label={localize('Ouvrir le menu principal')} onClick={onMobileMenu}><Menu size={22} /></button>
       <div className="desktop-topbar-brand">
         <img src={tySyNdayLogo} alt="" />
-        <button className="desktop-search-trigger" type="button" aria-label="Rechercher" onClick={() => setSearchOpen((current) => !current)}><Search size={18} /><span>Rechercher</span></button>
+        <button className="desktop-search-trigger" type="button" aria-label={localize('Rechercher')} onClick={() => setSearchOpen((current) => !current)}><Search size={18} /><span>{localize('Rechercher')}</span></button>
       </div>
-      <nav className="desktop-topbar-shortcuts" aria-label="Accès rapides">
+      <nav className="desktop-topbar-shortcuts" aria-label={localize('Accès rapides')}>
         {view.startsWith('admin-') ? (
           <>
-            <button className={view === 'admin-dashboard' ? 'active' : ''} type="button" aria-label="Tableau de bord" onClick={() => onNavigate('admin-dashboard')}><LayoutDashboard size={23} /></button>
-            <button className={view === 'admin-applications' ? 'active' : ''} type="button" aria-label="Inscriptions" onClick={() => onNavigate('admin-applications')}><UsersRound size={23} /></button>
-            <button className={view === 'admin-reports' ? 'active' : ''} type="button" aria-label="Rapports" onClick={() => onNavigate('admin-reports')}><ClipboardList size={23} /></button>
-            <button className={view === 'admin-products' ? 'active' : ''} type="button" aria-label="Produits" onClick={() => onNavigate('admin-products')}><PackageOpen size={23} /></button>
-            <button className={view === 'admin-settings' ? 'active' : ''} type="button" aria-label="Paramètres" onClick={() => onNavigate('admin-settings')}><Settings size={23} /></button>
+            <button className={view === 'admin-dashboard' ? 'active' : ''} type="button" aria-label={localize('Tableau de bord')} onClick={() => onNavigate('admin-dashboard')}><LayoutDashboard size={23} /></button>
+            <button className={view === 'admin-applications' ? 'active' : ''} type="button" aria-label={localize('Inscriptions')} onClick={() => onNavigate('admin-applications')}><UsersRound size={23} /></button>
+            <button className={view === 'admin-reports' ? 'active' : ''} type="button" aria-label={localize('Rapports')} onClick={() => onNavigate('admin-reports')}><ClipboardList size={23} /></button>
+            <button className={view === 'admin-products' ? 'active' : ''} type="button" aria-label={localize('Produits')} onClick={() => onNavigate('admin-products')}><PackageOpen size={23} /></button>
+            <button className={view === 'admin-settings' ? 'active' : ''} type="button" aria-label={localize('Paramètres')} onClick={() => onNavigate('admin-settings')}><Settings size={23} /></button>
           </>
         ) : (
           <>
-            <button className={view === 'collaboration-home' || view === 'collaboration-detail' ? 'active' : ''} type="button" aria-label="Mes prospects" onClick={() => onNavigate('collaboration-home')}><MapPinned size={23} /></button>
-            <button className={view === 'reports' ? 'active' : ''} type="button" aria-label="Rapports" onClick={() => onNavigate('reports')}><ClipboardList size={23} /></button>
-            <button className={view === 'products' ? 'active' : ''} type="button" aria-label="Produits" onClick={() => onNavigate('products')}><Grid2X2 size={23} /></button>
-            <button className={view === 'community' ? 'active' : ''} type="button" aria-label="Communauté" onClick={() => onNavigate('community')}><UsersRound size={23} /></button>
-            <button className={view === 'messages' ? 'active' : ''} type="button" aria-label={`Messages${messageUnread > 0 ? `, ${messageUnread} non lus` : ''}`} onClick={() => onNavigate('messages')}><MessageCircle size={23} />{messageUnread > 0 && <em className="topbar-badge">{messageUnread > 99 ? '99+' : messageUnread}</em>}</button>
+            <button className={view === 'collaboration-home' || view === 'collaboration-detail' ? 'active' : ''} type="button" aria-label={localize('Mes prospects')} onClick={() => onNavigate('collaboration-home')}><MapPinned size={23} /></button>
+            <button className={view === 'reports' ? 'active' : ''} type="button" aria-label={localize('Rapports')} onClick={() => onNavigate('reports')}><ClipboardList size={23} /></button>
+            <button className={view === 'products' ? 'active' : ''} type="button" aria-label={localize('Produits')} onClick={() => onNavigate('products')}><Grid2X2 size={23} /></button>
+            <button className={view === 'community' ? 'active' : ''} type="button" aria-label={localize('Communauté')} onClick={() => onNavigate('community')}><UsersRound size={23} /></button>
+            <button className={view === 'messages' ? 'active' : ''} type="button" aria-label={`${localize('Messages')}${messageUnread > 0 ? `, ${messageUnread} ${localize('non lus')}` : ''}`} onClick={() => onNavigate('messages')}><MessageCircle size={23} />{messageUnread > 0 && <em className="topbar-badge">{messageUnread > 99 ? '99+' : messageUnread}</em>}</button>
           </>
         )}
       </nav>
       <div className="top-actions">
-        <span className={apiOnline ? 'connection online' : 'connection'} aria-label={apiOnline ? 'Connecté' : 'Mode démo'}><i /></span>
-        <button className="theme-toggle" type="button" onClick={onToggleTheme} aria-pressed={theme === 'dark'} aria-label={theme === 'light' ? 'Activer le thème sombre' : 'Activer le thème clair'}>{theme === 'light' ? '☾' : '☀'}<span>{theme === 'light' ? 'Sombre' : 'Clair'}</span></button>
-        <button className="icon-button mobile-theme-toggle" type="button" onClick={onToggleTheme} aria-pressed={theme === 'dark'} aria-label={theme === 'light' ? 'Activer le thème sombre' : 'Activer le thème clair'}>{theme === 'light' ? <Moon size={21} strokeWidth={1.8} /> : <Sun size={21} strokeWidth={1.8} />}</button>
-        {!view.startsWith('admin-') && <button className="icon-button mobile-community-action" type="button" aria-label="Ouvrir la communauté" onClick={() => onNavigate('community')}><UsersRound size={21} strokeWidth={1.8} /></button>}
+        <span className={apiOnline ? 'connection online' : 'connection'} aria-label={localize(apiOnline ? 'Connecté' : 'Mode démo')}><i /></span>
+        {user.role !== 'AGENT' && <>
+          <button className="theme-toggle" type="button" onClick={onToggleTheme} aria-pressed={theme === 'dark'} aria-label={localize(theme === 'light' ? 'Activer le thème sombre' : 'Activer le thème clair')}>{theme === 'light' ? '☾' : '☀'}<span>{localize(theme === 'light' ? 'Sombre' : 'Clair')}</span></button>
+          <button className="icon-button mobile-theme-toggle" type="button" onClick={onToggleTheme} aria-pressed={theme === 'dark'} aria-label={localize(theme === 'light' ? 'Activer le thème sombre' : 'Activer le thème clair')}>{theme === 'light' ? <Moon size={21} strokeWidth={1.8} /> : <Sun size={21} strokeWidth={1.8} />}</button>
+        </>}
+        {!view.startsWith('admin-') && <button className="icon-button mobile-community-action" type="button" aria-label={localize('Ouvrir la communauté')} onClick={() => onNavigate('community')}><UsersRound size={21} strokeWidth={1.8} /></button>}
         <div className="global-search-wrap">
-          <button className="icon-button desktop-search-icon" aria-label="Rechercher" aria-expanded={searchOpen} onClick={() => setSearchOpen((current) => !current)}><Search size={20} /></button>
-          {searchOpen && <div className="global-search-popover"><div className="global-search-input"><input autoFocus value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} placeholder={view.startsWith('admin-') ? 'Rapports, candidatures, produits...' : 'Mes rapports, catalogue...'} aria-label="Recherche globale" /><button className="notification-dismiss" aria-label="Fermer la recherche" onClick={() => setSearchOpen(false)}>×</button></div>
-            {searchQuery.trim().length < 2 ? <p className="global-search-hint">Saisissez au moins deux caractères.</p> : searching ? <p className="global-search-hint">Recherche...</p> : searchError ? <p className="global-search-hint search-error">{searchError}</p> : searchResults.length === 0 ? <p className="global-search-hint">Aucun résultat.</p> : <div className="global-search-results">{searchResults.map((result) => <button key={result.id} onClick={() => openResult(result)}><strong>{result.title}</strong><span>{result.detail}</span></button>)}</div>}
+          <button className="icon-button desktop-search-icon" aria-label={localize('Rechercher')} aria-expanded={searchOpen} onClick={() => setSearchOpen((current) => !current)}><Search size={20} /></button>
+          {searchOpen && <div className="global-search-popover"><div className="global-search-input"><input autoFocus value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} placeholder={localize(view.startsWith('admin-') ? 'Rapports, candidatures, produits...' : 'Mes rapports, catalogue...')} aria-label={localize('Recherche globale')} /><button className="notification-dismiss" aria-label={localize('Fermer la recherche')} onClick={() => setSearchOpen(false)}>×</button></div>
+            {searchQuery.trim().length < 2 ? <p className="global-search-hint">{localize('Saisissez au moins deux caractères.')}</p> : searching ? <p className="global-search-hint">{localize('Recherche...')}</p> : searchError ? <p className="global-search-hint search-error">{localize(searchError)}</p> : searchResults.length === 0 ? <p className="global-search-hint">{localize('Aucun résultat.')}</p> : <div className="global-search-results">{searchResults.map((result) => <button key={result.id} onClick={() => openResult(result)}><strong>{result.title}</strong><span>{localize(result.detail)}</span></button>)}</div>}
           </div>}
         </div>
-        {!view.startsWith('admin-') && <button className="icon-button mobile-top-action" type="button" aria-label={`Ouvrir les messages${messageUnread > 0 ? `, ${messageUnread} non lus` : ''}`} onClick={() => onNavigate('messages')}><MessageCircle size={21} strokeWidth={1.8} />{messageUnread > 0 && <em className="topbar-badge">{messageUnread > 99 ? '99+' : messageUnread}</em>}</button>}
+        {!view.startsWith('admin-') && <button className="icon-button mobile-top-action" type="button" aria-label={`${localize('Ouvrir les messages')}${messageUnread > 0 ? `, ${messageUnread} ${localize('non lus')}` : ''}`} onClick={() => onNavigate('messages')}><MessageCircle size={21} strokeWidth={1.8} />{messageUnread > 0 && <em className="topbar-badge">{messageUnread > 99 ? '99+' : messageUnread}</em>}</button>}
         <div className="notification-wrap">
-          <button className="icon-button notification" type="button" aria-label={unread ? `Notifications, ${unread} non lues` : 'Notifications'} aria-expanded={open} onClick={() => setOpen((current) => !current)}><Bell className="notification-bell" size={21} strokeWidth={1.8} />{unread > 0 && <em>{unread > 99 ? '99+' : unread}</em>}</button>
+          <button className="icon-button notification" type="button" aria-label={unread ? `${localize('Notifications')}, ${unread} ${localize('non lues')}` : localize('Notifications')} aria-expanded={open} onClick={() => setOpen((current) => !current)}><Bell className="notification-bell" size={21} strokeWidth={1.8} />{unread > 0 && <em>{unread > 99 ? '99+' : unread}</em>}</button>
           {open && <div className="notification-popover">
-            <div className="notification-heading"><div><strong>Notifications</strong><small>{unread ? `${unread} non lue${unread > 1 ? 's' : ''}` : 'Vous êtes à jour'}</small></div><button className="notification-dismiss" type="button" aria-label="Fermer le panneau des notifications" onClick={() => setOpen(false)}><X size={17} /></button></div>
-            {notificationError && <p className="global-search-hint search-error" role="alert">{notificationError}</p>}
+            <div className="notification-heading"><div><strong>{localize('Notifications')}</strong><small>{unread ? `${unread} ${localize(unread > 1 ? 'non lues' : 'non lue')}` : localize('Vous êtes à jour')}</small></div><button className="notification-dismiss" type="button" aria-label={localize('Fermer le panneau des notifications')} onClick={() => setOpen(false)}><X size={17} /></button></div>
+            {notificationError && <p className="global-search-hint search-error" role="alert">{localize(notificationError)}</p>}
             {notifications.length === 0
-              ? <div className="notification-empty"><span><BellRing size={21} /></span><strong>Aucune notification</strong><small>Vos nouvelles activités apparaîtront ici.</small></div>
+              ? <div className="notification-empty"><span><BellRing size={21} /></span><strong>{localize('Aucune notification')}</strong><small>{localize('Vos nouvelles activités apparaîtront ici.')}</small></div>
               : <div className="notification-list">{notifications.slice(0, 10).map((item) => {
                 const NotificationIcon = notificationIcon(item.type)
                 const actorName = [item.actor?.agentProfile?.firstName, item.actor?.agentProfile?.lastName].filter(Boolean).join(' ')
@@ -212,25 +218,26 @@ export default function Topbar({ view, apiOnline, theme, onToggleTheme, user, on
                         : actorInitials
                           ? <span className="notification-avatar-initials">{actorInitials}</span>
                           : <NotificationIcon size={18} />}
+                      {item.actor?.role === 'AGENT' && <AgentPresenceDot userId={item.actor.id} lastActiveAt={item.actor.lastActiveAt} />}
                     </span>
                     <span className="notification-copy">
-                      <span className="notification-item-topline"><b>{item.title}</b>{!item.readAt && <i aria-label="Non lue" />}</span>
-                      <span className="notification-item-body">{item.body}</span>
+                      <span className="notification-item-topline"><b>{localize(item.title)}</b>{!item.readAt && <i aria-label={localize('Non lue')} />}</span>
+                      <span className="notification-item-body">{localize(item.body)}</span>
                       <span className="notification-item-meta">{actorName && <span>{actorName}</span>}<time dateTime={item.createdAt}>{notificationTime(item.createdAt)}</time></span>
                     </span>
                   </button>
-                  <button className="notification-dismiss" type="button" aria-label={`Supprimer la notification ${item.title}`} onClick={() => dismissNotification(item.id)}><X size={15} /></button>
+                  <button className="notification-dismiss" type="button" aria-label={`${localize('Supprimer la notification')} ${localize(item.title)}`} onClick={() => dismissNotification(item.id)}><X size={15} /></button>
                 </article>
               })}</div>}
           </div>}
         </div>
         <span className="top-avatar-wrap">
-          <button className="top-avatar top-avatar-button" type="button" aria-label="Ouvrir mon profil" onClick={() => onNavigate(view.startsWith('admin-') ? 'admin-dashboard' : 'profile')}>
+          <button className="top-avatar top-avatar-button" type="button" aria-label={localize('Ouvrir mon profil')} onClick={() => onNavigate(view.startsWith('admin-') ? 'admin-dashboard' : 'profile')}>
             {user.role === 'AGENT' && user.profile?.imageUrl
               ? <img className="top-avatar-photo" src={user.profile.imageUrl} alt="" />
               : initials || <UserRound size={18} />}
           </button>
-          {apiOnline && <i className="profile-online-dot" aria-hidden="true" />}
+          {user.role === 'AGENT' && <AgentPresenceDot userId={user.id} className="profile-online-dot" />}
         </span>
       </div>
     </header>

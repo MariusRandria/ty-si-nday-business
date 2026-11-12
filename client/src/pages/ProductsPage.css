@@ -1,0 +1,180 @@
+.app-shell .product-detail-backdrop {
+  z-index: 110 !important;
+  background: rgba(10, 12, 22, .62) !important;
+  backdrop-filter: blur(3px);
+}
+
+.app-shell .product-detail {
+  display: flex;
+  width: min(600px, 100%);
+  max-height: min(760px, calc(100dvh - 40px));
+  flex-direction: column;
+  overflow-y: auto;
+  padding: clamp(1.25rem, 2.4vw, 1.9rem);
+  border: 1px solid var(--line) !important;
+  border-radius: 24px !important;
+  background-color: var(--surface) !important;
+  color: var(--ink);
+  box-shadow: 0 28px 80px rgba(8, 10, 22, .36) !important;
+}
+
+.app-shell .product-detail .modal-close {
+  top: 20px;
+  right: 20px;
+  display: grid;
+  width: 40px;
+  height: 40px;
+  place-items: center;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface-muted);
+  color: var(--muted);
+  font-size: 23px;
+  line-height: 1;
+  transition: background .18s ease, color .18s ease, border-color .18s ease;
+}
+
+.app-shell .product-detail .modal-close:hover {
+  border-color: var(--color-primary-violet);
+  background: var(--surface);
+  color: var(--ink);
+}
+
+.product-detail-heading {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding-right: 42px;
+}
+
+.product-detail-icon {
+  display: grid;
+  width: 48px;
+  height: 48px;
+  flex: 0 0 48px;
+  place-items: center;
+  border: 1px solid color-mix(in srgb, var(--color-primary-violet) 28%, transparent);
+  border-radius: 15px;
+  background: color-mix(in srgb, var(--color-primary-violet) 14%, var(--surface));
+  color: var(--color-primary-violet);
+}
+
+.product-detail-heading .eyebrow {
+  margin: 0 0 .45rem;
+  color: var(--color-primary-violet);
+  font-size: .68rem;
+  font-weight: 800;
+  letter-spacing: .14em;
+}
+
+.app-shell .product-detail h2 {
+  margin: 0;
+  color: var(--ink);
+  font-family: var(--font-display, 'Manrope', sans-serif);
+  font-size: clamp(1.45rem, 2.6vw, 1.75rem);
+  font-weight: 750;
+  font-stretch: normal;
+  letter-spacing: -.025em;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+
+.app-shell .product-detail .modal-intro {
+  margin: 1rem 0 1.35rem;
+  color: var(--muted);
+  font-size: .96rem;
+  line-height: 1.65;
+}
+
+.product-detail-sections {
+  display: grid;
+  gap: .75rem;
+}
+
+.app-shell .product-detail .product-detail-section {
+  padding: 1rem 1.1rem;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--surface-muted);
+}
+
+.app-shell .product-detail .product-detail-section h3 {
+  margin: 0 0 .45rem;
+  color: var(--color-primary-violet);
+  font-size: .72rem;
+  font-weight: 800;
+  letter-spacing: .1em;
+  line-height: 1.4;
+  text-transform: uppercase;
+}
+
+.app-shell .product-detail .product-detail-section p {
+  margin: 0;
+  color: var(--muted);
+  font-size: .92rem;
+  line-height: 1.65;
+  overflow-wrap: anywhere;
+}
+
+.product-detail-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 1.25rem;
+  padding-top: 1.1rem;
+  border-top: 1px solid var(--line);
+}
+
+.app-shell .product-detail-actions .primary-button {
+  min-width: 140px;
+  min-height: 44px;
+  margin: 0;
+  border-radius: 12px;
+  font-size: .88rem;
+}
+
+.app-shell .product-detail :focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--color-primary-violet) 42%, transparent);
+  outline-offset: 3px;
+}
+
+@media (max-width: 600px) {
+  .app-shell .product-detail-backdrop {
+    padding: 12px;
+  }
+
+  .app-shell .product-detail {
+    max-height: calc(100dvh - 24px);
+    padding: 1.2rem;
+    border-radius: 20px !important;
+  }
+
+  .app-shell .product-detail .modal-close {
+    top: 14px;
+    right: 14px;
+  }
+
+  .product-detail-heading {
+    gap: 11px;
+    padding-right: 34px;
+  }
+
+  .product-detail-icon {
+    width: 42px;
+    height: 42px;
+    flex-basis: 42px;
+    border-radius: 13px;
+  }
+
+  .app-shell .product-detail .modal-intro {
+    margin: .85rem 0 1rem;
+    font-size: .9rem;
+  }
+
+  .app-shell .product-detail .product-detail-section {
+    padding: .85rem .9rem;
+  }
+
+  .app-shell .product-detail-actions .primary-button {
+    width: 100%;
+  }
+}

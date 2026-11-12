@@ -8,7 +8,7 @@ import type { NextFunction, Response } from 'express';
 import { z } from 'zod';
 import { prisma } from '../../lib/prisma.js';
 import type { AuthRequest } from '../auth/auth.middleware.js';
-import { emitChatMediaMessage, emitChatMessageDeleted, emitChatMessageHidden, emitConversationArchiveChanged, emitConversationDeleted, serializeChatMessage } from './chat.gateway.js';
+import { emitChatMediaMessage, emitChatMessageDeleted, emitChatMessageHidden, emitChatReadReceipt, emitConversationArchiveChanged, emitConversationDeleted, serializeChatMessage } from './chat.gateway.js';
 import { notifyUser } from '../notifications/notifications.service.js';
 
 export const chatRouter = Router();
@@ -91,6 +91,7 @@ function participantIds(firstId: number, secondId: number) {
 function agentSelect(now: Date) {
   return {
     id: true,
+    lastActiveAt: true,
     agentProfile: { select: { firstName: true, lastName: true, city: true, imageUrl: true } },
     subscriptionRequests: {
       where: { status: 'APPROVED', startsAt: { lte: now }, expiresAt: { gt: now } },
@@ -197,14 +198,21 @@ chatRouter.get('/conversations/:id/messages', async (request: AuthRequest, respo
         { participantTwoId: request.user!.id, participantTwoDeletedAt: null },
       ],
     },
-    select: { id: true },
+    select: { id: true, participantOneId: true, participantTwoId: true },
   });
   if (!conversation) { response.status(404).json({ error: 'Conversation introuvable.' }); return; }
 
-  await prisma.directMessage.updateMany({
+  const readAt = new Date();
+  const updatedMessages = await prisma.directMessage.updateMany({
     where: { conversationId, senderId: { not: request.user!.id }, readAt: null },
-    data: { readAt: new Date() },
+    data: { readAt },
   });
+  if (updatedMessages.count > 0) {
+    const recipientId = conversation.participantOneId === request.user!.id
+      ? conversation.participantTwoId
+      : conversation.participantOneId;
+    emitChatReadReceipt(recipientId, conversationId, request.user!.id, readAt);
+  }
   const messages = await prisma.directMessage.findMany({
     where: {
       conversationId,
@@ -426,13 +434,20 @@ chatRouter.patch('/conversations/:id/read', async (request: AuthRequest, respons
         { participantTwoId: request.user!.id, participantTwoDeletedAt: null },
       ],
     },
-    select: { id: true },
+    select: { id: true, participantOneId: true, participantTwoId: true },
   });
   if (!conversation) { response.status(404).json({ error: 'Conversation introuvable.' }); return; }
-  await prisma.directMessage.updateMany({
+  const readAt = new Date();
+  const updatedMessages = await prisma.directMessage.updateMany({
     where: { conversationId, senderId: { not: request.user!.id }, readAt: null },
-    data: { readAt: new Date() },
+    data: { readAt },
   });
+  if (updatedMessages.count > 0) {
+    const recipientId = conversation.participantOneId === request.user!.id
+      ? conversation.participantTwoId
+      : conversation.participantOneId;
+    emitChatReadReceipt(recipientId, conversationId, request.user!.id, readAt);
+  }
   response.json({ data: { read: true } });
 });
 

@@ -1,8 +1,9 @@
 import type { View } from '../../types/report'
 import { notify } from '../../utils/toast'
 import { confirmAction } from '../../utils/confirmation'
-import { BadgeCheck, BarChart3, ClipboardList, Grid2X2, Inbox, MessagesSquare, WalletCards, UserRound, LogOut, X, MapPinned, BriefcaseBusiness } from 'lucide-react'
+import { BadgeCheck, BarChart3, ClipboardList, Grid2X2, Inbox, MessagesSquare, WalletCards, UserRound, LogOut, X, MapPinned, BriefcaseBusiness, Settings } from 'lucide-react'
 import tySyNdayLogo from '../../assets/TD.png'
+import { useI18n } from '../../i18n'
 
 const navItems: { id: View; label: string; icon: typeof BarChart3 }[] = [
   { id: 'dashboard', label: 'Vue d’ensemble', icon: BarChart3 },
@@ -18,10 +19,13 @@ const navItems: { id: View; label: string; icon: typeof BarChart3 }[] = [
   { id: 'messages', label: 'Messages privés', icon: MessagesSquare },
   { id: 'commissions', label: 'Mes commissions', icon: WalletCards },
 ]
+const desktopShortcutItems = new Set<View>(['collaboration-home', 'reports', 'products', 'community', 'messages'])
+const mobileShortcutItems = new Set<View>(['collaboration-home', 'collaboration-closer-accesses', 'collaboration-requests', 'reports', 'commissions', 'community', 'messages', 'profile'])
 
 export default function Sidebar({ view, onNavigate, mobileOpen, onMobileClose, pendingRequestCount = 0 }: { view: View; onNavigate: (view: View) => void; mobileOpen: boolean; onMobileClose: () => void; pendingRequestCount?: number }) {
+  const { t } = useI18n()
   async function logout() {
-    const confirmed = await confirmAction({ title: 'Se déconnecter ?', message: 'Votre session agent sera fermée sur cet appareil.', confirmLabel: 'Se déconnecter' })
+    const confirmed = await confirmAction({ title: t('Se déconnecter ?'), message: t('Votre session agent sera fermée sur cet appareil.'), confirmLabel: t('Se déconnecter') })
     if (!confirmed) return
     window.localStorage.removeItem('innovcom-token')
     window.localStorage.removeItem('innovcom-user')
@@ -35,15 +39,15 @@ export default function Sidebar({ view, onNavigate, mobileOpen, onMobileClose, p
       <a className="brand" href="/" aria-label="Ty sy Nday Business"><img src={tySyNdayLogo} alt="" /><span>TY SY NDAY <small>Business</small></span></a>
       {/* <div className="profile-mini"><div className="avatar">{initials}</div><div><strong>{name}</strong><span>Agent commercial</span></div></div> */}
       <nav className="main-nav" aria-label="Navigation principale">
-        <span className="nav-caption">ESPACE AGENT</span>
+        <span className="nav-caption">{t('ESPACE AGENT')}</span>
         {navItems.map(({ id, label, icon: Icon }) => {
           const active = view === id
             || (id === 'collaboration-home' && view === 'collaboration-detail')
             || (id === 'collaboration-closer-prospects' && view === 'collaboration-closer-prospects')
             || (id === 'collaboration-closer-accesses' && ['collaboration-closer-accesses', 'collaboration-closing-report', 'collaboration-lost'].includes(view))
           return (
-            <button key={id} className={active ? 'nav-item active' : 'nav-item'} aria-current={active ? 'page' : undefined} onClick={() => onNavigate(id)}>
-              <Icon size={19} strokeWidth={1.7} />{label}
+            <button key={id} className={`nav-item${active ? ' active' : ''}${desktopShortcutItems.has(id) ? ' nav-item-desktop-shortcut' : ''}${mobileShortcutItems.has(id) ? ' nav-item-mobile-shortcut' : ''}`} aria-current={active ? 'page' : undefined} onClick={() => onNavigate(id)}>
+              <Icon size={19} strokeWidth={1.7} />{t(label)}
               {id === 'collaboration-requests' && pendingRequestCount > 0 && (
                 <span className="nav-badge collaboration-pending-badge" aria-label={`${pendingRequestCount >= 200 ? 'Au moins 200' : pendingRequestCount} demandes en attente`}>
                   {pendingRequestCount >= 200 ? '200+' : pendingRequestCount}
@@ -52,13 +56,14 @@ export default function Sidebar({ view, onNavigate, mobileOpen, onMobileClose, p
             </button>
           )
         })}
-        <span className="nav-caption second">MON ESPACE</span>
-        <button className={view === 'wallet' ? 'nav-item active' : 'nav-item'} aria-current={view === 'wallet' ? 'page' : undefined} onClick={() => onNavigate('wallet')}><WalletCards size={19} strokeWidth={1.7} />Portefeuille</button>
-        <button className={view === 'profile' ? 'nav-item active' : 'nav-item'} aria-current={view === 'profile' ? 'page' : undefined} onClick={() => onNavigate('profile')}><UserRound size={19} strokeWidth={1.7} />Mon profil</button>
+        <span className="nav-caption second">{t('MON ESPACE')}</span>
+        <button className={`nav-item${view === 'wallet' ? ' active' : ''}`} aria-current={view === 'wallet' ? 'page' : undefined} onClick={() => onNavigate('wallet')}><WalletCards size={19} strokeWidth={1.7} />{t('Portefeuille')}</button>
+        <button className={`nav-item${view === 'profile' ? ' active' : ''} nav-item-mobile-shortcut`} aria-current={view === 'profile' ? 'page' : undefined} onClick={() => onNavigate('profile')}><UserRound size={19} strokeWidth={1.7} />{t('Mon profil')}</button>
+        <button className={`nav-item${view === 'account-settings' ? ' active' : ''}`} aria-current={view === 'account-settings' ? 'page' : undefined} onClick={() => onNavigate('account-settings')}><Settings size={19} strokeWidth={1.7} />{t('Paramètres du compte')}</button>
       </nav>
       <div className="sidebar-bottom">
         {/* <div className="help-card"><LifeBuoy size={22} /><strong>Besoin d’aide ?</strong><p>Notre équipe vous accompagne dans vos projets.</p><button onClick={() => notify('Votre demande a été envoyée à l’équipe support.', 'success')}>Contacter l’équipe</button></div> */}
-        <button className="logout" onClick={() => void logout()}><LogOut size={18} />Se déconnecter</button>
+        <button className="logout" onClick={() => void logout()}><LogOut size={18} />{t('Se déconnecter')}</button>
       </div>
     </aside>
   )
