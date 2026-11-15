@@ -7,6 +7,7 @@
   text-decoration: none;
 }
 .brand-lockup img { width: 44px; height: 44px; object-fit: contain; }
+.brand-lockup-nav img { width: 140px; height: auto; max-width: 42vw; }
 .brand-copy { display: grid; line-height: 1; }
 .brand-copy strong { font-family: var(--font-display); font-stretch: expanded; font-weight: 900; letter-spacing: 0.045em; }
 .brand-copy small { margin-top: 0.25rem; font-size: 0.72rem; font-weight: 500; letter-spacing: 0.24em; text-transform: uppercase; }

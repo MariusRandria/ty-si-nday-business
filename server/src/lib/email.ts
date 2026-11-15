@@ -126,6 +126,27 @@ export async function sendAgentApprovalEmail(email: string, fullName: string, ac
   })
 }
 
+export async function sendSalesTeamInvitationEmail(email: string, role: 'SALES_REVIEWER' | 'SALES_SIGNER', activationUrl: string) {
+  const transporter = nodemailer.createTransport({
+    host: env.smtpHost,
+    port: env.smtpPort,
+    secure: env.smtpSecure,
+    auth: { user: env.smtpUser, pass: env.smtpPassword },
+    connectionTimeout: 10_000,
+    greetingTimeout: 10_000,
+    socketTimeout: 20_000,
+  })
+  const roleLabel = role === 'SALES_REVIEWER' ? 'vérificateur des ventes' : 'signataire des ventes'
+  const escapedUrl = escapeHtml(activationUrl)
+  await transporter.sendMail({
+    from: env.smtpFrom || `Ty sy Nday Business <${env.smtpUser}>`,
+    to: email,
+    subject: 'Invitation à rejoindre l’équipe de traitement des ventes - Ty sy Nday',
+    text: `Bonjour,\n\nVous êtes invité(e) à rejoindre Ty sy Nday Business en tant que ${roleLabel}.\n\nIdentifiant de connexion : ${email}\nDéfinissez votre mot de passe et activez votre compte avec ce lien sécurisé (valable 24 heures) :\n${activationUrl}\n\nNe partagez pas ce lien. Il donne accès aux seuls dossiers attribués à votre rôle.\n\nTy sy Nday Business`,
+    html: `<div style="font-family:Arial,sans-serif;max-width:560px;margin:auto;padding:28px;color:#241a3a"><h2>Invitation à l’équipe ventes</h2><p>Bonjour,</p><p>Vous êtes invité(e) à rejoindre Ty sy Nday Business en tant que <strong>${escapeHtml(roleLabel)}</strong>.</p><p><strong>Identifiant de connexion :</strong> ${escapeHtml(email)}</p><p>Définissez votre mot de passe et activez votre compte avec ce lien sécurisé. Il expire dans 24 heures.</p><p><a href="${escapedUrl}" style="display:inline-block;padding:14px 22px;border-radius:8px;background:#5630a8;color:#fff;text-decoration:none;font-weight:bold">Activer mon compte</a></p><p>Ne partagez pas ce lien. Il donne accès aux seuls dossiers attribués à votre rôle.</p><p>Ty sy Nday Business</p></div>`,
+  })
+}
+
 export async function sendBadgeSubscriptionApprovalEmail(
   email: string,
   fullName: string,

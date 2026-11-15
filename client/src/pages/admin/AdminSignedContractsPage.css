@@ -1,0 +1,701 @@
+.admin-signed-contracts {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+  padding-bottom: 28px;
+}
+
+.admin-signed-contracts-hero {
+  position: relative;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) minmax(170px, 230px);
+  align-items: center;
+  gap: 20px;
+  overflow: hidden;
+  padding: clamp(22px, 3.5vw, 34px);
+  border: 1px solid rgb(255 255 255 / 12%);
+  border-radius: 20px;
+  color: #fff;
+  background:
+    radial-gradient(ellipse at 86% 12%, rgb(183 148 255 / 28%), transparent 32%),
+    linear-gradient(118deg, #211735 0%, #38245e 58%, #563396 100%);
+  box-shadow: 0 16px 34px rgb(40 24 68 / 16%);
+}
+
+.admin-signed-contracts-hero-icon {
+  width: 58px;
+  height: 58px;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgb(255 255 255 / 22%);
+  border-radius: 17px;
+  color: #fff;
+  background: rgb(255 255 255 / 12%);
+}
+
+.admin-signed-contracts-hero-copy {
+  min-width: 0;
+}
+
+.admin-signed-contracts-eyebrow {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 9px;
+  color: rgb(255 255 255 / 72%);
+  font-size: .72rem;
+  font-weight: 750;
+  letter-spacing: .09em;
+}
+
+.admin-signed-contracts-eyebrow > span:first-child {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.admin-signed-contracts-eyebrow i {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: #d3baff;
+}
+
+.admin-signed-contracts-secure {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 8px;
+  border: 1px solid rgb(255 255 255 / 22%);
+  border-radius: 999px;
+  color: #fff;
+  background: rgb(255 255 255 / 9%);
+  letter-spacing: .015em;
+}
+
+.admin-signed-contracts-hero h1 {
+  margin: 0;
+  color: #fff;
+  font-size: clamp(1.45rem, 3vw, 2rem);
+  line-height: 1.16;
+  letter-spacing: -.025em;
+}
+
+.admin-signed-contracts-hero-copy > p {
+  max-width: 680px;
+  margin: 9px 0 0;
+  color: rgb(255 255 255 / 78%);
+  font-size: .94rem;
+  line-height: 1.55;
+}
+
+.admin-signed-contracts-hero-note {
+  display: grid;
+  gap: 5px;
+  padding: 13px 15px;
+  border-left: 1px solid rgb(255 255 255 / 24%);
+  color: #fff;
+}
+
+.admin-signed-contracts-hero-note strong {
+  font-size: .88rem;
+}
+
+.admin-signed-contracts-hero-note span {
+  color: rgb(255 255 255 / 72%);
+  font-size: .8rem;
+  line-height: 1.45;
+}
+
+.admin-signed-contracts-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.admin-signed-contracts-summary article {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 15px 17px;
+  border: 1px solid var(--border, #e5e7eb);
+  border-radius: 14px;
+  background: var(--surface, #fff);
+  box-shadow: 0 5px 16px rgb(25 31 50 / 4%);
+}
+
+.admin-signed-contracts-summary-icon {
+  width: 38px;
+  height: 38px;
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  border-radius: 11px;
+  color: #5b2ca0;
+  background: #f1eafb;
+}
+
+.admin-signed-contracts-summary article > div {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.admin-signed-contracts-summary article strong {
+  color: var(--text, #202033);
+  font-size: 1.15rem;
+  line-height: 1.2;
+}
+
+.admin-signed-contracts-summary article > div > span {
+  color: var(--muted, #687084);
+  font-size: .8rem;
+  line-height: 1.35;
+}
+
+.admin-signed-contracts-summary .is-warning .admin-signed-contracts-summary-icon {
+  color: #945900;
+  background: #fff2d6;
+}
+
+.admin-signed-contracts-summary .is-complete .admin-signed-contracts-summary-icon {
+  color: #176a43;
+  background: #e4f6ed;
+}
+
+.admin-signed-contracts-panel,
+.admin-signed-contracts-hint {
+  max-width: 100%;
+  min-width: 0;
+  padding: clamp(16px, 3vw, 24px);
+  border: 1px solid var(--border, #e5e7eb);
+  border-radius: 16px;
+  background: var(--surface, #fff);
+  box-shadow: 0 8px 22px rgb(25 31 50 / 5%);
+}
+
+.admin-signed-contracts-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.admin-signed-contracts-heading > div {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  min-width: 0;
+}
+
+.admin-signed-contracts-section-icon {
+  width: 37px;
+  height: 37px;
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  border-radius: 11px;
+  color: #5b2ca0;
+  background: #f1eafb;
+}
+
+.admin-signed-contracts-heading h2 {
+  margin: 0;
+  color: var(--text, #202033);
+  font-size: 1rem;
+}
+
+.admin-signed-contracts-heading > div > div {
+  display: grid;
+  gap: 3px;
+}
+
+.admin-signed-contracts-heading p {
+  margin: 0;
+  color: var(--muted, #687084);
+  font-size: .82rem;
+  font-weight: 400;
+}
+
+.admin-signed-contracts-heading > span {
+  color: var(--muted, #687084);
+  font-size: .9rem;
+  text-align: right;
+}
+
+.admin-signed-contracts-filters {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 190px), 1fr));
+  align-items: end;
+  gap: 12px;
+}
+
+.admin-signed-contracts-filters > label {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+  color: var(--text, #202033);
+  font-weight: 650;
+}
+
+.admin-signed-contracts-filters input:not(.admin-totp-code-input),
+.admin-signed-contracts-filters select {
+  width: 100%;
+  min-width: 0;
+  min-height: 44px;
+  padding: 9px 11px;
+  border: 1px solid var(--border, #cfd3dd);
+  border-radius: 9px;
+  color: var(--text, #202033);
+  background: var(--surface, #fff);
+  font: inherit;
+}
+
+.admin-signed-contracts-search {
+  grid-column: span 2;
+}
+
+.admin-signed-contracts-totp {
+  grid-column: span 2;
+  width: 100%;
+  max-width: 360px;
+}
+
+.admin-signed-contracts-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.admin-signed-contracts-actions button {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.admin-signed-contracts-pending {
+  margin: 12px 0 0;
+  color: #744700;
+  line-height: 1.45;
+}
+
+.admin-signed-contracts-error {
+  margin: 0;
+  padding: 12px 14px;
+  border-radius: 10px;
+  color: #9b2424;
+  background: #fff0f0;
+}
+
+.admin-signed-contracts-empty,
+.admin-signed-contracts-hint {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  color: #176a43;
+}
+
+.admin-signed-contracts-empty > div {
+  display: grid;
+  gap: 4px;
+}
+
+.admin-signed-contracts-empty p,
+.admin-signed-contracts-hint p {
+  margin: 0;
+  color: var(--muted, #687084);
+  line-height: 1.5;
+}
+
+.admin-signed-contracts-hint {
+  color: #5b2ca0;
+}
+
+.admin-signed-contracts-scroll-hint {
+  display: none;
+  margin: 0 0 10px;
+  color: var(--muted, #687084);
+  font-size: .88rem;
+}
+
+.admin-signed-contracts-table-wrap {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow: auto hidden;
+  overscroll-behavior-x: contain;
+  border: 1px solid var(--border, #e5e7eb);
+  border-radius: 12px;
+  scrollbar-gutter: stable;
+  -webkit-overflow-scrolling: touch;
+}
+
+.admin-signed-contracts-table {
+  width: 100%;
+  min-width: 1200px;
+  table-layout: fixed;
+  border-collapse: separate;
+  border-spacing: 0;
+  color: var(--text, #202033);
+  font-size: .9rem;
+}
+
+.admin-signed-contracts-table .column-sale { width: 130px; }
+.admin-signed-contracts-table .column-client { width: 145px; }
+.admin-signed-contracts-table .column-project { width: 175px; }
+.admin-signed-contracts-table .column-team { width: 140px; }
+.admin-signed-contracts-table .column-signatory { width: 150px; }
+.admin-signed-contracts-table .column-dates { width: 170px; }
+.admin-signed-contracts-table .column-amount { width: 120px; }
+.admin-signed-contracts-table .column-contract { width: 170px; }
+
+.admin-signed-contracts-table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  padding: 13px 14px;
+  border-bottom: 1px solid var(--border, #e5e7eb);
+  color: #51416a;
+  background: var(--surface-muted, #f7f7fa);
+  font-size: .82rem;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.admin-signed-contracts-table th:first-child {
+  left: 0;
+  z-index: 3;
+}
+
+.admin-signed-contracts-table td {
+  min-width: 0;
+  max-width: none;
+  padding: 15px 14px;
+  border-bottom: 1px solid var(--border, #ececf1);
+  vertical-align: top;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
+.admin-signed-contracts-table tbody td:first-child {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  background: var(--surface, #fff);
+  box-shadow: 1px 0 0 var(--border, #e5e7eb);
+}
+
+.admin-signed-contracts-table tbody tr:hover td:first-child {
+  background: #faf8fd;
+}
+
+.admin-signed-contracts-table tbody tr.has-missing-contract td:first-child {
+  background: #fffaf0;
+}
+
+.admin-signed-contracts-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.admin-signed-contracts-table tbody tr:hover {
+  background: #faf8fd;
+}
+
+.admin-signed-contracts-table tbody tr.has-missing-contract {
+  background: #fffaf0;
+}
+
+.admin-signed-contracts-table td > strong,
+.admin-signed-contracts-table td > span {
+  max-width: 100%;
+  display: block;
+  margin-bottom: 5px;
+  overflow-wrap: anywhere;
+  word-break: normal;
+}
+
+.admin-signed-contracts-table td > span {
+  color: var(--muted, #687084);
+}
+
+.admin-signed-contracts-sale-number {
+  display: inline-block;
+  padding: 4px 7px;
+  border-radius: 6px;
+  color: #4c287e;
+  background: #f4effb;
+  font-size: .82rem;
+  letter-spacing: .01em;
+}
+
+.admin-signed-contracts-table .admin-signed-contracts-record {
+  margin-top: 6px;
+  font-size: .78rem;
+}
+
+.admin-signed-contracts-table .admin-signed-contracts-role {
+  margin-top: -3px;
+  font-size: .72rem;
+  letter-spacing: .045em;
+  text-transform: uppercase;
+}
+
+.admin-signed-contracts-signatory-note {
+  margin-top: 6px;
+  color: #5b2ca0 !important;
+  font-size: .76rem;
+  line-height: 1.4;
+}
+
+.admin-signed-contracts-date {
+  display: grid;
+  gap: 3px;
+}
+
+.admin-signed-contracts-date > span {
+  font-weight: 600;
+}
+
+.admin-signed-contracts-table .admin-signed-contracts-sale-date {
+  margin-top: 7px;
+  font-size: .78rem;
+  line-height: 1.45;
+}
+
+.admin-signed-contracts-table td > details {
+  margin-top: 8px;
+  color: #5b2ca0;
+}
+
+.admin-signed-contracts-table td > details summary {
+  cursor: pointer;
+  font-weight: 650;
+}
+
+.admin-signed-contracts-table td > details p {
+  max-width: 100%;
+  margin: 6px 0 0;
+  color: var(--text, #202033);
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.admin-signed-contracts-status {
+  width: fit-content;
+  padding: 4px 8px;
+  border-radius: 999px;
+  color: #176a43 !important;
+  background: #e4f6ed;
+  font-size: .78rem;
+  font-weight: 700;
+}
+
+.admin-signed-contracts-status.status-disputed {
+  color: #9a5700 !important;
+  background: #fff3da;
+}
+
+.admin-signed-contracts-missing {
+  display: inline-flex !important;
+  align-items: center;
+  gap: 5px;
+  color: #9a5700 !important;
+  font-weight: 700;
+}
+
+.admin-signed-contracts-download {
+  width: fit-content;
+  max-width: 100%;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 5px;
+  padding: 5px 0;
+  border: 0;
+  color: #5b2ca0;
+  background: transparent;
+  font: inherit;
+  font-weight: 650;
+  text-align: left;
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+
+.admin-signed-contracts-download:hover,
+.admin-signed-contracts-download:focus-visible {
+  text-decoration: underline;
+}
+
+.admin-signed-contracts-download:disabled {
+  cursor: wait;
+  opacity: .65;
+}
+
+.admin-signed-contracts-file {
+  display: grid;
+  justify-items: start;
+  gap: 2px;
+  margin-top: 5px;
+}
+
+.admin-signed-contracts-file > span {
+  color: var(--muted, #687084);
+  font-size: .78rem;
+}
+
+.admin-signed-contracts-file > details {
+  max-width: 100%;
+  color: #5b2ca0;
+  font-size: .78rem;
+}
+
+.admin-signed-contracts-file > details summary {
+  cursor: pointer;
+}
+
+.admin-signed-contracts-file > details code {
+  display: block;
+  overflow-wrap: anywhere;
+  color: var(--text, #202033);
+}
+
+.admin-signed-contracts-amount {
+  white-space: normal;
+}
+
+.admin-signed-contracts-amount > strong {
+  white-space: nowrap;
+}
+
+.admin-signed-contracts-amount > strong.is-missing {
+  color: #966a17;
+}
+
+.admin-signed-contracts-amount > span,
+.admin-signed-contracts-amount > small {
+  display: block;
+  margin-top: 5px;
+  color: var(--muted, #687084);
+  font-size: .76rem;
+  line-height: 1.4;
+}
+
+.admin-signed-contracts-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin-top: 16px;
+}
+
+.admin-signed-contracts-pagination > span {
+  color: var(--muted, #687084);
+}
+
+.admin-signed-contracts .spin {
+  animation: admin-signed-contracts-spin .8s linear infinite;
+}
+
+@keyframes admin-signed-contracts-spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (max-width: 720px) {
+  .admin-signed-contracts-hero {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .admin-signed-contracts-totp {
+    grid-column: 1 / -1;
+  }
+
+  .admin-signed-contracts-hero-note {
+    grid-column: 1 / -1;
+    padding: 10px 0 0;
+    border-top: 1px solid rgb(255 255 255 / 22%);
+    border-left: 0;
+  }
+
+  .admin-signed-contracts-summary {
+    gap: 8px;
+  }
+
+  .admin-signed-contracts-summary article {
+    align-items: flex-start;
+    gap: 9px;
+    padding: 12px;
+  }
+
+}
+
+@media (max-width: 1400px) {
+  .admin-signed-contracts-scroll-hint {
+    display: block;
+  }
+}
+
+@media (max-width: 520px) {
+  .admin-signed-contracts {
+    gap: 14px;
+  }
+
+  .admin-signed-contracts-panel,
+  .admin-signed-contracts-hint {
+    padding: 15px;
+    border-radius: 13px;
+  }
+
+  .admin-signed-contracts-hero {
+    grid-template-columns: 1fr;
+    gap: 13px;
+    padding: 20px;
+    border-radius: 16px;
+  }
+
+  .admin-signed-contracts-hero-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 14px;
+  }
+
+  .admin-signed-contracts-hero-note {
+    grid-column: auto;
+  }
+
+  .admin-signed-contracts-summary {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-signed-contracts-summary article {
+    align-items: center;
+  }
+
+  .admin-signed-contracts-search {
+    grid-column: auto;
+  }
+
+  .admin-signed-contracts-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .admin-signed-contracts-actions button {
+    width: 100%;
+  }
+
+  .admin-signed-contracts-heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .admin-signed-contracts-heading > span {
+    text-align: left;
+  }
+}

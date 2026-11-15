@@ -6,6 +6,7 @@ import type { NextFunction, Request, Response } from 'express';
 import { env } from './config/env.js';
 import { applicationRouter } from './modules/applications/application.routes.js';
 import { productRouter } from './modules/products/product.routes.js';
+import { adminMarketplaceRouter, marketplaceRouter } from './modules/marketplace/marketplace.routes.js';
 import { reportRouter } from './modules/reports/report.routes.js';
 import { statsRouter } from './modules/stats/stats.routes.js';
 import { adminRouter } from './modules/admin/admin.routes.js';
@@ -25,16 +26,18 @@ export function createApp() {
   const app = express();
   app.use(helmet({
     crossOriginOpenerPolicy: { policy: 'same-origin-allow-popups' },
-    contentSecurityPolicy: { directives: { imgSrc: ["'self'", 'blob:'] } },
+    contentSecurityPolicy: { directives: { imgSrc: ["'self'", 'blob:'], mediaSrc: ["'self'", 'blob:'] } },
   }));
   app.use(cors({ origin: env.clientOrigins }));
   app.use(express.json());
   app.use('/api/uploads/profile-photos', express.static(fileURLToPath(new URL('../uploads/profile-photos/', import.meta.url)), { maxAge: '1y', immutable: true }));
   app.use('/api/uploads/community-images', express.static(fileURLToPath(new URL('../uploads/community-images/', import.meta.url)), { maxAge: '1y', immutable: true, dotfiles: 'deny', index: false }));
+  app.use('/api/uploads/marketplace-images', express.static(fileURLToPath(new URL('../uploads/marketplace-images/', import.meta.url)), { maxAge: '1y', immutable: true, dotfiles: 'deny', index: false }));
   app.get('/api/health', (_request: Request, response: Response) => response.json({ status: 'ok', service: 'innovcom-api' }));
   app.use('/api/auth', authRouter);
   app.use('/api/public/applications', applicationRouter);
   app.use('/api/products', productRouter);
+  app.use('/api/marketplace', requireAuth, marketplaceRouter);
   app.use('/api/collaboration/public', collaborationPublicRouter);
   app.use('/api/reports', requireAuth, reportRouter);
   app.use('/api/stats', requireAuth, statsRouter);
@@ -45,12 +48,13 @@ export function createApp() {
   app.use('/api/collaboration', requireAuth, collaborationRouter);
   app.use('/api/collaboration', requireAuth, collaborationClosingRouter);
   app.use('/api/collaboration/commissions', requireAuth, collaborationCommissionsRouter);
-  app.use('/api/admin/collaboration', requireAuth, requireAdmin, collaborationAdminRouter);
+  app.use('/api/admin/collaboration', requireAuth, collaborationAdminRouter);
   app.use('/api/admin/collaboration/audit', requireAuth, requireAdmin, collaborationAuditAdminRouter);
   app.use('/api/admin/collaboration', requireAuth, requireAdmin, collaborationAdminCommissionsRouter);
   app.use('/api/admin/community', requireAuth, requireAdmin, adminCommunityRouter);
   app.use('/api/admin/prospects', requireAuth, requireAdmin, adminProspectRouter);
   app.use('/api/admin/subscriptions', requireAuth, requireAdmin, adminSubscriptionRouter);
+  app.use('/api/admin/marketplace', requireAuth, requireAdmin, adminMarketplaceRouter);
   app.use('/api/admin', requireAuth, requireAdmin, adminRouter);
   app.use((error: unknown, _request: Request, response: Response, _next: NextFunction) => {
     console.error('Unhandled API error:', error);

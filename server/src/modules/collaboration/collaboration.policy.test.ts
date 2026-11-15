@@ -114,7 +114,7 @@ test('a deal cannot start until the supplier approves the assigned closer', () =
   }, 'IN_PROGRESS', now), false)
 })
 
-test('only an administrator can confirm a client-confirmed deal', () => {
+test('only a sales reviewer or administrator can confirm a client-confirmed deal', () => {
   const deal = makeDeal({ status: 'CLIENT_CONFIRMED' })
   assert.equal(
     canTransitionCollaborationDeal({ id: 2, role: 'AGENT', status: 'ACTIF' }, deal, 'CONFIRMED', now),
@@ -125,12 +125,41 @@ test('only an administrator can confirm a client-confirmed deal', () => {
     true,
   )
   assert.equal(
+    canTransitionCollaborationDeal({ id: 5, role: 'SALES_REVIEWER', status: 'ACTIF' }, deal, 'CONFIRMED', now),
+    true,
+  )
+  assert.equal(
     canTransitionCollaborationDeal({ id: 4, role: 'ADMIN', status: 'SUSPENDU' }, deal, 'CONFIRMED', now),
     false,
   )
 })
 
-test('only an administrator can confirm a submitted closing report', () => {
+test('sales reviewers can decide reports while sales signers can only sign confirmed deals', () => {
+  const submitted = makeDeal({ status: 'CLOSING_REPORTED' })
+  const confirmed = makeDeal({ status: 'CONFIRMED' })
+  const reviewer = { id: 5, role: 'SALES_REVIEWER' as const, status: 'ACTIF' }
+  const signer = { id: 6, role: 'SALES_SIGNER' as const, status: 'ACTIF' }
+
+  assert.equal(canTransitionCollaborationDeal(reviewer, submitted, 'CONFIRMED', now), true)
+  assert.equal(canTransitionCollaborationDeal(reviewer, submitted, 'REJECTED', now), true)
+  assert.equal(canTransitionCollaborationDeal(reviewer, confirmed, 'CONTRACT_SIGNED', now), false)
+  assert.equal(canTransitionCollaborationDeal(signer, confirmed, 'CONTRACT_SIGNED', now), true)
+  assert.equal(canTransitionCollaborationDeal(signer, submitted, 'CONFIRMED', now), false)
+})
+
+test('the system can mark commissions paid once both agent wallets are credited', () => {
+  assert.equal(
+    canTransitionCollaborationDeal(
+      { role: 'SYSTEM' },
+      makeDeal({ status: 'CONTRACT_SIGNED' }),
+      'COMMISSIONS_PAID',
+      now,
+    ),
+    true,
+  )
+})
+
+test('sales reviewers can confirm submitted reports only when the server permits the decision', () => {
   const deal = makeDeal({ status: 'CLOSING_REPORTED' })
   assert.equal(
     canTransitionCollaborationDeal({ id: 2, role: 'AGENT', status: 'ACTIF' }, deal, 'CONFIRMED', now),
@@ -138,6 +167,10 @@ test('only an administrator can confirm a submitted closing report', () => {
   )
   assert.equal(
     canTransitionCollaborationDeal({ id: 4, role: 'ADMIN', status: 'ACTIF' }, deal, 'CONFIRMED', now),
+    true,
+  )
+  assert.equal(
+    canTransitionCollaborationDeal({ id: 5, role: 'SALES_REVIEWER', status: 'ACTIF' }, deal, 'CONFIRMED', now),
     true,
   )
   assert.equal(

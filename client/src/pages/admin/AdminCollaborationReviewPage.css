@@ -68,6 +68,10 @@
   gap: 10px;
 }
 
+.admin-collab-totp-form .admin-collab-inline-form {
+  align-items: flex-end;
+}
+
 .admin-collab-inline-form input,
 .admin-collab-decision-panel textarea {
   min-height: 48px;
@@ -160,6 +164,13 @@
   justify-self: start;
 }
 
+.admin-collab-amount-note {
+  margin: -5px 0 0;
+  color: var(--muted, #687084);
+  font-size: .85rem;
+  line-height: 1.45;
+}
+
 .admin-collab-blockers {
   display: grid;
   gap: 5px;
@@ -218,6 +229,34 @@
   gap: 12px;
 }
 
+.admin-collab-dashboard-groups {
+  display: grid;
+  gap: 22px;
+}
+
+.admin-collab-dashboard-group {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+
+.admin-collab-dashboard-group > header {
+  display: grid;
+  gap: 4px;
+}
+
+.admin-collab-dashboard-group > header h2 {
+  margin: 0;
+  color: var(--text, #202033);
+  font-size: 1.05rem;
+}
+
+.admin-collab-dashboard-group > header p {
+  margin: 0;
+  color: var(--muted, #687084);
+  line-height: 1.45;
+}
+
 .admin-collab-dashboard-card {
   display: grid;
   justify-items: start;
@@ -253,6 +292,93 @@
 }
 
 .admin-collab-dashboard-card > small {
+  color: var(--muted, #687084);
+}
+
+.admin-collab-dashboard-card > .admin-collab-dashboard-sla.is-overdue {
+  color: #b42318;
+  font-weight: 700;
+}
+
+.admin-collab-queue-filters {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 170px), 1fr));
+  align-items: end;
+  gap: 12px;
+}
+
+.admin-collab-queue-filters > label {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+  color: var(--text, #202033);
+  font-weight: 650;
+}
+
+.admin-collab-queue-filters input,
+.admin-collab-queue-filters select {
+  width: 100%;
+  min-width: 0;
+  min-height: 44px;
+  padding: 9px 11px;
+  border: 1px solid var(--border, #cfd3dd);
+  border-radius: 9px;
+  color: var(--text, #202033);
+  background: var(--surface, #fff);
+  font: inherit;
+}
+
+.admin-collab-queue-filters > button {
+  min-height: 44px;
+  white-space: nowrap;
+}
+
+.admin-collab-filter-scope,
+.admin-collab-filter-pending {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: var(--muted, #687084);
+  line-height: 1.45;
+}
+
+.admin-collab-filter-pending {
+  margin-top: 12px;
+  color: #744700;
+}
+
+.admin-collab-sla {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  gap: 6px;
+  padding: 6px 9px;
+  border-radius: 8px;
+  color: #176a43;
+  background: #e4f6ed;
+  font-size: .88rem;
+  font-weight: 700;
+}
+
+.admin-collab-sla.is-overdue {
+  color: #a42828;
+  background: #ffebeb;
+}
+
+.admin-collab-empty-panel {
+  align-items: center;
+  min-height: 110px;
+  padding: 22px;
+  border: 1px dashed var(--border, #cfd3dd);
+  border-radius: 14px;
+  background: var(--surface, #fff);
+}
+
+.admin-collab-empty-panel > div {
+  display: grid;
+  gap: 4px;
+}
+
+.admin-collab-empty-panel p {
   color: var(--muted, #687084);
 }
 
@@ -682,11 +808,11 @@
   font-weight: 650;
 }
 
-.admin-collab-admin-filters input,
+.admin-collab-admin-filters input:not(.admin-totp-code-input),
 .admin-collab-admin-filters select,
 .admin-collab-agent-card textarea,
 .admin-collab-dispute-card textarea,
-.admin-collab-totp-form input:not([type="checkbox"]) {
+.admin-collab-totp-form input:not([type="checkbox"]):not(.admin-totp-code-input) {
   width: 100%;
   min-width: 0;
   min-height: 44px;
@@ -847,6 +973,20 @@
   .admin-collab-dashboard-card {
     min-height: 120px;
     padding: 12px;
+  }
+
+  .admin-collab-queue-filters {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .admin-collab-filter-scope,
+  .admin-collab-filter-pending {
+    grid-column: auto;
+  }
+
+  .admin-collab-queue-filters > button {
+    width: 100%;
+    white-space: normal;
   }
 
   .admin-collab-dashboard-card > span {

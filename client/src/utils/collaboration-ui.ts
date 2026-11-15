@@ -1,3 +1,5 @@
+import type { Language } from '../i18n'
+
 export type CollaborationStatus =
   | 'DECLARED'
   | 'ACCESS_GRANTED'
@@ -26,7 +28,6 @@ export type StatusPresentation = {
   tone: 'neutral' | 'info' | 'warning' | 'success' | 'error'
   icon: 'circle' | 'clock' | 'alert' | 'check' | 'x'
 }
-
 export const collaborationStatuses: Record<CollaborationStatus, StatusPresentation> = {
   DECLARED: { label: 'Déclaré', tone: 'neutral', icon: 'circle' },
   ACCESS_GRANTED: { label: 'Accès accordé', tone: 'info', icon: 'check' },
@@ -51,37 +52,40 @@ export const collaborationStatuses: Record<CollaborationStatus, StatusPresentati
   ON_HOLD: { label: 'En attente de décision', tone: 'warning', icon: 'alert' },
 }
 
-export function formatAr(amount: string | number | bigint): string {
+export function formatAr(amount: string | number | bigint, language: Language = 'fr'): string {
   const parsed = typeof amount === 'string'
     ? /^-?\d+$/.test(amount)
       ? BigInt(amount)
       : Number(amount)
     : amount
   if (typeof parsed === 'number' && !Number.isFinite(parsed)) throw new Error('Montant invalide.')
-  return `${new Intl.NumberFormat('fr-FR').format(parsed).replace(/[\u00a0\u202f]/g, ' ')} Ar`
+  return `${new Intl.NumberFormat(language === 'en' ? 'en-US' : 'fr-FR').format(parsed).replace(/[\u00a0\u202f]/g, ' ')} Ar`
 }
 
-export function formatAntananarivoDate(value: string | Date): string {
+export function formatAntananarivoDate(value: string | Date, language: Language = 'fr'): string {
   const date = value instanceof Date ? value : new Date(value)
-  if (Number.isNaN(date.getTime())) return 'Date indisponible'
-  return new Intl.DateTimeFormat('fr-FR', {
+  if (Number.isNaN(date.getTime())) return language === 'en' ? 'Date unavailable' : 'Date indisponible'
+  return new Intl.DateTimeFormat(language === 'en' ? 'en-US' : 'fr-FR', {
     timeZone: 'Indian/Antananarivo',
     dateStyle: 'medium',
     timeStyle: 'short',
   }).format(date)
 }
 
-export function formatCountdown(expiresAt: string | Date, now = Date.now()): string {
+export function formatCountdown(expiresAt: string | Date, now = Date.now(), language: Language = 'fr'): string {
   const expiration = expiresAt instanceof Date ? expiresAt.getTime() : new Date(expiresAt).getTime()
-  if (Number.isNaN(expiration)) return 'Échéance inconnue'
+  if (Number.isNaN(expiration)) return language === 'en' ? 'Unknown deadline' : 'Échéance inconnue'
   const remainingMinutes = Math.ceil((expiration - now) / 60_000)
-  if (remainingMinutes <= 0) return 'Expirée'
+  if (remainingMinutes <= 0) return language === 'en' ? 'Expired' : 'Expirée'
   if (remainingMinutes < 60) {
-    return remainingMinutes === 1 ? 'Expire dans 1 min' : `Expire dans ${remainingMinutes} min`
+    return language === 'en'
+      ? `Expires in ${remainingMinutes} min`
+      : remainingMinutes === 1 ? 'Expire dans 1 min' : `Expire dans ${remainingMinutes} min`
   }
   const hours = Math.floor(remainingMinutes / 60)
   const minutes = remainingMinutes % 60
-  return minutes === 0
-    ? `Expire dans ${hours} h`
-    : `Expire dans ${hours} h ${minutes} min`
+  if (language === 'en') return minutes === 0
+    ? `Expires in ${hours} hr`
+    : `Expires in ${hours} hr ${minutes} min`
+  return minutes === 0 ? `Expire dans ${hours} h` : `Expire dans ${hours} h ${minutes} min`
 }

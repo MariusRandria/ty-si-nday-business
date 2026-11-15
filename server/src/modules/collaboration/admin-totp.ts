@@ -1,6 +1,6 @@
 import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto'
 import type { NextFunction, Response } from 'express'
-import type { AuthRequest } from '../auth/auth.middleware.js'
+import type { AuthRequest, AuthUser } from '../auth/auth.middleware.js'
 import { prisma } from '../../lib/prisma.js'
 import { decryptPii, encryptPii } from './report-pii.js'
 import { writeCollaborationAudit } from './collaboration.audit.js'
@@ -68,58 +68,68 @@ export function createTotpEnrollment(email: string) {
   return { secret, uri }
 }
 
-export async function requireAdminTotp(request: AuthRequest, response: Response, next: NextFunction) {
-  if (!request.user || !['ADMIN', 'SUPER_ADMIN'].includes(request.user.role)) {
-    response.status(403).json({ error: 'Accès administrateur requis.' })
-    return
+const fullAdminRoles = ['ADMIN', 'SUPER_ADMIN'] as const
+
+function requireTotpForRoles(allowedRoles: readonly AuthUser['role'][]) {
+  return async (request: AuthRequest, response: Response, next: NextFunction) => {
+    const actor = request.user
+    if (!actor || !allowedRoles.includes(actor.role)) {
+      response.status(403).json({ error: 'Accès administrateur requis.' })
+      return
+    }
+    const auditFailure = async (reason: string) => prisma.$transaction((transaction) =>
+      writeCollaborationAudit(transaction, {
+        actorId: actor.id,
+        actorRole: actor.role,
+        action: 'AUTH_TOTP_FAILED',
+        entityType: 'User',
+        entityId: actor.id,
+        metadata: { reason },
+        ip: request.ip ?? null,
+        userAgent: request.get('user-agent') ?? null,
+      }),
+    )
+    const token = request.get('x-admin-totp') ?? ''
+    const user = await prisma.user.findFirst({
+      where: { id: actor.id, role: { in: [...allowedRoles] }, status: 'ACTIF', totpEnabled: true },
+      select: { totpSecretCiphertext: true, totpLastUsedStep: true },
+    })
+    if (!user?.totpSecretCiphertext) {
+      await auditFailure('TOTP_NOT_ENABLED')
+      response.status(403).json({ error: 'Activez la double authentification TOTP avant cette action.' })
+      return
+    }
+    const secret = decryptPii(user.totpSecretCiphertext)
+    const step = verifyTotp(secret, token, Date.now(), user.totpLastUsedStep)
+    if (step === null) {
+      await auditFailure('INVALID_EXPIRED_OR_REUSED_CODE')
+      response.status(403).json({ error: 'Code TOTP invalide, expiré ou déjà utilisé.' })
+      return
+    }
+    const updated = await prisma.user.updateMany({
+      where: {
+        id: actor.id,
+        totpEnabled: true,
+        OR: [
+          { totpLastUsedStep: null },
+          { totpLastUsedStep: { lt: step } },
+        ],
+      },
+      data: { totpLastUsedStep: step },
+    })
+    if (updated.count !== 1) {
+      await auditFailure('REUSED_CODE')
+      response.status(403).json({ error: 'Code TOTP déjà utilisé.' })
+      return
+    }
+    next()
   }
-  const auditFailure = async (reason: string) => prisma.$transaction((transaction) =>
-    writeCollaborationAudit(transaction, {
-      actorId: request.user!.id,
-      actorRole: request.user!.role,
-      action: 'AUTH_TOTP_FAILED',
-      entityType: 'User',
-      entityId: request.user!.id,
-      metadata: { reason },
-      ip: request.ip ?? null,
-      userAgent: request.get('user-agent') ?? null,
-    }),
-  )
-  const token = request.get('x-admin-totp') ?? ''
-  const user = await prisma.user.findFirst({
-    where: { id: request.user.id, role: { in: ['ADMIN', 'SUPER_ADMIN'] }, status: 'ACTIF', totpEnabled: true },
-    select: { totpSecretCiphertext: true, totpLastUsedStep: true },
-  })
-  if (!user?.totpSecretCiphertext) {
-    await auditFailure('TOTP_NOT_ENABLED')
-    response.status(403).json({ error: 'Activez la double authentification TOTP avant cette action.' })
-    return
-  }
-  const secret = decryptPii(user.totpSecretCiphertext)
-  const step = verifyTotp(secret, token, Date.now(), user.totpLastUsedStep)
-  if (step === null) {
-    await auditFailure('INVALID_EXPIRED_OR_REUSED_CODE')
-    response.status(403).json({ error: 'Code TOTP invalide, expiré ou déjà utilisé.' })
-    return
-  }
-  const updated = await prisma.user.updateMany({
-    where: {
-      id: request.user.id,
-      totpEnabled: true,
-      OR: [
-        { totpLastUsedStep: null },
-        { totpLastUsedStep: { lt: step } },
-      ],
-    },
-    data: { totpLastUsedStep: step },
-  })
-  if (updated.count !== 1) {
-    await auditFailure('REUSED_CODE')
-    response.status(403).json({ error: 'Code TOTP déjà utilisé.' })
-    return
-  }
-  next()
 }
+
+export const requireAdminTotp = requireTotpForRoles(fullAdminRoles)
+export const requireSalesReviewTotp = requireTotpForRoles([...fullAdminRoles, 'SALES_REVIEWER'])
+export const requireSalesSignatureTotp = requireTotpForRoles([...fullAdminRoles, 'SALES_SIGNER'])
+export const requireSalesTeamTotp = requireTotpForRoles([...fullAdminRoles, 'SALES_REVIEWER', 'SALES_SIGNER'])
 
 export function encryptTotpSecret(secret: string): string {
   return encryptPii(secret)

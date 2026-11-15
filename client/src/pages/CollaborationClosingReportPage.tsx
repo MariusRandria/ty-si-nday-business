@@ -5,6 +5,7 @@ import api, {
   type CollaborationClosingDraft,
   type CollaborationClosingReport,
 } from '../api/client'
+import { useI18n } from '../i18n'
 import { StatusBadge } from '../components/collaboration/StatusBadge'
 import { formatAntananarivoDate } from '../utils/collaboration-ui'
 import {
@@ -35,11 +36,13 @@ function friendlyError(error: unknown, fallback: string): string {
   return error.message || fallback
 }
 
-function fileSize(size: number): string {
-  return `${(size / 1024 / 1024).toLocaleString('fr-FR', { maximumFractionDigits: 1 })} Mo`
+function fileSize(size: number, language: 'fr' | 'en'): string {
+  const value = (size / 1024 / 1024).toLocaleString(language === 'en' ? 'en-US' : 'fr-FR', { maximumFractionDigits: 1 })
+  return `${value} ${language === 'en' ? 'MB' : 'Mo'}`
 }
 
 export default function CollaborationClosingReportPage({ dealId, dealStatus, onBack, onDeclareLost }: Props) {
+  const { t, language } = useI18n()
   const [report, setReport] = useState<CollaborationClosingReport | null>(null)
   const [newEvidence, setNewEvidence] = useState<CollaborationClosingReport['evidence']>([])
   const [amount, setAmount] = useState('')
@@ -140,7 +143,7 @@ export default function CollaborationClosingReportPage({ dealId, dealStatus, onB
   async function uploadFile(file?: File) {
     if (!file) return
     if (!ALLOWED_FILE_TYPES.has(file.type) || file.size > MAX_FILE_SIZE) {
-      setFileError('Choisissez un PDF, JPG, PNG ou WebP de 10 Mo maximum.')
+      setFileError(t('Choisissez un PDF, JPG, PNG ou WebP de 10 Mo maximum.'))
       return
     }
     setFileError('')
@@ -180,92 +183,92 @@ export default function CollaborationClosingReportPage({ dealId, dealStatus, onB
 
   return (
     <section className="collaboration-page" aria-labelledby="closing-report-title">
-      <button className="collaboration-back-button" type="button" onClick={() => void leaveAfterSaving(onBack)} disabled={submitting || uploading}><ArrowLeft size={17} aria-hidden="true" /> Retour à Mes accès</button>
+      <button className="collaboration-back-button" type="button" onClick={() => void leaveAfterSaving(onBack)} disabled={submitting || uploading}><ArrowLeft size={17} aria-hidden="true" /> {t('Retour à Mes accès')}</button>
       <header className="collaboration-page-header">
-        <p className="collaboration-eyebrow">RAPPORT DE CLÔTURE</p>
-        <h1 id="closing-report-title">{isLocked ? 'Rapport de clôture' : 'Déclarer une vente conclue'}</h1>
-        <p>Enregistrez votre rapport. Après soumission, il ne pourra plus être modifié.</p>
+        <p className="collaboration-eyebrow">{t('RAPPORT DE CLÔTURE')}</p>
+        <h1 id="closing-report-title">{t(isLocked ? 'Rapport de clôture' : 'Déclarer une vente conclue')}</h1>
+        <p>{t('Enregistrez votre rapport. Après soumission, il ne pourra plus être modifié.')}</p>
       </header>
 
       {loadError && (
         <div className="collaboration-panel" role="alert">
-          <p className="collaboration-error">{loadError}</p>
+          <p className="collaboration-error">{t(loadError)}</p>
           <button className="ui-button ui-button-secondary collaboration-action" type="button" onClick={() => void load()}>
-            <RefreshCw size={17} aria-hidden="true" /> Réessayer
+            <RefreshCw size={17} aria-hidden="true" /> {t('Réessayer')}
           </button>
         </div>
       )}
-      {loading && <div className="collaboration-panel" role="status">Chargement du brouillon…</div>}
+      {loading && <div className="collaboration-panel" role="status">{t('Chargement du brouillon…')}</div>}
       {!loading && !loadError && (
         <div className="collaboration-panel collaboration-report-form">
           {isLocked && (
             <div className="collaboration-report-locked" role="status">
               <StatusBadge status={dealStatus} />
               <p>{report?.status === 'SUBMITTED'
-                ? `Rapport soumis le ${formatAntananarivoDate(report.submittedAt ?? report.reportedAt)}. Il est maintenant verrouillé.`
+                ? `${t('Rapport soumis le')} ${formatAntananarivoDate(report.submittedAt ?? report.reportedAt, language)}. ${t('Il est maintenant verrouillé.')}`
                 : report?.status === 'REJECTED'
-                  ? 'Ce rapport a été rejeté et ne peut pas être modifié ici.'
+                  ? t('Ce rapport a été rejeté et ne peut pas être modifié ici.')
                   : dealStatus === 'CLOSING_REPORTED'
-                    ? 'Rapport soumis. Cette étape est en lecture seule.'
-                    : 'Le statut de ce dossier ne permet plus de modifier le rapport.'}</p>
+                    ? t('Rapport soumis. Cette étape est en lecture seule.')
+                    : t('Le statut de ce dossier ne permet plus de modifier le rapport.')}</p>
             </div>
           )}
           <div className="collaboration-draft-field">
             <div className="collaboration-draft-field-label">
-              <label htmlFor="closing-sale-amount">Montant de la vente (Ar)</label>
-              {!isLocked && amount && <button className="collaboration-clear-field" type="button" onClick={() => setAmount('')}>Effacer</button>}
+              <label htmlFor="closing-sale-amount">{t('Montant de la vente (Ar)')}</label>
+              {!isLocked && amount && <button className="collaboration-clear-field" type="button" onClick={() => setAmount('')}>{t('Effacer')}</button>}
             </div>
             <input id="closing-sale-amount" className="ui-control" type="number" min="1" step="1" inputMode="numeric" value={amount} onChange={(event) => setAmount(event.target.value)} disabled={isLocked || submitting} />
           </div>
           <div className="collaboration-draft-field">
             <div className="collaboration-draft-field-label">
-              <label htmlFor="closing-sale-date">Date de la vente</label>
-              {!isLocked && saleDate && <button className="collaboration-clear-field" type="button" onClick={() => setSaleDate('')}>Effacer</button>}
+              <label htmlFor="closing-sale-date">{t('Date de la vente')}</label>
+              {!isLocked && saleDate && <button className="collaboration-clear-field" type="button" onClick={() => setSaleDate('')}>{t('Effacer')}</button>}
             </div>
             <input id="closing-sale-date" className="ui-control" type="date" value={saleDate} onChange={(event) => setSaleDate(event.target.value)} disabled={isLocked || submitting} />
           </div>
           <div className="collaboration-draft-field">
             <div className="collaboration-draft-field-label">
-              <label htmlFor="closing-report-details">Description de la clôture</label>
-              {!isLocked && details && <button className="collaboration-clear-field" type="button" onClick={() => setDetails('')}>Effacer</button>}
+              <label htmlFor="closing-report-details">{t('Description de la clôture')}</label>
+              {!isLocked && details && <button className="collaboration-clear-field" type="button" onClick={() => setDetails('')}>{t('Effacer')}</button>}
             </div>
             <textarea id="closing-report-details" className="ui-control collaboration-message-input" maxLength={10_000} value={details} onChange={(event) => setDetails(event.target.value)} disabled={isLocked || submitting} />
           </div>
 
           {!isLocked && (
             <div className="collaboration-report-autosave" aria-live="polite">
-              {draftError ? <span className="collaboration-error">{draftError}</span>
-                : draftSavedAt ? <span>Brouillon enregistré à {new Intl.DateTimeFormat('fr-FR', { timeZone: 'Indian/Antananarivo', hour: '2-digit', minute: '2-digit' }).format(draftSavedAt)}.</span>
-                  : <span>Le brouillon est enregistré automatiquement.</span>}
+              {draftError ? <span className="collaboration-error">{t(draftError)}</span>
+                : draftSavedAt ? <span>{t('Brouillon enregistré à')} {new Intl.DateTimeFormat(language === 'en' ? 'en-US' : 'fr-FR', { timeZone: 'Indian/Antananarivo', hour: '2-digit', minute: '2-digit' }).format(draftSavedAt)}.</span>
+                  : <span>{t('Le brouillon est enregistré automatiquement.')}</span>}
             </div>
           )}
 
           <div className="collaboration-report-evidence">
-            <h2>Pièces jointes</h2>
-            <p className="collaboration-muted">PDF, JPG, PNG ou WebP · 10 Mo maximum par fichier.</p>
+            <h2>{t('Pièces jointes')}</h2>
+            <p className="collaboration-muted">{t('PDF, JPG, PNG ou WebP · 10 Mo maximum par fichier.')}</p>
             {evidence.length ? (
               <ul className="collaboration-evidence-list">
                 {evidence.map((item) => (
-                  <li key={item.id}><span>{item.fileName}</span><small>{fileSize(item.fileSize)}</small></li>
+                  <li key={item.id}><span>{item.fileName}</span><small>{fileSize(item.fileSize, language)}</small></li>
                 ))}
               </ul>
-            ) : <p className="collaboration-muted">Aucune pièce jointe pour le moment.</p>}
+            ) : <p className="collaboration-muted">{t('Aucune pièce jointe pour le moment.')}</p>}
             {!isLocked && (
               <label className="ui-button ui-button-secondary collaboration-action collaboration-file-picker">
-                <FileUp size={18} aria-hidden="true" /> {uploading ? 'Téléversement…' : 'Ajouter une pièce'}
+                <FileUp size={18} aria-hidden="true" /> {uploading ? t('Téléversement…') : t('Ajouter une pièce')}
                 <input type="file" accept=".pdf,.jpg,.jpeg,.png,.webp,application/pdf,image/jpeg,image/png,image/webp" capture="environment" disabled={uploading || submitting} onChange={(event) => { void uploadFile(event.target.files?.[0]); event.currentTarget.value = '' }} />
               </label>
             )}
-            {fileError && <p className="collaboration-error" role="alert">{fileError}</p>}
+            {fileError && <p className="collaboration-error" role="alert">{t(fileError)}</p>}
           </div>
 
           {!isLocked && (
             <>
-              {submitError && <p className="collaboration-error" role="alert">{submitError}</p>}
+              {submitError && <p className="collaboration-error" role="alert">{t(submitError)}</p>}
               <div className="collaboration-report-actions">
-                {dealStatus === 'IN_PROGRESS' && <button className="ui-button ui-button-secondary collaboration-action" type="button" onClick={() => void leaveAfterSaving(onDeclareLost)} disabled={submitting || uploading}>Déclarer perdu</button>}
+                {dealStatus === 'IN_PROGRESS' && <button className="ui-button ui-button-secondary collaboration-action" type="button" onClick={() => void leaveAfterSaving(onDeclareLost)} disabled={submitting || uploading}>{t('Déclarer perdu')}</button>}
                 {dealStatus === 'IN_PROGRESS' && <button className="ui-button ui-button-primary collaboration-action" type="button" onClick={() => void submit()} disabled={submitting || uploading || !canSubmit} aria-busy={submitting}>
-                  <Send size={17} aria-hidden="true" /> {submitting ? 'Soumission…' : 'Soumettre le rapport'}
+                  <Send size={17} aria-hidden="true" /> {submitting ? t('Soumission…') : t('Soumettre le rapport')}
                 </button>}
               </div>
             </>

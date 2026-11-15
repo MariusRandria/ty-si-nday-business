@@ -38,31 +38,31 @@ const transitionRules: Partial<Record<CollaborationDealStatus, Partial<Record<Co
     CLIENT_CONFIRMED: { roles: ['SYSTEM'] },
     CONFIRMED_BY_CLIENT: { roles: ['SYSTEM'] },
     NO_RESPONSE: { roles: ['SYSTEM'] },
-    CONFIRMED: { roles: ['ADMIN', 'SUPER_ADMIN'] },
+    CONFIRMED: { roles: ['ADMIN', 'SUPER_ADMIN', 'SALES_REVIEWER'] },
     DISPUTED: { roles: ['SYSTEM', 'AGENT', 'ADMIN', 'SUPER_ADMIN'] },
-    REJECTED: { roles: ['ADMIN', 'SUPER_ADMIN'] },
+    REJECTED: { roles: ['ADMIN', 'SUPER_ADMIN', 'SALES_REVIEWER'] },
   },
   CONFIRMED_BY_CLIENT: {
-    CONFIRMED: { roles: ['ADMIN', 'SUPER_ADMIN'] },
-    REJECTED: { roles: ['ADMIN', 'SUPER_ADMIN'] },
+    CONFIRMED: { roles: ['ADMIN', 'SUPER_ADMIN', 'SALES_REVIEWER'] },
+    REJECTED: { roles: ['ADMIN', 'SUPER_ADMIN', 'SALES_REVIEWER'] },
     DISPUTED: { roles: ['ADMIN', 'SUPER_ADMIN'] },
   },
   CLIENT_CONFIRMED: {
-    CONFIRMED: { roles: ['ADMIN', 'SUPER_ADMIN'] },
-    REJECTED: { roles: ['ADMIN', 'SUPER_ADMIN'] },
+    CONFIRMED: { roles: ['ADMIN', 'SUPER_ADMIN', 'SALES_REVIEWER'] },
+    REJECTED: { roles: ['ADMIN', 'SUPER_ADMIN', 'SALES_REVIEWER'] },
     DISPUTED: { roles: ['ADMIN', 'SUPER_ADMIN'] },
   },
   NO_RESPONSE: {
-    CONFIRMED: { roles: ['ADMIN', 'SUPER_ADMIN'] },
-    REJECTED: { roles: ['ADMIN', 'SUPER_ADMIN'] },
+    CONFIRMED: { roles: ['ADMIN', 'SUPER_ADMIN', 'SALES_REVIEWER'] },
+    REJECTED: { roles: ['ADMIN', 'SUPER_ADMIN', 'SALES_REVIEWER'] },
     DISPUTED: { roles: ['ADMIN', 'SUPER_ADMIN'] },
   },
   CONFIRMED: {
-    CONTRACT_SIGNED: { roles: ['ADMIN', 'SUPER_ADMIN'] },
+    CONTRACT_SIGNED: { roles: ['ADMIN', 'SUPER_ADMIN', 'SALES_SIGNER'] },
     DISPUTED: { roles: ['SYSTEM', 'ADMIN', 'SUPER_ADMIN'] },
   },
   CONTRACT_SIGNED: {
-    COMMISSIONS_PAID: { roles: ['ADMIN', 'SUPER_ADMIN'] },
+    COMMISSIONS_PAID: { roles: ['SYSTEM', 'ADMIN', 'SUPER_ADMIN'] },
     DISPUTED: { roles: ['SYSTEM', 'ADMIN', 'SUPER_ADMIN'] },
   },
   COMMISSIONS_PAID: {
@@ -75,8 +75,8 @@ const transitionRules: Partial<Record<CollaborationDealStatus, Partial<Record<Co
   },
   DISPUTED: {
     IN_PROGRESS: { roles: ['ADMIN', 'SUPER_ADMIN'] },
-    CONFIRMED: { roles: ['ADMIN', 'SUPER_ADMIN'] },
-    CONTRACT_SIGNED: { roles: ['ADMIN', 'SUPER_ADMIN'] },
+    CONFIRMED: { roles: ['ADMIN', 'SUPER_ADMIN', 'SALES_REVIEWER'] },
+    CONTRACT_SIGNED: { roles: ['ADMIN', 'SUPER_ADMIN', 'SALES_SIGNER'] },
     COMMISSIONS_PAID: { roles: ['ADMIN', 'SUPER_ADMIN'] },
     REJECTED: { roles: ['ADMIN', 'SUPER_ADMIN'] },
     EXPIRED: { roles: ['SYSTEM', 'ADMIN', 'SUPER_ADMIN'] },
@@ -177,6 +177,8 @@ export function canTransitionCollaborationDeal(
     return isActiveAdmin(actor) || (actor.role === 'AGENT' && actor.id === deal.supplierId)
   }
   if (rule.requireActiveCloserAccess) return hasActiveCloserAccess(actor, deal, now)
+  if (actor.role === 'SALES_REVIEWER') return target === 'CONFIRMED' || target === 'REJECTED'
+  if (actor.role === 'SALES_SIGNER') return target === 'CONTRACT_SIGNED'
   return isActiveAdmin(actor)
 }
 

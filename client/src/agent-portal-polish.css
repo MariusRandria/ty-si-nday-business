@@ -1,0 +1,1013 @@
+.agent-portal-shell .content-wrap {
+  width: min(100%, 1480px);
+  padding: clamp(22px, 3vw, 42px) clamp(16px, 3.2vw, 52px) calc(76px + env(safe-area-inset-bottom)) !important;
+}
+
+.agent-portal-shell .page-heading,
+.agent-portal-shell .welcome-row {
+  align-items: flex-start;
+  margin-bottom: 26px;
+}
+
+.agent-portal-shell .page-heading > div,
+.agent-portal-shell .welcome-row > div {
+  min-width: 0;
+}
+
+.agent-portal-shell .eyebrow,
+.agent-portal-shell .section-kicker {
+  color: var(--color-primary-violet);
+  font-weight: 750;
+}
+
+.agent-portal-shell .intro {
+  color: var(--muted);
+}
+
+.agent-portal-shell .panel,
+.agent-portal-shell .metric,
+.agent-portal-shell .wallet-balance,
+.agent-portal-shell .product-card,
+.agent-portal-shell .collaboration-panel,
+.agent-portal-shell .collaboration-supplied-card,
+.agent-portal-shell .collaboration-request-card,
+.agent-portal-shell .collaboration-prospect-card,
+.agent-portal-shell .collaboration-commission,
+.agent-portal-shell .prospect-directory,
+.agent-portal-shell .prospect-detail,
+.agent-portal-shell .prospect-summary article {
+  border-color: var(--line);
+  border-radius: 18px;
+  background-color: var(--surface);
+  box-shadow: var(--shadow-soft);
+  color: var(--ink);
+}
+
+.agent-portal-shell .primary-button,
+.agent-portal-shell .outline-button,
+.agent-portal-shell .secondary-button,
+.agent-portal-shell .ui-button {
+  min-height: 44px;
+  border-radius: 12px;
+  font-weight: 650;
+}
+
+.agent-portal-shell :focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--color-primary-violet) 38%, transparent);
+  outline-offset: 3px;
+}
+
+.agent-portal-shell .filter-row {
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0 0 16px;
+}
+
+.agent-portal-shell .filter {
+  min-height: 40px;
+  padding: 8px 13px;
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 650;
+  transition: background-color .16s ease, border-color .16s ease, color .16s ease;
+}
+
+.agent-portal-shell .filter.active {
+  border-color: color-mix(in srgb, var(--color-primary-violet) 36%, var(--line));
+  background: var(--color-info-soft);
+  color: var(--color-primary-violet);
+}
+
+.agent-portal-shell .filter.search {
+  flex: 1 1 220px;
+  min-width: min(220px, 100%);
+  margin-left: auto;
+  border-radius: 12px;
+  font-size: 12px;
+}
+
+.agent-portal-shell .reports-panel.full {
+  min-width: 0;
+  padding: 8px 16px;
+  overflow: hidden;
+}
+
+.agent-portal-shell .table-wrap {
+  max-width: 100%;
+  overflow-x: auto;
+  border-radius: 12px;
+  scrollbar-width: thin;
+}
+
+.agent-portal-shell .reports-panel table {
+  min-width: 940px;
+  font-size: 12px;
+}
+
+.agent-portal-shell .reports-panel th {
+  padding-top: 14px;
+  color: var(--muted);
+  font-size: 10px;
+  letter-spacing: .08em;
+}
+
+.agent-portal-shell .reports-panel td {
+  height: 58px;
+  border-bottom-color: var(--line);
+  color: var(--muted);
+}
+
+.agent-portal-shell .reports-panel tbody tr:hover {
+  background: color-mix(in srgb, var(--color-primary-violet) 4%, var(--surface));
+}
+
+.agent-portal-shell .company {
+  color: var(--ink);
+}
+
+.agent-portal-shell .company > span {
+  width: 34px;
+  height: 34px;
+  flex: 0 0 34px;
+  border-radius: 11px;
+  background: var(--color-info-soft);
+  color: var(--color-primary-violet);
+}
+
+.agent-portal-shell .row-action {
+  width: 34px;
+  height: 34px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  color: var(--color-primary-violet);
+}
+
+.agent-portal-shell .row-action:hover {
+  background: var(--color-info-soft);
+}
+
+.agent-portal-shell .product-grid {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr));
+  gap: 18px;
+}
+
+.agent-portal-shell .product-card {
+  overflow: hidden;
+  transition: border-color .18s ease, box-shadow .18s ease, transform .18s ease;
+}
+
+.agent-portal-shell .product-card:hover {
+  transform: translateY(-3px);
+  border-color: color-mix(in srgb, var(--color-primary-violet) 35%, var(--line));
+  box-shadow: 0 18px 34px rgba(37, 39, 72, .11);
+}
+
+.agent-portal-shell .product-art {
+  height: clamp(150px, 18vw, 205px);
+}
+
+.agent-portal-shell .product-body {
+  padding: 20px;
+}
+
+.agent-portal-shell .product-body h2 {
+  color: var(--ink);
+  font-size: 18px;
+}
+
+.agent-portal-shell .product-body p {
+  min-height: 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.65;
+}
+
+.agent-portal-shell .wallet-grid {
+  grid-template-columns: minmax(0, 1.4fr) repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.agent-portal-shell .wallet-balance {
+  position: relative;
+  overflow: hidden;
+  border: 0 !important;
+  background:
+    radial-gradient(circle at 90% 5%, rgba(196, 173, 255, .3), transparent 34%),
+    linear-gradient(125deg, #33235f, #51408c 62%, #46539a) !important;
+  box-shadow: 0 16px 34px rgba(54, 43, 102, .2) !important;
+}
+
+.agent-portal-shell .wallet-balance::after {
+  position: absolute;
+  right: -54px;
+  bottom: -120px;
+  width: 230px;
+  height: 230px;
+  border: 1px solid rgba(255, 255, 255, .15);
+  border-radius: 50%;
+  box-shadow: 0 0 0 22px rgba(255, 255, 255, .035), 0 0 0 46px rgba(255, 255, 255, .025);
+  content: '';
+  pointer-events: none;
+}
+
+.agent-portal-shell .wallet-balance > * {
+  position: relative;
+  z-index: 1;
+}
+
+.agent-portal-shell .wallet-balance span,
+.agent-portal-shell .wallet-balance p,
+.agent-portal-shell .wallet-balance strong small {
+  color: rgba(255, 255, 255, .76);
+}
+
+.agent-portal-shell .wallet-balance strong {
+  color: #fff !important;
+  font-size: clamp(29px, 3vw, 38px);
+  font-variant-numeric: tabular-nums;
+}
+
+.agent-portal-shell .prospect-agent-page .prospect-summary article {
+  min-height: 122px;
+  padding: 19px 21px;
+}
+
+.agent-portal-shell .prospect-agent-page .prospect-directory,
+.agent-portal-shell .prospect-agent-page .prospect-detail {
+  padding: clamp(16px, 2vw, 24px);
+}
+
+.agent-portal-shell .prospect-agent-page .prospect-directory-item {
+  border-radius: 13px;
+}
+
+.agent-portal-shell .prospect-agent-page .prospect-directory-item:hover,
+.agent-portal-shell .prospect-agent-page .prospect-directory-item.active {
+  border-color: color-mix(in srgb, var(--color-primary-violet) 32%, var(--line));
+  background: var(--color-info-soft);
+}
+
+.agent-portal-shell .collaboration-page {
+  width: min(100%, 1180px);
+  padding: 0;
+}
+
+.agent-portal-shell .collaboration-page-header {
+  margin-bottom: 20px;
+}
+
+.agent-portal-shell .collaboration-page-header h1 {
+  letter-spacing: -.04em;
+}
+
+.agent-portal-shell .collaboration-workspace-header {
+  border-color: var(--line);
+  background:
+    radial-gradient(circle at 88% 8%, color-mix(in srgb, var(--color-primary-violet) 11%, transparent), transparent 28%),
+    linear-gradient(115deg, var(--surface) 0%, color-mix(in srgb, var(--surface) 88%, var(--color-info-soft)) 100%);
+  box-shadow: var(--shadow-soft);
+}
+
+.agent-portal-shell .collaboration-overview-card {
+  border-color: var(--line);
+  background: var(--surface);
+  box-shadow: var(--shadow-soft);
+}
+
+.agent-portal-shell .collaboration-supplied-card:hover,
+.agent-portal-shell .collaboration-prospect-card:hover,
+.agent-portal-shell .collaboration-request-card:hover {
+  transform: translateY(-2px);
+}
+
+.agent-portal-shell .collaboration-tabs {
+  flex-wrap: wrap;
+}
+
+.agent-portal-shell .collaboration-tab {
+  min-height: 42px;
+  border-radius: 12px;
+}
+
+.agent-portal-shell .community-hero {
+  border-radius: 22px;
+}
+
+.agent-portal-shell .agent-settings-card,
+.agent-portal-shell .badge-benefits-panel,
+.agent-portal-shell .badge-payment-panel {
+  border-radius: 18px;
+}
+
+@media (max-width: 900px) {
+  .agent-portal-shell .wallet-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .agent-portal-shell .wallet-balance {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 700px) {
+  .agent-portal-shell .content-wrap {
+    padding: 22px 14px calc(88px + env(safe-area-inset-bottom)) !important;
+  }
+
+  .agent-portal-shell .page-heading,
+  .agent-portal-shell .welcome-row {
+    gap: 14px;
+    margin-bottom: 20px;
+  }
+
+  .agent-portal-shell .page-heading > .primary-button,
+  .agent-portal-shell .welcome-row > .primary-button {
+    width: 100%;
+  }
+
+  .agent-portal-shell .filter-row {
+    flex-wrap: wrap;
+    margin-inline: -2px;
+    overflow: visible;
+    padding: 2px 2px 8px;
+  }
+
+  .agent-portal-shell .filter {
+    flex: 0 0 auto;
+  }
+
+  .agent-portal-shell .filter.search {
+    flex: 1 1 100%;
+    margin-left: 0;
+  }
+
+  .agent-portal-shell .reports-panel.full {
+    padding: 4px 10px;
+    border-radius: 15px !important;
+  }
+
+  .agent-portal-shell .product-grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 13px;
+  }
+
+  .agent-portal-shell .product-art {
+    height: 155px;
+  }
+
+  .agent-portal-shell .wallet-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .agent-portal-shell .wallet-balance {
+    grid-column: auto;
+  }
+
+  .agent-portal-shell .collaboration-page {
+    width: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .agent-portal-shell *,
+  .agent-portal-shell *::before,
+  .agent-portal-shell *::after {
+    scroll-behavior: auto !important;
+    transition-duration: .01ms !important;
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}
+
+.agent-reports-page {
+  display: grid;
+  width: min(100%, 1180px);
+  gap: 20px;
+  margin: 0 auto;
+}
+
+.agent-reports-page .reports-page-heading {
+  align-items: center;
+  margin: 0;
+}
+
+.agent-reports-page .reports-page-heading h1 {
+  margin-bottom: 7px;
+}
+
+.agent-reports-page .reports-page-heading .primary-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  white-space: nowrap;
+}
+
+.agent-reports-page .reports-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 13px;
+}
+
+.agent-reports-page .reports-summary-card {
+  --reports-accent: var(--color-primary-violet);
+  display: grid;
+  min-width: 0;
+  min-height: 100px;
+  grid-template-columns: 42px minmax(0, 1fr);
+  grid-template-rows: auto 1fr;
+  align-items: center;
+  column-gap: 12px;
+  padding: 17px;
+  border: 1px solid var(--line);
+  border-radius: 17px;
+  background: var(--surface);
+  box-shadow: var(--shadow-soft);
+}
+
+.agent-reports-page .reports-summary-card.is-amber {
+  --reports-accent: #bb7617;
+}
+
+.agent-reports-page .reports-summary-card.is-blue {
+  --reports-accent: #3769c8;
+}
+
+.agent-reports-page .reports-summary-card.is-green {
+  --reports-accent: #258268;
+}
+
+.agent-reports-page .reports-summary-icon {
+  display: grid;
+  width: 42px;
+  height: 42px;
+  grid-row: 1 / 3;
+  place-items: center;
+  border: 1px solid color-mix(in srgb, var(--reports-accent) 15%, var(--line));
+  border-radius: 13px;
+  background: color-mix(in srgb, var(--reports-accent) 9%, var(--surface));
+  color: var(--reports-accent);
+}
+
+.agent-reports-page .reports-summary-label {
+  align-self: end;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.agent-reports-page .reports-summary-card > strong {
+  align-self: start;
+  color: var(--ink);
+  font-size: 23px;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.2;
+}
+
+.agent-reports-page .reports-panel {
+  min-width: 0;
+  margin: 0;
+  padding: 0 !important;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  background: var(--surface);
+  box-shadow: var(--shadow-soft);
+}
+
+.agent-reports-page .reports-workspace-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 22px 24px 18px;
+  border-bottom: 1px solid var(--line);
+}
+
+.agent-reports-page .reports-workspace-heading .section-kicker {
+  margin: 0 0 5px;
+  font-size: 9px;
+  letter-spacing: .1em;
+}
+
+.agent-reports-page .reports-workspace-heading h2 {
+  margin: 0;
+  color: var(--ink);
+  font-size: 19px;
+  letter-spacing: -.025em;
+}
+
+.agent-reports-page .reports-result-count {
+  flex: 0 0 auto;
+  padding: 7px 11px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface-muted);
+  color: var(--muted);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.agent-reports-page .reports-result-count strong {
+  color: var(--ink);
+}
+
+.agent-reports-page .reports-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 15px 24px;
+  border-bottom: 1px solid var(--line);
+}
+
+.agent-reports-page .reports-filter-group {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.agent-reports-page .reports-filter-group .filter {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 36px;
+  padding: 7px 11px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 650;
+  white-space: nowrap;
+}
+
+.agent-reports-page .reports-filter-group .filter.active {
+  border-color: color-mix(in srgb, var(--color-primary-violet) 34%, var(--line));
+  background: color-mix(in srgb, var(--color-primary-violet) 8%, var(--surface));
+  color: var(--color-primary-violet);
+}
+
+.agent-reports-page .reports-filter-group .filter b {
+  min-width: 18px;
+  padding: 2px 5px;
+  border-radius: 999px;
+  background: var(--surface-muted);
+  color: inherit;
+  font-size: 9px;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+.agent-reports-page .reports-search-field {
+  display: flex;
+  width: min(100%, 260px);
+  min-width: 190px;
+  min-height: 44px;
+  flex: 0 1 260px;
+  align-items: center;
+  gap: 10px;
+  padding: 0 13px;
+  border: 1px solid var(--line);
+  border-radius: 13px;
+  background: var(--surface);
+  color: var(--muted);
+  transition: background-color .16s ease, border-color .16s ease, box-shadow .16s ease;
+}
+
+.agent-reports-page .reports-search-field:hover:not(:focus-within) {
+  border-color: color-mix(in srgb, var(--color-primary-violet) 26%, var(--line));
+}
+
+.agent-reports-page .reports-search-field:focus-within {
+  border-color: color-mix(in srgb, var(--color-primary-violet) 55%, var(--line));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-primary-violet) 12%, transparent);
+}
+
+.agent-reports-page .reports-search-field svg {
+  flex: 0 0 auto;
+}
+
+.agent-portal-shell .agent-reports-page .reports-search-field input.reports-search-input {
+  width: 100%;
+  min-width: 0;
+  height: 28px;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: 11px;
+  appearance: none;
+  -webkit-appearance: none;
+  box-shadow: none;
+}
+
+.agent-portal-shell .agent-reports-page .reports-search-field input.reports-search-input::placeholder {
+  color: var(--muted);
+  opacity: .8;
+}
+
+.agent-portal-shell .agent-reports-page .reports-search-field input.reports-search-input:focus {
+  border: 0;
+  outline: 0;
+  box-shadow: none;
+}
+
+.agent-portal-shell .agent-reports-page .reports-search-field input.reports-search-input:focus-visible {
+  outline: 0;
+}
+
+.agent-portal-shell.theme-dark .agent-reports-page .reports-search-field {
+  border-color: var(--line);
+  background: var(--surface-muted);
+}
+
+.agent-portal-shell.theme-dark .agent-reports-page .reports-search-field input.reports-search-input,
+.agent-portal-shell.theme-dark .agent-reports-page .reports-search-field input.reports-search-input:focus {
+  min-height: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  outline: 0 !important;
+  background: transparent !important;
+  color: var(--ink) !important;
+  box-shadow: none !important;
+}
+
+.agent-portal-shell.theme-dark .agent-reports-page .reports-search-field input.reports-search-input::placeholder {
+  color: var(--muted) !important;
+  opacity: .8;
+}
+
+.agent-reports-page .reports-panel .table-wrap {
+  border-radius: 0;
+}
+
+.agent-reports-page .reports-panel table {
+  min-width: 940px;
+}
+
+.agent-reports-page .reports-panel th {
+  background: var(--surface-muted);
+}
+
+.agent-reports-page .reports-panel tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.agent-reports-page .reports-empty-state {
+  display: grid;
+  min-height: 260px;
+  justify-items: center;
+  align-content: center;
+  gap: 9px;
+  padding: 36px 20px;
+  text-align: center;
+}
+
+.agent-reports-page .reports-empty-icon {
+  display: grid;
+  width: 52px;
+  height: 52px;
+  margin-bottom: 3px;
+  place-items: center;
+  border: 1px solid color-mix(in srgb, var(--color-primary-violet) 16%, var(--line));
+  border-radius: 17px;
+  background: color-mix(in srgb, var(--color-primary-violet) 8%, var(--surface));
+  color: var(--color-primary-violet);
+}
+
+.agent-reports-page .reports-empty-state h3 {
+  margin: 0;
+  color: var(--ink);
+  font-size: 15px;
+}
+
+.agent-reports-page .reports-empty-state p {
+  max-width: 400px;
+  margin: 0 0 5px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.agent-reports-page .reports-empty-state .primary-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  margin-top: 5px;
+}
+
+.agent-reports-page .sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  clip-path: inset(50%);
+}
+
+@media (max-width: 1000px) {
+  .agent-reports-page .reports-controls {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .agent-reports-page .reports-search-field {
+    width: 100%;
+    max-width: none;
+    flex-basis: auto;
+  }
+}
+
+@media (max-width: 700px) {
+  .agent-reports-page {
+    gap: 15px;
+  }
+
+  .agent-reports-page .reports-summary-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 9px;
+  }
+
+  .agent-reports-page .reports-summary-card {
+    min-height: 86px;
+    grid-template-columns: 36px minmax(0, 1fr);
+    column-gap: 9px;
+    padding: 13px;
+    border-radius: 14px;
+  }
+
+  .agent-reports-page .reports-summary-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 11px;
+  }
+
+  .agent-reports-page .reports-summary-label {
+    font-size: 10px;
+  }
+
+  .agent-reports-page .reports-summary-card > strong {
+    font-size: 20px;
+  }
+
+  .agent-reports-page .reports-workspace-heading {
+    padding: 18px 16px 15px;
+  }
+
+  .agent-reports-page .reports-workspace-heading h2 {
+    font-size: 17px;
+  }
+
+  .agent-reports-page .reports-controls {
+    gap: 12px;
+    padding: 13px 15px;
+  }
+
+  .agent-reports-page .reports-filter-group {
+    gap: 6px;
+  }
+
+  .agent-reports-page .reports-filter-group .filter {
+    min-height: 34px;
+    padding: 6px 9px;
+    font-size: 10px;
+  }
+}
+
+@media (max-width: 380px) {
+  .agent-reports-page .reports-summary-card {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto auto auto;
+    justify-items: start;
+    gap: 7px;
+    padding: 12px;
+  }
+
+  .agent-reports-page .reports-summary-icon {
+    width: 32px;
+    height: 32px;
+  }
+
+  .agent-reports-page .reports-summary-label {
+    align-self: auto;
+  }
+
+  .agent-reports-page .reports-summary-card > strong {
+    align-self: auto;
+  }
+}
+
+.agent-portal-shell .prospect-agent-page .prospect-search {
+  display: flex;
+  min-height: 46px;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
+  padding: 0 13px;
+  border: 1px solid var(--line);
+  border-radius: 13px;
+  background: var(--surface);
+  color: var(--muted);
+  transition: border-color .16s ease, box-shadow .16s ease, background-color .16s ease;
+}
+
+.agent-portal-shell .prospect-agent-page .prospect-search:focus-within,
+.agent-portal-shell .topbar .global-search-input:focus-within {
+  border-color: color-mix(in srgb, var(--color-primary-violet) 48%, var(--line));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-primary-violet) 12%, transparent);
+}
+
+.agent-portal-shell .prospect-agent-page .prospect-search > svg {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 auto;
+  color: var(--muted);
+}
+
+.agent-portal-shell .community-body-layout .community-search-panel input[type="search"],
+.agent-portal-shell .prospect-agent-page .prospect-search input,
+.agent-portal-shell .chat-page .chat-search input,
+.agent-portal-shell .chat-agent-picker-dialog .chat-agent-picker-search input,
+.agent-portal-shell .topbar .global-search-input input {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
+  height: 30px;
+  margin: 0;
+  padding: 0;
+  border: 0 !important;
+  border-radius: 0 !important;
+  outline: 0 !important;
+  background: transparent !important;
+  background-color: transparent !important;
+  color: var(--ink) !important;
+  box-shadow: none !important;
+  font: inherit;
+  font-size: 13px;
+  appearance: none;
+  -webkit-appearance: none;
+}
+
+.agent-portal-shell .community-body-layout .community-search-panel input[type="search"]::placeholder,
+.agent-portal-shell .prospect-agent-page .prospect-search input::placeholder,
+.agent-portal-shell .chat-page .chat-search input::placeholder,
+.agent-portal-shell .chat-agent-picker-dialog .chat-agent-picker-search input::placeholder,
+.agent-portal-shell .topbar .global-search-input input::placeholder {
+  color: var(--muted) !important;
+  opacity: .8;
+}
+
+.agent-portal-shell .community-body-layout .community-search-panel input[type="search"]:focus,
+.agent-portal-shell .prospect-agent-page .prospect-search input:focus,
+.agent-portal-shell .chat-page .chat-search input:focus,
+.agent-portal-shell .chat-agent-picker-dialog .chat-agent-picker-search input:focus,
+.agent-portal-shell .topbar .global-search-input input:focus {
+  border: 0 !important;
+  outline: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.agent-portal-shell .topbar .global-search-input {
+  min-height: 44px;
+  align-items: center;
+  gap: 9px;
+  padding: 0 11px;
+  border: 1px solid var(--line);
+  border-radius: 13px;
+  background: var(--surface);
+  transition: border-color .16s ease, box-shadow .16s ease, background-color .16s ease;
+}
+
+.agent-portal-shell .content-wrap .page-heading input.catalog-search {
+  width: min(280px, 100%);
+  min-width: min(220px, 100%);
+  min-height: 44px;
+  height: 44px;
+  margin: 0;
+  padding: 0 14px;
+  border: 1px solid var(--line) !important;
+  border-radius: 13px !important;
+  outline: 0;
+  background: var(--surface) !important;
+  color: var(--ink) !important;
+  box-shadow: none !important;
+  font-size: 12px;
+  transition: border-color .16s ease, box-shadow .16s ease, background-color .16s ease;
+}
+
+.agent-portal-shell .content-wrap .page-heading input.catalog-search:focus {
+  border-color: color-mix(in srgb, var(--color-primary-violet) 48%, var(--line)) !important;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-primary-violet) 12%, transparent) !important;
+}
+
+.agent-portal-shell .content-wrap .page-heading input.catalog-search::placeholder {
+  color: var(--muted);
+  opacity: .8;
+}
+
+.agent-portal-shell.theme-dark .prospect-agent-page .prospect-search,
+.agent-portal-shell.theme-dark .topbar .global-search-input {
+  border-color: var(--line);
+  background: var(--surface-muted);
+}
+
+.agent-portal-shell.theme-dark .prospect-agent-page .prospect-search:focus-within,
+.agent-portal-shell.theme-dark .topbar .global-search-input:focus-within {
+  border-color: color-mix(in srgb, var(--color-primary-violet) 54%, var(--line));
+  background: var(--surface);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-primary-violet) 18%, transparent);
+}
+
+.agent-portal-shell.theme-dark .chat-agent-picker-dialog {
+  border-color: var(--line);
+  background: var(--surface);
+  color: var(--ink);
+}
+
+.agent-portal-shell.theme-dark .chat-agent-picker-header h2,
+.agent-portal-shell.theme-dark .chat-agent-picker-list .chat-contact,
+.agent-portal-shell.theme-dark .chat-agent-picker-list .chat-contact-copy strong {
+  color: var(--ink);
+}
+
+.agent-portal-shell.theme-dark .chat-agent-picker-close,
+.agent-portal-shell.theme-dark .chat-agent-picker-search {
+  border-color: var(--line);
+  background: var(--surface-muted);
+  color: var(--muted);
+}
+
+.agent-portal-shell.theme-dark .chat-agent-picker-search:focus-within {
+  border-color: color-mix(in srgb, var(--color-primary-violet) 54%, var(--line));
+  background: var(--surface);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-primary-violet) 18%, transparent);
+}
+
+.agent-portal-shell.theme-dark .chat-agent-picker-list .chat-contact-copy small {
+  color: var(--muted);
+}
+
+.agent-portal-shell.theme-dark .chat-agent-picker-list .chat-contact:hover,
+.agent-portal-shell.theme-dark .chat-agent-picker-list .chat-contact:focus-visible {
+  background: color-mix(in srgb, var(--color-primary-violet) 11%, var(--surface));
+}
+
+.agent-portal-shell.theme-dark .community-body-layout .community-search-panel input[type="search"],
+.agent-portal-shell.theme-dark .prospect-agent-page .prospect-search input,
+.agent-portal-shell.theme-dark .chat-page .chat-search input,
+.agent-portal-shell.theme-dark .chat-agent-picker-dialog .chat-agent-picker-search input,
+.agent-portal-shell.theme-dark .topbar .global-search-input input {
+  min-height: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  outline: 0 !important;
+  background: transparent !important;
+  background-color: transparent !important;
+  color: var(--ink) !important;
+  box-shadow: none !important;
+}
+
+.agent-portal-shell.theme-dark .community-body-layout .community-search-panel input[type="search"]::placeholder,
+.agent-portal-shell.theme-dark .prospect-agent-page .prospect-search input::placeholder,
+.agent-portal-shell.theme-dark .chat-page .chat-search input::placeholder,
+.agent-portal-shell.theme-dark .chat-agent-picker-dialog .chat-agent-picker-search input::placeholder,
+.agent-portal-shell.theme-dark .topbar .global-search-input input::placeholder {
+  color: var(--muted) !important;
+  opacity: .8;
+}
+
+.agent-portal-shell.theme-dark .content-wrap .page-heading input.catalog-search {
+  border-color: var(--line) !important;
+  background: var(--surface-muted) !important;
+  color: var(--ink) !important;
+}
+
+.agent-portal-shell.theme-dark .content-wrap .page-heading input.catalog-search::placeholder {
+  color: var(--muted) !important;
+}
+
+@media (max-width: 700px) {
+  .agent-portal-shell .content-wrap .page-heading input.catalog-search {
+    width: 100%;
+    min-width: 0;
+  }
+}

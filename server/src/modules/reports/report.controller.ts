@@ -14,6 +14,10 @@ import { notifyAdmins } from '../notifications/notifications.service.js';
 import { reportSchema, type ReportStatus } from './report.schema.js';
 
 export async function listReports(request: AuthRequest, response: Response) {
+  if (!request.user || !['AGENT', 'ADMIN', 'SUPER_ADMIN'].includes(request.user.role)) {
+    response.status(403).json({ error: 'Accès interdit aux rapports.' });
+    return;
+  }
   const requestedAgentId = request.query.agentId ? Number(request.query.agentId) : undefined;
   if (requestedAgentId !== undefined && (!Number.isInteger(requestedAgentId) || requestedAgentId < 1)) {
     response.status(400).json({ error: 'Identifiant agent invalide' });

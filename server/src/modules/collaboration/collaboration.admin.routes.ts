@@ -1,4 +1,4 @@
-import { createHmac } from 'node:crypto'
+import { createHmac, randomBytes, randomUUID } from 'node:crypto'
 import bcrypt from 'bcryptjs'
 import multer from 'multer'
 import { Router } from 'express'
@@ -7,9 +7,19 @@ import { z } from 'zod'
 import type { Prisma } from '@prisma/client'
 import { env } from '../../config/env.js'
 import { prisma } from '../../lib/prisma.js'
+import { isEmailDeliveryConfigured, sendSalesTeamInvitationEmail } from '../../lib/email.js'
 import type { AuthRequest } from '../auth/auth.middleware.js'
-import { requireAdminTotp, createTotpEnrollment, encryptTotpSecret, verifyTotp } from './admin-totp.js'
+import {
+  requireAdminTotp,
+  requireSalesReviewTotp,
+  requireSalesSignatureTotp,
+  requireSalesTeamTotp,
+  createTotpEnrollment,
+  encryptTotpSecret,
+  verifyTotp,
+} from './admin-totp.js'
 import { writeCollaborationAudit } from './collaboration.audit.js'
+import { assignCollaborationDealToLeastLoadedStaff } from './collaboration.assignments.js'
 import { collaborationRateLimit } from './collaboration.rate-limit.js'
 import { createSignedEvidenceUrl, getMaxCollaborationFileSize, persistCollaborationFile, removeCollaborationFile } from './collaboration.files.js'
 import { canSignCollaborationDeal, CollaborationAccessError, transitionCollaborationDeal } from './collaboration.policy.js'
@@ -19,8 +29,10 @@ import { validateCommissionConfig } from './collaboration.commissions.policy.js'
 import {
   buildAdminCollaborationDealsWhere,
   buildAdminCollaborationReadyToSignWhere,
+  buildAdminSignedContractsWhere,
   buildAdminPendingCommissionsWhere,
   parseAdminCollaborationFilters,
+  parseAdminSignedContractsFilters,
 } from './collaboration.admin.read-queries.js'
 
 const totpEnrollmentSchema = z.object({ password: z.string().min(1).max(200) }).strict()
@@ -30,10 +42,24 @@ const decisionSchema = z.object({
   reason: z.string().trim().min(10).max(2000).optional(),
   overrideConfirmation: z.boolean().optional(),
 }).strict()
+const MAX_SIGNED_BIGINT = 9_223_372_036_854_775_807n
 const signatureSchema = z.object({
   contractReference: z.string().trim().min(1).max(150),
   contractDate: z.string().datetime(),
+  contractAmount: z.string().trim().refine(
+    (value) => /^\d{1,19}$/.test(value) && BigInt(value) > 0n && BigInt(value) <= MAX_SIGNED_BIGINT,
+    'Saisissez un montant final positif en Ariary.',
+  ),
 }).strict()
+const salesTeamInvitationSchema = z.object({
+  email: z.string().trim().email().max(255).transform((email) => email.toLowerCase()),
+  role: z.enum(['SALES_REVIEWER', 'SALES_SIGNER']),
+}).strict()
+const collaborationAssignmentSchema = z.object({
+  reviewAssignedToId: z.number().int().positive().nullable().optional(),
+  signAssignedToId: z.number().int().positive().nullable().optional(),
+}).strict().refine((value) => value.reviewAssignedToId !== undefined || value.signAssignedToId !== undefined)
+const ACTIVATION_TOKEN_TTL_MS = 24 * 60 * 60 * 1000
 
 const contractUpload = multer({
   storage: multer.memoryStorage(),
@@ -71,7 +97,7 @@ function asyncRoute(handler: (request: AuthRequest, response: Response) => Promi
 }
 
 function adminId(request: AuthRequest): number {
-  if (!request.user || !['ADMIN', 'SUPER_ADMIN'].includes(request.user.role)) {
+  if (!request.user || !['ADMIN', 'SUPER_ADMIN', 'SALES_REVIEWER', 'SALES_SIGNER'].includes(request.user.role)) {
     throw new CollaborationAccessError('Accès administrateur requis.', 404)
   }
   return request.user.id
@@ -81,6 +107,18 @@ function parseId(value: string | string[]): number | null {
   if (typeof value !== 'string') return null
   const id = Number(value)
   return Number.isSafeInteger(id) && id > 0 ? id : null
+}
+
+function isUniqueConstraintError(error: unknown): boolean {
+  return typeof error === 'object' && error !== null && 'code' in error && error.code === 'P2002'
+}
+
+function salesTeamActivationUrl(email: string, token: string): string {
+  const url = new URL('/', env.adminAppUrl)
+  url.searchParams.set('portal', 'admin')
+  url.searchParams.set('activationEmail', email)
+  url.searchParams.set('activationToken', token)
+  return url.toString()
 }
 
 function parseAdminPagination(query: Request['query']): { page: number; limit: number } | null {
@@ -419,7 +457,195 @@ async function getAgentScore(userId: number) {
 
 export const collaborationAdminRouter = Router()
 
-collaborationAdminRouter.get('/dashboard', collaborationRateLimit({ scope: 'admin-collaboration-dashboard', limit: 20, windowMs: 60_000 }), requireAdminTotp, asyncRoute(async (request, response) => {
+collaborationAdminRouter.get('/team', collaborationRateLimit({ scope: 'admin-collaboration-team', limit: 20, windowMs: 60_000 }), requireAdminTotp, asyncRoute(async (_request, response) => {
+  const staff = await prisma.user.findMany({
+    where: { role: { in: ['SALES_REVIEWER', 'SALES_SIGNER'] } },
+    select: {
+      id: true,
+      email: true,
+      role: true,
+      status: true,
+      totpEnabled: true,
+      createdAt: true,
+      lastActiveAt: true,
+      agentProfile: { select: { firstName: true, lastName: true } },
+    },
+    orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+  })
+  const staffIds = staff.map(({ id }) => id)
+  const [reviewLoads, signLoads] = staffIds.length === 0 ? [[], []] : await Promise.all([
+    prisma.collaborationDeal.groupBy({
+      by: ['reviewAssignedToId'],
+      where: {
+        reviewAssignedToId: { in: staffIds },
+        status: { in: env.clientConfirmationRequired
+          ? ['CONFIRMED_BY_CLIENT', 'CLIENT_CONFIRMED']
+          : ['CLOSING_REPORTED', 'CONFIRMED_BY_CLIENT', 'CLIENT_CONFIRMED'] },
+        closingReport: { is: { status: 'SUBMITTED' } },
+      },
+      _count: { _all: true },
+    }),
+    prisma.collaborationDeal.groupBy({
+      by: ['signAssignedToId'],
+      where: {
+        signAssignedToId: { in: staffIds },
+        status: 'CONFIRMED',
+        saleNumber: null,
+        closingReport: { is: { status: 'SUBMITTED' } },
+      },
+      _count: { _all: true },
+    }),
+  ])
+  const reviewCounts = new Map(reviewLoads.map((item) => [item.reviewAssignedToId, item._count._all]))
+  const signCounts = new Map(signLoads.map((item) => [item.signAssignedToId, item._count._all]))
+  response.json({
+    data: staff.map(({ agentProfile, ...member }) => ({
+      ...member,
+      name: agentProfile ? `${agentProfile.firstName} ${agentProfile.lastName}`.trim() || member.email : member.email,
+      reviewLoad: reviewCounts.get(member.id) ?? 0,
+      signLoad: signCounts.get(member.id) ?? 0,
+    })),
+  })
+}))
+
+collaborationAdminRouter.post('/team/invitations', collaborationRateLimit({ scope: 'admin-collaboration-team-invite', limit: 10, windowMs: 60_000 }), requireAdminTotp, asyncRoute(async (request, response) => {
+  const actorId = adminId(request)
+  const body = salesTeamInvitationSchema.safeParse(request.body)
+  if (!body.success) {
+    response.status(400).json({ error: 'Adresse email ou rôle invalide.', details: body.error.flatten() })
+    return
+  }
+  if (!isEmailDeliveryConfigured()) {
+    response.status(503).json({ error: 'L’envoi des emails n’est pas configuré. Configurez SMTP avant d’inviter un membre.' })
+    return
+  }
+
+  const now = new Date()
+  const rawToken = randomBytes(32).toString('hex')
+  const tokenHash = await bcrypt.hash(rawToken, 12)
+  const passwordHash = await bcrypt.hash(randomUUID(), 12)
+  let member: { id: number; email: string; role: 'SALES_REVIEWER' | 'SALES_SIGNER'; status: string }
+  try {
+    member = await prisma.$transaction(async (transaction) => {
+      const created = await transaction.user.create({
+        data: {
+          email: body.data.email,
+          passwordHash,
+          role: body.data.role,
+          status: 'EN_ATTENTE_ACTIVATION',
+        },
+        select: { id: true, email: true, role: true, status: true },
+      })
+      await transaction.activationToken.create({
+        data: {
+          userId: created.id,
+          tokenHash,
+          type: 'ACTIVATION',
+          expiresAt: new Date(now.getTime() + ACTIVATION_TOKEN_TTL_MS),
+        },
+      })
+      await writeCollaborationAudit(transaction, {
+        actorId,
+        action: 'SALES_TEAM_INVITATION_CREATED',
+        entityType: 'User',
+        entityId: created.id,
+        metadata: { email: created.email, role: created.role },
+        ...requestAudit(request),
+        createdAt: now,
+      })
+      return { ...created, role: body.data.role }
+    })
+  } catch (error) {
+    if (isUniqueConstraintError(error)) {
+      response.status(409).json({ error: 'Un compte existe déjà avec cette adresse email.' })
+      return
+    }
+    throw error
+  }
+
+  try {
+    await sendSalesTeamInvitationEmail(member.email, member.role, salesTeamActivationUrl(member.email, rawToken))
+  } catch (error) {
+    console.error('Failed to send sales team invitation email:', error)
+    await prisma.$transaction((transaction) => writeCollaborationAudit(transaction, {
+      actorId,
+      action: 'SALES_TEAM_INVITATION_EMAIL_FAILED',
+      entityType: 'User',
+      entityId: member.id,
+      metadata: { role: member.role },
+      ...requestAudit(request),
+    }))
+    response.status(502).json({ error: 'Le compte a été créé, mais l’email n’a pas pu être envoyé. Utilisez « Renvoyer l’invitation ».' })
+    return
+  }
+  response.status(201).json({ data: member })
+}))
+
+collaborationAdminRouter.post('/team/:userId/invitation', collaborationRateLimit({ scope: 'admin-collaboration-team-resend', limit: 10, windowMs: 60_000 }), requireAdminTotp, asyncRoute(async (request, response) => {
+  const actorId = adminId(request)
+  const userId = parseId(request.params.userId)
+  if (userId === null) {
+    response.status(400).json({ error: 'Identifiant de membre invalide.' })
+    return
+  }
+  if (!isEmailDeliveryConfigured()) {
+    response.status(503).json({ error: 'L’envoi des emails n’est pas configuré. Configurez SMTP avant de renvoyer une invitation.' })
+    return
+  }
+  const member = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { id: true, email: true, role: true, status: true },
+  })
+  if (!member || (member.role !== 'SALES_REVIEWER' && member.role !== 'SALES_SIGNER') || member.status !== 'EN_ATTENTE_ACTIVATION') {
+    response.status(404).json({ error: 'Invitation en attente introuvable.' })
+    return
+  }
+
+  const now = new Date()
+  const rawToken = randomBytes(32).toString('hex')
+  const tokenHash = await bcrypt.hash(rawToken, 12)
+  await prisma.$transaction(async (transaction) => {
+    await transaction.activationToken.updateMany({
+      where: { userId, type: 'ACTIVATION', usedAt: null },
+      data: { usedAt: now },
+    })
+    await transaction.activationToken.create({
+      data: {
+        userId,
+        tokenHash,
+        type: 'ACTIVATION',
+        expiresAt: new Date(now.getTime() + ACTIVATION_TOKEN_TTL_MS),
+      },
+    })
+    await writeCollaborationAudit(transaction, {
+      actorId,
+      action: 'SALES_TEAM_INVITATION_RESENT',
+      entityType: 'User',
+      entityId: userId,
+      metadata: { role: member.role },
+      ...requestAudit(request),
+      createdAt: now,
+    })
+  })
+  try {
+    await sendSalesTeamInvitationEmail(member.email, member.role, salesTeamActivationUrl(member.email, rawToken))
+  } catch (error) {
+    console.error('Failed to resend sales team invitation email:', error)
+    await prisma.$transaction((transaction) => writeCollaborationAudit(transaction, {
+      actorId,
+      action: 'SALES_TEAM_INVITATION_EMAIL_FAILED',
+      entityType: 'User',
+      entityId: member.id,
+      metadata: { role: member.role, resent: true },
+      ...requestAudit(request),
+    }))
+    response.status(502).json({ error: 'L’email n’a pas pu être envoyé. Vérifiez SMTP puis réessayez.' })
+    return
+  }
+  response.json({ data: { resent: true } })
+}))
+
+collaborationAdminRouter.get('/dashboard', collaborationRateLimit({ scope: 'admin-collaboration-dashboard', limit: 20, windowMs: 60_000 }), requireSalesTeamTotp, asyncRoute(async (request, response) => {
   const parsedFilters = parseAdminCollaborationFilters(request.query)
   if (!parsedFilters.filters) {
     response.status(400).json({ error: parsedFilters.error })
@@ -438,27 +664,79 @@ collaborationAdminRouter.get('/dashboard', collaborationRateLimit({ scope: 'admi
   const auditPeriod = !filters.from && !filters.to
     ? {}
     : { createdAt: { ...(filters.from ? { gte: filters.from } : {}), ...(filters.to ? { lte: filters.to } : {}) } }
-  const [salesToVerify, contractsToSign, commissionsToPay, disputes, bypassAlerts, extractionAlerts, repeatedExpirations, overrides] = await Promise.all([
-    prisma.collaborationDeal.count({ where: dealsWhere }),
-    prisma.collaborationDeal.count({ where: readyToSignWhere }),
-    prisma.collaborationCommission.count({ where: pendingCommissionsWhere }),
-    prisma.collaborationDeal.count({ where: { status: 'DISPUTED', ...dealScope, ...dealUpdatedAt } }),
-    prisma.collaborationAuditLog.count({
-      where: {
-        action: 'COLLABORATION_PERIODIC_CONTACT_BYPASS_DETECTED',
-        ...auditPeriod,
-        ...(filters.agentId === undefined ? {} : { deal: { is: { OR: [{ supplierId: filters.agentId }, { closerId: filters.agentId }] } } }),
-      },
-    }),
-    countExtractionAlerts(filters),
-    countRepeatedExpirationAlerts(filters),
-    prisma.collaborationDeal.count({
-      where: {
-        clientConfirmationOverrideReason: { not: null },
-        ...dealScope,
-        ...dealUpdatedAt,
-      },
-    }),
+  const isSalesReviewer = request.user?.role === 'SALES_REVIEWER'
+  const isSalesSigner = request.user?.role === 'SALES_SIGNER'
+  if (isSalesReviewer) {
+    dealsWhere.reviewAssignedToId = request.user!.id
+    dealsWhere.status = env.clientConfirmationRequired
+      ? { in: ['CONFIRMED_BY_CLIENT', 'CLIENT_CONFIRMED'] }
+      : { in: ['CLOSING_REPORTED', 'CONFIRMED_BY_CLIENT', 'CLIENT_CONFIRMED'] }
+  }
+  if (isSalesSigner) readyToSignWhere.signAssignedToId = request.user!.id
+  const reviewQueueWhere: Prisma.CollaborationDealWhereInput = {
+    ...dealsWhere,
+    status: env.clientConfirmationRequired
+      ? { in: ['CONFIRMED_BY_CLIENT', 'CLIENT_CONFIRMED'] }
+      : { in: ['CLOSING_REPORTED', 'CONFIRMED_BY_CLIENT', 'CLIENT_CONFIRMED'] },
+    closingReport: { is: { status: 'SUBMITTED' } },
+  }
+  const signQueueWhere: Prisma.CollaborationDealWhereInput = {
+    ...readyToSignWhere,
+    closingReport: { is: { status: 'SUBMITTED' } },
+  }
+  const now = new Date()
+  const reviewSlaCutoff = new Date(now.getTime() - env.collaborationReviewSlaHours * 60 * 60_000)
+  const signatureSlaCutoff = new Date(now.getTime() - env.collaborationSignatureSlaHours * 60 * 60_000)
+  const reviewOverdueWhere: Prisma.CollaborationDealWhereInput = env.clientConfirmationRequired
+    ? { ...reviewQueueWhere, clientConfirmedAt: { lt: reviewSlaCutoff } }
+    : {
+        ...reviewQueueWhere,
+        closingReport: { is: { status: 'SUBMITTED', submittedAt: { lt: reviewSlaCutoff } } },
+      }
+  const signatureOverdueWhere: Prisma.CollaborationDealWhereInput = {
+    ...signQueueWhere,
+    AND: [{
+      OR: [
+        { confirmedAt: { lt: signatureSlaCutoff } },
+        { confirmedAt: null, updatedAt: { lt: signatureSlaCutoff } },
+      ],
+    }],
+  }
+  const [salesToVerify, contractsToSign, commissionsToPay, disputes, bypassAlerts, extractionAlerts, repeatedExpirations, overrides] = isSalesReviewer
+    ? [await prisma.collaborationDeal.count({ where: dealsWhere }), 0, 0, 0, 0, 0, 0, 0]
+    : isSalesSigner
+      ? [0, await prisma.collaborationDeal.count({ where: readyToSignWhere }), 0, 0, 0, 0, 0, 0]
+      : await Promise.all([
+        prisma.collaborationDeal.count({ where: dealsWhere }),
+        prisma.collaborationDeal.count({ where: readyToSignWhere }),
+        prisma.collaborationCommission.count({ where: pendingCommissionsWhere }),
+        prisma.collaborationDeal.count({ where: { status: 'DISPUTED', ...dealScope, ...dealUpdatedAt } }),
+        prisma.collaborationAuditLog.count({
+          where: {
+            action: 'COLLABORATION_PERIODIC_CONTACT_BYPASS_DETECTED',
+            ...auditPeriod,
+            ...(filters.agentId === undefined ? {} : { deal: { is: { OR: [{ supplierId: filters.agentId }, { closerId: filters.agentId }] } } }),
+          },
+        }),
+        countExtractionAlerts(filters),
+        countRepeatedExpirationAlerts(filters),
+        prisma.collaborationDeal.count({
+          where: {
+            clientConfirmationOverrideReason: { not: null },
+            ...dealScope,
+            ...dealUpdatedAt,
+          },
+        }),
+      ])
+  const [reviewOverdue, signatureOverdue, unassignedReview, unassignedSignature] = await Promise.all([
+    isSalesSigner ? Promise.resolve(0) : prisma.collaborationDeal.count({ where: reviewOverdueWhere }),
+    isSalesReviewer ? Promise.resolve(0) : prisma.collaborationDeal.count({ where: signatureOverdueWhere }),
+    isSalesReviewer || isSalesSigner
+      ? Promise.resolve(0)
+      : prisma.collaborationDeal.count({ where: { ...reviewQueueWhere, reviewAssignedToId: null } }),
+    isSalesReviewer || isSalesSigner
+      ? Promise.resolve(0)
+      : prisma.collaborationDeal.count({ where: { ...signQueueWhere, signAssignedToId: null } }),
   ])
   await auditAdminRead(request, 'COLLABORATION_ADMIN_DASHBOARD_VIEWED', 'CollaborationDashboard', {
     agentId: filters.agentId ?? null,
@@ -475,6 +753,18 @@ collaborationAdminRouter.get('/dashboard', collaborationRateLimit({ scope: 'admi
       extractionAlerts,
       repeatedExpirations,
       overrides,
+      sla: {
+        review: {
+          targetHours: env.collaborationReviewSlaHours,
+          overdue: reviewOverdue,
+          unassigned: unassignedReview,
+        },
+        signature: {
+          targetHours: env.collaborationSignatureSlaHours,
+          overdue: signatureOverdue,
+          unassigned: unassignedSignature,
+        },
+      },
     },
     filters: {
       agentId: filters.agentId ?? null,
@@ -531,7 +821,7 @@ collaborationAdminRouter.post('/2fa/enroll/start', collaborationRateLimit({ scop
     return
   }
   const user = await prisma.user.findFirst({
-    where: { id, role: { in: ['ADMIN', 'SUPER_ADMIN'] }, status: 'ACTIF' },
+    where: { id, role: { in: ['ADMIN', 'SUPER_ADMIN', 'SALES_REVIEWER', 'SALES_SIGNER'] }, status: 'ACTIF' },
     select: { email: true, passwordHash: true, totpEnabled: true },
   })
   if (!user || !(await bcrypt.compare(body.data.password, user.passwordHash))) {
@@ -569,7 +859,7 @@ collaborationAdminRouter.post('/2fa/enroll/verify', collaborationRateLimit({ sco
     return
   }
   const user = await prisma.user.findFirst({
-    where: { id, role: { in: ['ADMIN', 'SUPER_ADMIN'] }, status: 'ACTIF', totpEnabled: false },
+    where: { id, role: { in: ['ADMIN', 'SUPER_ADMIN', 'SALES_REVIEWER', 'SALES_SIGNER'] }, status: 'ACTIF', totpEnabled: false },
     select: { totpSecretCiphertext: true },
   })
   if (!user?.totpSecretCiphertext) {
@@ -755,7 +1045,7 @@ collaborationAdminRouter.get('/deals/overrides', collaborationRateLimit({ scope:
   })
 }))
 
-collaborationAdminRouter.get('/deals', collaborationRateLimit({ scope: 'admin-collaboration-list', limit: 60, windowMs: 60_000 }), requireAdminTotp, asyncRoute(async (request, response) => {
+collaborationAdminRouter.get('/deals', collaborationRateLimit({ scope: 'admin-collaboration-list', limit: 60, windowMs: 60_000 }), requireSalesReviewTotp, asyncRoute(async (request, response) => {
   const parsedFilters = parseAdminCollaborationFilters(request.query)
   const pagination = parseAdminPagination(request.query)
   const requestedStatus = request.query.status
@@ -763,7 +1053,38 @@ collaborationAdminRouter.get('/deals', collaborationRateLimit({ scope: 'admin-co
     response.status(400).json({ error: parsedFilters.error ?? 'Pagination invalide.' })
     return
   }
-  const where = buildAdminCollaborationDealsWhere(parsedFilters.filters, requestedStatus === 'DISPUTED' ? 'DISPUTED' : undefined)
+  if (requestedStatus === 'DISPUTED' && parsedFilters.filters.reviewStage !== undefined) {
+    response.status(400).json({ error: 'Le filtre d’étape ne s’applique pas à la file des litiges.' })
+    return
+  }
+  if (request.user?.role === 'SALES_REVIEWER' && requestedStatus === 'DISPUTED') {
+    response.status(403).json({ error: 'Cette file est réservée à l’administration.' })
+    return
+  }
+  if (request.user?.role === 'SALES_REVIEWER'
+    && parsedFilters.filters.reviewStage !== undefined
+    && parsedFilters.filters.reviewStage !== 'CLIENT_CONFIRMED') {
+    response.status(403).json({ error: 'Les vérificateurs ne peuvent consulter que les dossiers confirmés par le client.' })
+    return
+  }
+  const isDisputedQueue = requestedStatus === 'DISPUTED' || parsedFilters.filters.reviewStage === 'DISPUTED'
+  const where = buildAdminCollaborationDealsWhere(parsedFilters.filters, isDisputedQueue ? 'DISPUTED' : undefined)
+  if (parsedFilters.filters.sla === 'OVERDUE') {
+    const cutoff = new Date(Date.now() - env.collaborationReviewSlaHours * 60 * 60_000)
+    where.closingReport = {
+      is: {
+        status: 'SUBMITTED',
+        ...(!env.clientConfirmationRequired ? { submittedAt: { lt: cutoff } } : {}),
+      },
+    }
+    if (env.clientConfirmationRequired) where.clientConfirmedAt = { lt: cutoff }
+  }
+  if (request.user?.role === 'SALES_REVIEWER') {
+    where.status = env.clientConfirmationRequired
+      ? { in: ['CONFIRMED_BY_CLIENT', 'CLIENT_CONFIRMED'] }
+      : { in: ['CLOSING_REPORTED', 'CONFIRMED_BY_CLIENT', 'CLIENT_CONFIRMED'] }
+    where.reviewAssignedToId = request.user.id
+  }
   const [total, deals] = await Promise.all([
     prisma.collaborationDeal.count({ where }),
     prisma.collaborationDeal.findMany({
@@ -775,8 +1096,9 @@ collaborationAdminRouter.get('/deals', collaborationRateLimit({ scope: 'admin-co
         id: true,
         status: true,
         closingReportedAt: true,
+        clientConfirmedAt: true,
         updatedAt: true,
-        ...(requestedStatus === 'DISPUTED' ? {
+        ...(isDisputedQueue ? {
           disputeReason: true,
           statusHistory: {
             where: { toStatus: 'DISPUTED' },
@@ -787,6 +1109,7 @@ collaborationAdminRouter.get('/deals', collaborationRateLimit({ scope: 'admin-co
         } : {}),
         supplier: { select: { id: true, agentProfile: { select: { firstName: true, lastName: true } } } },
         closer: { select: { id: true, agentProfile: { select: { firstName: true, lastName: true } } } },
+        reviewAssignedTo: { select: { id: true, email: true, agentProfile: { select: { firstName: true, lastName: true } } } },
       },
     }),
   ])
@@ -794,29 +1117,40 @@ collaborationAdminRouter.get('/deals', collaborationRateLimit({ scope: 'admin-co
     agentId: parsedFilters.filters.agentId ?? null,
     from: parsedFilters.filters.from?.toISOString() ?? null,
     to: parsedFilters.filters.to?.toISOString() ?? null,
+    assignment: parsedFilters.filters.assignment ?? 'ALL',
+    reviewStage: parsedFilters.filters.reviewStage ?? 'ALL',
+    sla: parsedFilters.filters.sla ?? 'ALL',
     page: pagination.page,
     limit: pagination.limit,
   })
   response.json({
-    data: deals.map(({ supplier, closer, statusHistory, disputeReason, ...deal }) => ({
+    data: deals.map(({ supplier, closer, statusHistory, disputeReason, reviewAssignedTo, clientConfirmedAt, ...deal }) => ({
       ...deal,
-      ...(requestedStatus === 'DISPUTED' ? {
+      reviewSlaStartedAt: env.clientConfirmationRequired ? clientConfirmedAt : deal.closingReportedAt,
+      ...(isDisputedQueue ? {
         disputeReason: disputeReason?.slice(0, 200) ?? null,
         disputedAt: statusHistory[0]?.createdAt ?? null,
       } : {}),
       supplier: supplier ? { id: supplier.id, name: supplier.agentProfile ? `${supplier.agentProfile.firstName} ${supplier.agentProfile.lastName}`.trim() : 'Agent' } : null,
       closer: closer ? { id: closer.id, name: closer.agentProfile ? `${closer.agentProfile.firstName} ${closer.agentProfile.lastName}`.trim() : 'Agent' } : null,
+      reviewAssignedTo: reviewAssignedTo ? {
+        id: reviewAssignedTo.id,
+        name: reviewAssignedTo.agentProfile ? `${reviewAssignedTo.agentProfile.firstName} ${reviewAssignedTo.agentProfile.lastName}`.trim() || reviewAssignedTo.email : reviewAssignedTo.email,
+      } : null,
     })),
     pagination: { ...pagination, total },
     filters: {
       agentId: parsedFilters.filters.agentId ?? null,
       from: parsedFilters.filters.from?.toISOString() ?? null,
       to: parsedFilters.filters.to?.toISOString() ?? null,
+      assignment: parsedFilters.filters.assignment ?? 'ALL',
+      reviewStage: parsedFilters.filters.reviewStage ?? 'ALL',
+      sla: parsedFilters.filters.sla ?? 'ALL',
     },
   })
 }))
 
-collaborationAdminRouter.get('/deals/ready-to-sign', collaborationRateLimit({ scope: 'admin-collaboration-ready-to-sign', limit: 30, windowMs: 60_000 }), requireAdminTotp, asyncRoute(async (request, response) => {
+collaborationAdminRouter.get('/deals/ready-to-sign', collaborationRateLimit({ scope: 'admin-collaboration-ready-to-sign', limit: 30, windowMs: 60_000 }), requireSalesSignatureTotp, asyncRoute(async (request, response) => {
   const parsedFilters = parseAdminCollaborationFilters(request.query)
   const pagination = parseAdminPagination(request.query)
   if (!parsedFilters.filters || !pagination) {
@@ -824,6 +1158,11 @@ collaborationAdminRouter.get('/deals/ready-to-sign', collaborationRateLimit({ sc
     return
   }
   const where = buildAdminCollaborationReadyToSignWhere(parsedFilters.filters)
+  if (parsedFilters.filters.sla === 'OVERDUE') {
+    where.closingReport = { is: { status: 'SUBMITTED' } }
+    where.confirmedAt = { lt: new Date(Date.now() - env.collaborationSignatureSlaHours * 60 * 60_000) }
+  }
+  if (request.user?.role === 'SALES_SIGNER') where.signAssignedToId = request.user.id
   const [total, deals] = await Promise.all([
     prisma.collaborationDeal.count({ where }),
     prisma.collaborationDeal.findMany({
@@ -841,6 +1180,7 @@ collaborationAdminRouter.get('/deals/ready-to-sign', collaborationRateLimit({ sc
         clientConfirmationOverrideReason: true,
         clientConfirmation: { select: { status: true } },
         closingReport: { select: { status: true } },
+        signAssignedTo: { select: { id: true, email: true, agentProfile: { select: { firstName: true, lastName: true } } } },
         supplier: { select: { id: true, agentProfile: { select: { firstName: true, lastName: true } } } },
         closer: { select: { id: true, agentProfile: { select: { firstName: true, lastName: true } } } },
       },
@@ -851,6 +1191,8 @@ collaborationAdminRouter.get('/deals/ready-to-sign', collaborationRateLimit({ sc
       agentId: parsedFilters.filters.agentId ?? null,
       from: parsedFilters.filters.from?.toISOString() ?? null,
       to: parsedFilters.filters.to?.toISOString() ?? null,
+      assignment: parsedFilters.filters.assignment ?? 'ALL',
+      sla: parsedFilters.filters.sla ?? 'ALL',
     },
     page: pagination.page,
     limit: pagination.limit,
@@ -888,6 +1230,10 @@ collaborationAdminRouter.get('/deals/ready-to-sign', collaborationRateLimit({ sc
           id: deal.closer.id,
           name: deal.closer.agentProfile ? `${deal.closer.agentProfile.firstName} ${deal.closer.agentProfile.lastName}`.trim() : 'Agent',
         } : null,
+        signAssignedTo: deal.signAssignedTo ? {
+          id: deal.signAssignedTo.id,
+          name: deal.signAssignedTo.agentProfile ? `${deal.signAssignedTo.agentProfile.firstName} ${deal.signAssignedTo.agentProfile.lastName}`.trim() || deal.signAssignedTo.email : deal.signAssignedTo.email,
+        } : null,
         prerequisites: { closingReportSubmitted, confirmationSatisfied, canSign, blockers },
       }
     }),
@@ -896,11 +1242,122 @@ collaborationAdminRouter.get('/deals/ready-to-sign', collaborationRateLimit({ sc
       agentId: parsedFilters.filters.agentId ?? null,
       from: parsedFilters.filters.from?.toISOString() ?? null,
       to: parsedFilters.filters.to?.toISOString() ?? null,
+      assignment: parsedFilters.filters.assignment ?? 'ALL',
+      sla: parsedFilters.filters.sla ?? 'ALL',
     },
   })
 }))
 
-collaborationAdminRouter.get('/deals/:dealId', collaborationRateLimit({ scope: 'admin-collaboration-detail', limit: 30, windowMs: 60_000 }), requireAdminTotp, asyncRoute(async (request, response) => {
+collaborationAdminRouter.get('/contracts/signed', collaborationRateLimit({ scope: 'admin-collaboration-signed-contracts', limit: 30, windowMs: 60_000 }), requireAdminTotp, asyncRoute(async (request, response) => {
+  const parsedFilters = parseAdminSignedContractsFilters(request.query)
+  const pagination = parseAdminPagination(request.query)
+  if (!parsedFilters.filters || !pagination) {
+    response.status(400).json({ error: parsedFilters.error ?? 'Pagination invalide.' })
+    return
+  }
+  const where = buildAdminSignedContractsWhere(parsedFilters.filters)
+  const [total, deals] = await Promise.all([
+    prisma.collaborationDeal.count({ where }),
+    prisma.collaborationDeal.findMany({
+      where,
+      orderBy: [{ contractSignedAt: 'desc' }, { id: 'desc' }],
+      skip: (pagination.page - 1) * pagination.limit,
+      take: pagination.limit,
+      select: {
+        id: true,
+        status: true,
+        saleNumber: true,
+        contractReference: true,
+        contractSignedAt: true,
+        contractAmount: true,
+        supplier: { select: { agentProfile: { select: { firstName: true, lastName: true } } } },
+        closer: { select: { agentProfile: { select: { firstName: true, lastName: true } } } },
+        report: {
+          select: {
+            companyName: true,
+            contactName: true,
+            customServiceDescription: true,
+            product: { select: { title: true } },
+          },
+        },
+        closingReport: { select: { saleAmount: true, saleDate: true, details: true } },
+        evidence: {
+          where: { type: 'CONTRACT' },
+          orderBy: { createdAt: 'desc' },
+          select: {
+            id: true,
+            fileName: true,
+            mimeType: true,
+            fileSize: true,
+            sha256: true,
+            createdAt: true,
+            storageKey: true,
+            uploader: { select: { email: true, agentProfile: { select: { firstName: true, lastName: true } } } },
+          },
+        },
+        auditEntries: {
+          where: { action: 'COLLABORATION_CONTRACT_SIGNED' },
+          orderBy: { createdAt: 'desc' },
+          take: 1,
+          select: {
+            actor: { select: { email: true, agentProfile: { select: { firstName: true, lastName: true } } } },
+          },
+        },
+      },
+    }),
+  ])
+  await auditAdminRead(request, 'COLLABORATION_ADMIN_SIGNED_CONTRACTS_VIEWED', 'CollaborationDeal', {
+    qUsed: Boolean(parsedFilters.filters.q),
+    status: parsedFilters.filters.status ?? 'ALL',
+    from: parsedFilters.filters.from?.toISOString() ?? null,
+    to: parsedFilters.filters.to?.toISOString() ?? null,
+    page: pagination.page,
+    limit: pagination.limit,
+  })
+  response.json({
+    data: deals.map(({ supplier, closer, report, closingReport, evidence, auditEntries, ...deal }) => {
+      const signatureActor = auditEntries[0]?.actor ?? evidence[0]?.uploader ?? null
+      const signatory = signatureActor
+        ? `${signatureActor.agentProfile?.firstName ?? ''} ${signatureActor.agentProfile?.lastName ?? ''}`.trim() || signatureActor.email
+        : null
+      return {
+        ...deal,
+        supplier: supplier.agentProfile
+          ? `${supplier.agentProfile.firstName} ${supplier.agentProfile.lastName}`.trim() || 'Agent'
+          : 'Agent',
+        closer: closer?.agentProfile
+          ? `${closer.agentProfile.firstName} ${closer.agentProfile.lastName}`.trim() || 'Agent'
+          : null,
+        signatory,
+        client: { companyName: report.companyName, contactName: report.contactName },
+        project: report.product?.title || report.customServiceDescription || 'Projet non renseigné',
+        projectDetails: report.customServiceDescription,
+        contractAmount: deal.contractAmount?.toString() ?? null,
+        reportedAmount: closingReport?.saleAmount?.toString() ?? null,
+        saleDate: closingReport?.saleDate,
+        closingDetails: closingReport?.details,
+        contractFiles: evidence.map((file) => ({
+          id: file.id,
+          fileName: file.fileName,
+          mimeType: file.mimeType,
+          fileSize: file.fileSize,
+          sha256: file.sha256,
+          createdAt: file.createdAt,
+          downloadUrl: createSignedEvidenceUrl(file.id, file.storageKey),
+        })),
+      }
+    }),
+    pagination: { ...pagination, total },
+    filters: {
+      q: parsedFilters.filters.q ?? '',
+      status: parsedFilters.filters.status ?? 'ALL',
+      from: parsedFilters.filters.from?.toISOString() ?? null,
+      to: parsedFilters.filters.to?.toISOString() ?? null,
+    },
+  })
+}))
+
+collaborationAdminRouter.get('/deals/:dealId', collaborationRateLimit({ scope: 'admin-collaboration-detail', limit: 30, windowMs: 60_000 }), requireSalesTeamTotp, asyncRoute(async (request, response) => {
   const dealId = parseId(request.params.dealId)
   if (dealId === null) {
     response.status(400).json({ error: 'Identifiant de dossier invalide.' })
@@ -920,6 +1377,8 @@ collaborationAdminRouter.get('/deals/:dealId', collaborationRateLimit({ scope: '
         },
       },
       clientConfirmation: true,
+      reviewAssignedTo: { select: { id: true, email: true, agentProfile: { select: { firstName: true, lastName: true } } } },
+      signAssignedTo: { select: { id: true, email: true, agentProfile: { select: { firstName: true, lastName: true } } } },
       evidence: { where: { type: 'CONTRACT' }, orderBy: { createdAt: 'asc' } },
       statusHistory: {
         orderBy: { createdAt: 'asc' },
@@ -943,11 +1402,37 @@ collaborationAdminRouter.get('/deals/:dealId', collaborationRateLimit({ scope: '
     response.status(404).json({ error: 'Dossier introuvable.' })
     return
   }
+  if (request.user?.role === 'SALES_REVIEWER') {
+    if (deal.reviewAssignedToId !== request.user.id) {
+      response.status(404).json({ error: 'Dossier introuvable.' })
+      return
+    }
+    const clientConfirmed = deal.clientConfirmation?.status === 'CONFIRMED_BY_CLIENT'
+      || deal.clientConfirmation?.status === 'CONFIRMED'
+    const statusEligible = deal.status === 'CONFIRMED_BY_CLIENT'
+      || deal.status === 'CLIENT_CONFIRMED'
+      || (!env.clientConfirmationRequired && deal.status === 'CLOSING_REPORTED')
+    if (!statusEligible || (env.clientConfirmationRequired && !clientConfirmed)) {
+      response.status(404).json({ error: 'Dossier introuvable.' })
+      return
+    }
+  }
+  if (request.user?.role === 'SALES_SIGNER'
+    && (deal.signAssignedToId !== request.user.id || !['CONFIRMED', 'CONTRACT_SIGNED', 'COMMISSIONS_PAID'].includes(deal.status))) {
+    response.status(404).json({ error: 'Dossier introuvable.' })
+    return
+  }
   const [supplierScore, closerScore] = await Promise.all([
     getAgentScore(deal.supplierId),
     deal.closerId ? getAgentScore(deal.closerId) : Promise.resolve(null),
   ])
-  const { secret, supplier, closer, report, closingReport, evidence, clientConfirmation, hiddenByAgents, ...dealData } = deal
+  const isFullAdmin = request.user?.role === 'ADMIN' || request.user?.role === 'SUPER_ADMIN'
+  const assignmentTeam = isFullAdmin ? await prisma.user.findMany({
+    where: { role: { in: ['SALES_REVIEWER', 'SALES_SIGNER'] }, status: 'ACTIF', totpEnabled: true },
+    select: { id: true, email: true, role: true, agentProfile: { select: { firstName: true, lastName: true } } },
+    orderBy: [{ role: 'asc' }, { id: 'asc' }],
+  }) : null
+  const { secret, supplier, closer, report, closingReport, evidence, clientConfirmation, hiddenByAgents, reviewAssignedTo, signAssignedTo, ...dealData } = deal
   const {
     contactPhoneHash: _contactPhoneHash,
     contactEmailHash: _contactEmailHash,
@@ -957,6 +1442,7 @@ collaborationAdminRouter.get('/deals/:dealId', collaborationRateLimit({ scope: '
   response.json({
     data: {
       ...dealData,
+      contractAmount: deal.contractAmount?.toString() ?? null,
       report: {
         ...decryptedReport,
         commissionAmount: commissionAmount?.toString() ?? null,
@@ -980,6 +1466,44 @@ collaborationAdminRouter.get('/deals/:dealId', collaborationRateLimit({ scope: '
         profile: closer.agentProfile,
         score: closerScore,
       } : null,
+      reviewAssignedTo: reviewAssignedTo ? {
+        id: reviewAssignedTo.id,
+        email: reviewAssignedTo.email,
+        name: reviewAssignedTo.agentProfile ? `${reviewAssignedTo.agentProfile.firstName} ${reviewAssignedTo.agentProfile.lastName}`.trim() || reviewAssignedTo.email : reviewAssignedTo.email,
+      } : null,
+      signAssignedTo: signAssignedTo ? {
+        id: signAssignedTo.id,
+        email: signAssignedTo.email,
+        name: signAssignedTo.agentProfile ? `${signAssignedTo.agentProfile.firstName} ${signAssignedTo.agentProfile.lastName}`.trim() || signAssignedTo.email : signAssignedTo.email,
+      } : null,
+      assignmentTeam: assignmentTeam ? {
+        reviewers: assignmentTeam.filter((member) => member.role === 'SALES_REVIEWER').map(({ id, email, agentProfile }) => ({
+          id,
+          email,
+          name: agentProfile ? `${agentProfile.firstName} ${agentProfile.lastName}`.trim() || email : email,
+        })),
+        signers: assignmentTeam.filter((member) => member.role === 'SALES_SIGNER').map(({ id, email, agentProfile }) => ({
+          id,
+          email,
+          name: agentProfile ? `${agentProfile.firstName} ${agentProfile.lastName}`.trim() || email : email,
+        })),
+      } : null,
+      assignmentEligibility: {
+        review: (deal.status === 'CONFIRMED_BY_CLIENT' || deal.status === 'CLIENT_CONFIRMED'
+          || (!env.clientConfirmationRequired && deal.status === 'CLOSING_REPORTED'))
+          && closingReport?.status === 'SUBMITTED'
+          && (!env.clientConfirmationRequired
+            || clientConfirmation?.status === 'CONFIRMED_BY_CLIENT'
+            || clientConfirmation?.status === 'CONFIRMED'),
+        sign: canSignCollaborationDeal({
+          dealStatus: deal.status,
+          saleNumber: deal.saleNumber,
+          closingReportStatus: closingReport?.status ?? null,
+          confirmationRequired: env.clientConfirmationRequired,
+          confirmationStatus: clientConfirmation?.status ?? null,
+          confirmationOverridden: Boolean(deal.clientConfirmationOverrideReason),
+        }),
+      },
       closingReport: closingReport ? {
         ...closingReport,
         saleAmount: closingReport.saleAmount?.toString() ?? null,
@@ -1013,6 +1537,102 @@ collaborationAdminRouter.get('/deals/:dealId', collaborationRateLimit({ scope: '
   })
 }))
 
+collaborationAdminRouter.patch('/deals/:dealId/assignment', collaborationRateLimit({ scope: 'admin-collaboration-assignment', limit: 20, windowMs: 60_000 }), requireAdminTotp, asyncRoute(async (request, response) => {
+  const actorId = adminId(request)
+  const dealId = parseId(request.params.dealId)
+  const body = collaborationAssignmentSchema.safeParse(request.body)
+  if (dealId === null || !body.success) {
+    response.status(400).json({ error: 'Affectation invalide.', details: body.success ? undefined : body.error.flatten() })
+    return
+  }
+  const result = await prisma.$transaction(async (transaction) => {
+    const requestedStaffIds = [
+      body.data.reviewAssignedToId,
+      body.data.signAssignedToId,
+    ].filter((id): id is number => id !== undefined && id !== null)
+    for (const userId of [...new Set(requestedStaffIds)].sort((left, right) => left - right)) {
+      await transaction.$queryRaw`SELECT id FROM users WHERE id = ${userId} FOR UPDATE`
+    }
+    await transaction.$queryRaw`SELECT id FROM collaboration_deals WHERE id = ${dealId} FOR UPDATE`
+    const deal = await transaction.collaborationDeal.findUnique({
+      where: { id: dealId },
+      include: {
+        clientConfirmation: { select: { status: true } },
+        closingReport: { select: { status: true } },
+      },
+    })
+    if (!deal) throw new CollaborationAccessError('Dossier introuvable.', 404)
+
+    const data: Prisma.CollaborationDealUpdateInput = {}
+    const oldValues: Record<string, number | null> = {}
+    const newValues: Record<string, number | null> = {}
+    if (body.data.reviewAssignedToId !== undefined) {
+      const reviewerEligible = (deal.status === 'CONFIRMED_BY_CLIENT'
+        || deal.status === 'CLIENT_CONFIRMED'
+        || (!env.clientConfirmationRequired && deal.status === 'CLOSING_REPORTED'))
+        && deal.closingReport?.status === 'SUBMITTED'
+        && (!env.clientConfirmationRequired
+          || deal.clientConfirmation?.status === 'CONFIRMED_BY_CLIENT'
+          || deal.clientConfirmation?.status === 'CONFIRMED')
+      if (!reviewerEligible) {
+        throw new CollaborationAccessError('Ce dossier n’est pas dans la file de vérification.', 409)
+      }
+      if (body.data.reviewAssignedToId !== null) {
+        const reviewer = await transaction.user.findFirst({
+          where: { id: body.data.reviewAssignedToId, role: 'SALES_REVIEWER', status: 'ACTIF', totpEnabled: true },
+          select: { id: true },
+        })
+        if (!reviewer) throw new CollaborationAccessError('Le vérificateur doit avoir un compte actif.', 409)
+      }
+      oldValues.reviewAssignedToId = deal.reviewAssignedToId
+      newValues.reviewAssignedToId = body.data.reviewAssignedToId
+      data.reviewAssignedTo = body.data.reviewAssignedToId === null
+        ? { disconnect: true }
+        : { connect: { id: body.data.reviewAssignedToId } }
+    }
+    if (body.data.signAssignedToId !== undefined) {
+      if (!canSignCollaborationDeal({
+        dealStatus: deal.status,
+        saleNumber: deal.saleNumber,
+        closingReportStatus: deal.closingReport?.status ?? null,
+        confirmationRequired: env.clientConfirmationRequired,
+        confirmationStatus: deal.clientConfirmation?.status ?? null,
+        confirmationOverridden: Boolean(deal.clientConfirmationOverrideReason),
+      })) {
+        throw new CollaborationAccessError('Ce dossier n’est pas prêt pour la signature.', 409)
+      }
+      if (body.data.signAssignedToId !== null) {
+        const signer = await transaction.user.findFirst({
+          where: { id: body.data.signAssignedToId, role: 'SALES_SIGNER', status: 'ACTIF', totpEnabled: true },
+          select: { id: true },
+        })
+        if (!signer) throw new CollaborationAccessError('Le signataire doit avoir un compte actif.', 409)
+      }
+      oldValues.signAssignedToId = deal.signAssignedToId
+      newValues.signAssignedToId = body.data.signAssignedToId
+      data.signAssignedTo = body.data.signAssignedToId === null
+        ? { disconnect: true }
+        : { connect: { id: body.data.signAssignedToId } }
+    }
+    await transaction.collaborationDeal.update({ where: { id: dealId }, data })
+    await writeCollaborationAudit(transaction, {
+      actorId,
+      dealId,
+      action: 'COLLABORATION_DEAL_REASSIGNED',
+      entityType: 'CollaborationDeal',
+      entityId: dealId,
+      oldValues,
+      newValues,
+      ...requestAudit(request),
+    })
+    return {
+      reviewAssignedToId: body.data.reviewAssignedToId !== undefined ? body.data.reviewAssignedToId : deal.reviewAssignedToId,
+      signAssignedToId: body.data.signAssignedToId !== undefined ? body.data.signAssignedToId : deal.signAssignedToId,
+    }
+  })
+  response.json({ data: result })
+}))
+
 collaborationAdminRouter.patch('/deals/:dealId/hidden-agents/:agentId/restore', collaborationRateLimit({ scope: 'admin-collaboration-restore-hidden', limit: 10, windowMs: 60_000 }), requireAdminTotp, asyncRoute(async (request, response) => {
   const dealId = parseId(request.params.dealId)
   const agentId = parseId(request.params.agentId)
@@ -1039,7 +1659,7 @@ collaborationAdminRouter.patch('/deals/:dealId/hidden-agents/:agentId/restore', 
   response.json({ data: { restored: true } })
 }))
 
-collaborationAdminRouter.patch('/deals/:dealId/decision', collaborationRateLimit({ scope: 'admin-collaboration-decision', limit: 10, windowMs: 60_000 }), requireAdminTotp, asyncRoute(async (request, response) => {
+collaborationAdminRouter.patch('/deals/:dealId/decision', collaborationRateLimit({ scope: 'admin-collaboration-decision', limit: 10, windowMs: 60_000 }), requireSalesReviewTotp, asyncRoute(async (request, response) => {
   const id = adminId(request)
   const dealId = parseId(request.params.dealId)
   const body = decisionSchema.safeParse(request.body)
@@ -1062,8 +1682,14 @@ collaborationAdminRouter.patch('/deals/:dealId/decision', collaborationRateLimit
       include: { clientConfirmation: true, closingReport: { select: { id: true } } },
     })
     if (!deal || !deal.closingReport) throw new CollaborationAccessError('Dossier ou rapport de clôture introuvable.', 404)
+    if (request.user?.role === 'SALES_REVIEWER' && deal.reviewAssignedToId !== id) {
+      throw new CollaborationAccessError('Cette vente n’est pas attribuée à votre compte.', 404)
+    }
     const confirmedByClient = deal.clientConfirmation?.status === 'CONFIRMED_BY_CLIENT'
       || deal.clientConfirmation?.status === 'CONFIRMED'
+    if (request.user?.role === 'SALES_REVIEWER' && !confirmedByClient) {
+      throw new CollaborationAccessError('Un vérificateur ne peut pas déroger à l’absence de confirmation client.', 409)
+    }
     if (body.data.decision === 'CONFIRM'
       && env.clientConfirmationRequired
       && !confirmedByClient
@@ -1114,6 +1740,14 @@ collaborationAdminRouter.patch('/deals/:dealId/decision', collaborationRateLimit
     })
     return { status: target, supplierId: deal.supplierId, closerId: deal.closerId }
   })
+  if (outcome.status === 'CONFIRMED') {
+    try {
+      await prisma.$transaction((transaction) =>
+        assignCollaborationDealToLeastLoadedStaff(transaction, dealId, 'SALES_SIGNER', new Date()))
+    } catch (error) {
+      console.error('Failed to auto-assign confirmed collaboration deal; scheduler will retry:', error)
+    }
+  }
   const recipients = [outcome.supplierId, outcome.closerId].filter((value): value is number => value !== null)
   await Promise.all(recipients.map((userId) => notifyUser(userId, {
     type: 'COLLABORATION_ADMIN_DECISION',
@@ -1125,13 +1759,13 @@ collaborationAdminRouter.patch('/deals/:dealId/decision', collaborationRateLimit
   response.json({ data: { status: outcome.status } })
 }))
 
-collaborationAdminRouter.post('/deals/:dealId/signature', collaborationRateLimit({ scope: 'admin-collaboration-signature', limit: 5, windowMs: 60_000 }), requireAdminTotp, parseContractUpload, asyncRoute(async (request, response) => {
+collaborationAdminRouter.post('/deals/:dealId/signature', collaborationRateLimit({ scope: 'admin-collaboration-signature', limit: 5, windowMs: 60_000 }), requireSalesSignatureTotp, parseContractUpload, asyncRoute(async (request, response) => {
   const actorId = adminId(request)
   const dealId = parseId(request.params.dealId)
   const body = signatureSchema.safeParse(request.body)
   const file = request.file
   if (dealId === null || !body.success || !file) {
-    response.status(400).json({ error: 'Dossier, référence, date et fichier du contrat sont obligatoires.', details: body.success ? undefined : body.error.flatten() })
+    response.status(400).json({ error: 'Dossier, référence, date, montant final et fichier du contrat sont obligatoires.', details: body.success ? undefined : body.error.flatten() })
     return
   }
   const signedAt = new Date(body.data.contractDate)
@@ -1166,6 +1800,9 @@ collaborationAdminRouter.post('/deals/:dealId/signature', collaborationRateLimit
         confirmationOverridden: Boolean(deal.clientConfirmationOverrideReason),
       })) {
         throw new CollaborationAccessError('La signature requiert un dossier confirmé, sans signature précédente et avec un rapport soumis.', 409)
+      }
+      if (request.user?.role === 'SALES_SIGNER' && deal.signAssignedToId !== actorId) {
+        throw new CollaborationAccessError('Cette vente n’est pas attribuée à votre compte.', 404)
       }
       if (!deal.secret) throw new CollaborationAccessError('Coordonnées de prospect introuvables.', 409)
       const matches = await transaction.collaborationProspectSecret.findMany({
@@ -1286,6 +1923,7 @@ collaborationAdminRouter.post('/deals/:dealId/signature', collaborationRateLimit
         where: { id: dealId },
         data: {
           saleNumber,
+          contractAmount: BigInt(body.data.contractAmount),
           contractReference: body.data.contractReference,
           contractSignedAt: signedAt,
           contractFileSha256: persisted.sha256,
@@ -1302,6 +1940,7 @@ collaborationAdminRouter.post('/deals/:dealId/signature', collaborationRateLimit
           payload: {
             dealId,
             saleNumber,
+            contractAmount: body.data.contractAmount,
             contractReference: body.data.contractReference,
             signedAt: signedAt.toISOString(),
             commissionConfig: {
@@ -1318,7 +1957,13 @@ collaborationAdminRouter.post('/deals/:dealId/signature', collaborationRateLimit
         action: 'COLLABORATION_CONTRACT_SIGNED',
         entityType: 'CollaborationDeal',
         entityId: dealId,
-        metadata: { saleNumber, contractReference: body.data.contractReference, signedAt: signedAt.toISOString(), fileSha256: persisted.sha256 },
+        metadata: {
+          saleNumber,
+          contractAmount: body.data.contractAmount,
+          contractReference: body.data.contractReference,
+          signedAt: signedAt.toISOString(),
+          fileSha256: persisted.sha256,
+        },
         ...audit,
       })
       return { duplicateMatch: false as const, saleNumber, evidenceId: evidence.id, notifications }
@@ -1335,7 +1980,14 @@ collaborationAdminRouter.post('/deals/:dealId/signature', collaborationRateLimit
       return
     }
     outcome.notifications.forEach((notification) => publishNotification(notification))
-    response.status(201).json({ data: { status: 'CONTRACT_SIGNED', saleNumber: outcome.saleNumber, evidenceId: outcome.evidenceId } })
+    response.status(201).json({
+      data: {
+        status: 'CONTRACT_SIGNED',
+        saleNumber: outcome.saleNumber,
+        contractAmount: body.data.contractAmount,
+        evidenceId: outcome.evidenceId,
+      },
+    })
   } catch (error) {
     await removeCollaborationFile(persisted.storageKey).catch((cleanupError: unknown) => {
       console.error('Failed to remove unattached contract file:', cleanupError)

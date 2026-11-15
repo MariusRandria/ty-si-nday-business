@@ -6,6 +6,7 @@ import api, {
   type CollaborationDealContactDetails,
   type CollaborationTimeline,
 } from '../api/client'
+import { useI18n } from '../i18n'
 import { Countdown } from '../components/collaboration/Countdown'
 import { StatusBadge } from '../components/collaboration/StatusBadge'
 import '../components/collaboration/collaboration.css'
@@ -35,33 +36,35 @@ function ContactDetails({
   details: CollaborationDealContactDetails
   onClose: () => void
 }) {
+  const { t } = useI18n()
   const prospect = details.prospect
   return (
-    <section className="collaboration-contact-reveal" aria-label="Coordonnées du prospect">
+    <section className="collaboration-contact-reveal" aria-label={t('Coordonnées du prospect')}>
       <div className="collaboration-contact-reveal-header">
         <div>
-          <p className="collaboration-eyebrow">CONSULTATION JOURNALISÉE</p>
-          <h3>Coordonnées du prospect</h3>
+          <p className="collaboration-eyebrow">{t('CONSULTATION JOURNALISÉE')}</p>
+          <h3>{t('Coordonnées du prospect')}</h3>
         </div>
         <button className="ui-button ui-button-secondary collaboration-action" type="button" onClick={onClose}>
-          <EyeOff size={17} aria-hidden="true" /> Masquer
+          <EyeOff size={17} aria-hidden="true" /> {t('Masquer')}
         </button>
       </div>
-      <p className="collaboration-watermark"><UserRound size={16} aria-hidden="true" /> Consultation par {details.watermark.agentName}</p>
+      <p className="collaboration-watermark"><UserRound size={16} aria-hidden="true" /> {t('Consultation par')} {details.watermark.agentName}</p>
       {prospect ? (
         <dl className="collaboration-contact-details">
-          <div><dt>Entreprise</dt><dd>{prospect.companyName}</dd></div>
-          <div><dt>Contact</dt><dd>{prospect.contactName}</dd></div>
-          <div><dt>Téléphone</dt><dd>{prospect.phone}</dd></div>
-          {prospect.email && <div><dt>Email</dt><dd>{prospect.email}</dd></div>}
-          {prospect.address && <div><dt>Adresse</dt><dd>{prospect.address}</dd></div>}
+          <div><dt>{t('Entreprise')}</dt><dd>{prospect.companyName}</dd></div>
+          <div><dt>{t('Contact')}</dt><dd>{prospect.contactName}</dd></div>
+          <div><dt>{t('Téléphone')}</dt><dd>{prospect.phone}</dd></div>
+          {prospect.email && <div><dt>{t('Email')}</dt><dd>{prospect.email}</dd></div>}
+          {prospect.address && <div><dt>{t('Adresse')}</dt><dd>{prospect.address}</dd></div>}
         </dl>
-      ) : <p className="collaboration-muted">Aucune coordonnée n’est disponible pour ce dossier.</p>}
+      ) : <p className="collaboration-muted">{t('Aucune coordonnée n’est disponible pour ce dossier.')}</p>}
     </section>
   )
 }
 
 export default function CollaborationCloserAccessesPage({ onOpenReport, onDeclareLost }: Props) {
+  const { t, language } = useI18n()
   const [accesses, setAccesses] = useState<CollaborationCloserAccess[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -153,29 +156,29 @@ export default function CollaborationCloserAccessesPage({ onOpenReport, onDeclar
     <section className="collaboration-page" aria-labelledby="closer-accesses-title">
       <header className="collaboration-page-header collaboration-home-header">
         <div>
-          <p className="collaboration-eyebrow">ESPACE CLOSEUR</p>
-          <h1 id="closer-accesses-title">Mes accès</h1>
-          <p>Vos dossiers approuvés, actifs et signés. Les coordonnées ne sont chargées qu’à votre demande.</p>
+          <p className="collaboration-eyebrow">{t('ESPACE CLOSEUR')}</p>
+          <h1 id="closer-accesses-title">{t('Mes accès')}</h1>
+          <p>{t('Vos dossiers approuvés, actifs et signés. Les coordonnées ne sont chargées qu’à votre demande.')}</p>
         </div>
         <button className="ui-button ui-button-secondary collaboration-action" type="button" onClick={() => void load()} disabled={loading}>
-          <RefreshCw size={17} aria-hidden="true" /> Actualiser
+          <RefreshCw size={17} aria-hidden="true" /> {t('Actualiser')}
         </button>
       </header>
 
       {error && (
         <div className="collaboration-panel" role="alert">
-          <p className="collaboration-error">{error}</p>
+          <p className="collaboration-error">{t(error)}</p>
           <button className="ui-button ui-button-secondary collaboration-action" type="button" onClick={() => void load()}>
-            <RefreshCw size={17} aria-hidden="true" /> Réessayer
+            <RefreshCw size={17} aria-hidden="true" /> {t('Réessayer')}
           </button>
         </div>
       )}
-      {loading && <div className="collaboration-panel" role="status">Chargement de vos accès masqués…</div>}
+      {loading && <div className="collaboration-panel" role="status">{t('Chargement de vos accès masqués…')}</div>}
       {!loading && !error && accesses.length === 0 && (
         <div className="collaboration-panel collaboration-empty" role="status">
           <span className="collaboration-empty-icon"><MapPinned size={24} aria-hidden="true" /></span>
-          <h2>Aucun accès actif</h2>
-          <p>Les dossiers approuvés apparaîtront ici pendant la période d’accès.</p>
+          <h2>{t('Aucun accès actif')}</h2>
+          <p>{t('Les dossiers approuvés apparaîtront ici pendant la période d’accès.')}</p>
         </div>
       )}
       {!loading && !error && accesses.length > 0 && (
@@ -189,22 +192,22 @@ export default function CollaborationCloserAccessesPage({ onOpenReport, onDeclar
               <article className="collaboration-supplied-card" key={deal.dealId}>
                 <div className="collaboration-supplied-top">
                   <div>
-                    <p className="collaboration-eyebrow">{isSigned ? 'DOSSIER SIGNÉ' : 'DOSSIER MASQUÉ'}</p>
+                    <p className="collaboration-eyebrow">{t(isSigned ? 'DOSSIER SIGNÉ' : 'DOSSIER MASQUÉ')}</p>
                     <h2>{deal.prospectName}</h2>
                   </div>
                   <StatusBadge status={deal.dealStatus} />
                 </div>
                 <dl className="collaboration-supplied-details">
-                  <div><dt>Zone</dt><dd>{deal.city || 'Zone non précisée'}</dd></div>
-                  <div><dt>Besoin</dt><dd>{deal.reportNature.replaceAll('_', ' ')}</dd></div>
-                  {!isSigned && <div><dt>Accès actif jusqu’au</dt><dd>{formatAntananarivoDate(deal.accessExpiresAt)}</dd></div>}
-                  {!isSigned && <div><dt>Temps restant</dt><dd><Countdown expiresAt={deal.accessExpiresAt} /></dd></div>}
-                  <div><dt>Rapport</dt><dd>{deal.closingReportStatus === 'SUBMITTED'
+                  <div><dt>{t('Zone')}</dt><dd>{deal.city || t('Zone non précisée')}</dd></div>
+                  <div><dt>{t('Besoin')}</dt><dd>{t(deal.reportNature.replaceAll('_', ' '))}</dd></div>
+                  {!isSigned && <div><dt>{t('Accès actif jusqu’au')}</dt><dd>{formatAntananarivoDate(deal.accessExpiresAt, language)}</dd></div>}
+                  {!isSigned && <div><dt>{t('Temps restant')}</dt><dd><Countdown expiresAt={deal.accessExpiresAt} /></dd></div>}
+                  <div><dt>{t('Rapport')}</dt><dd>{t(deal.closingReportStatus === 'SUBMITTED'
                     ? 'Soumis · lecture seule'
-                    : deal.closingReportStatus === 'DRAFT' ? 'Brouillon' : 'Aucun'}</dd></div>
+                    : deal.closingReportStatus === 'DRAFT' ? 'Brouillon' : 'Aucun')}</dd></div>
                 </dl>
 
-                {isSigned && <p className="collaboration-muted">Déjà signé par l’admin. Vos commissions restent accessibles dans votre espace commissions.</p>}
+                {isSigned && <p className="collaboration-muted">{t('Déjà signé par l’admin. Vos commissions restent accessibles dans votre espace commissions.')}</p>}
                 {!isSigned && contactDetails?.dealId === deal.dealId && (
                   <ContactDetails details={contactDetails} onClose={hideContacts} />
                 )}
@@ -216,7 +219,7 @@ export default function CollaborationCloserAccessesPage({ onOpenReport, onDeclar
                   {isSigned ? (
                     <button className="ui-button ui-button-secondary collaboration-action" type="button" onClick={() => void toggleTimeline(deal.dealId)} disabled={timelineLoadingId === deal.dealId}>
                       <ScrollText size={17} aria-hidden="true" />
-                      {timelineLoadingId === deal.dealId ? 'Chargement de la frise…' : openTimelineId === deal.dealId ? 'Masquer la frise' : 'Voir la frise et le numéro de vente'}
+                      {t(timelineLoadingId === deal.dealId ? 'Chargement de la frise…' : openTimelineId === deal.dealId ? 'Masquer la frise' : 'Voir la frise et le numéro de vente')}
                     </button>
                   ) : <button
                     className="ui-button ui-button-secondary collaboration-action"
@@ -226,31 +229,31 @@ export default function CollaborationCloserAccessesPage({ onOpenReport, onDeclar
                     aria-busy={revealingDealId === deal.dealId}
                   >
                     {isRevealed ? <EyeOff size={17} aria-hidden="true" /> : <Eye size={17} aria-hidden="true" />}
-                    {revealingDealId === deal.dealId ? 'Chargement des coordonnées…' : isRevealed ? 'Masquer les coordonnées' : 'Afficher les coordonnées'}
+                    {t(revealingDealId === deal.dealId ? 'Chargement des coordonnées…' : isRevealed ? 'Masquer les coordonnées' : 'Afficher les coordonnées')}
                   </button>}
                   {canOpenReport && (
                     <button className="ui-button ui-button-primary collaboration-action" type="button" onClick={() => { hideContacts(); onOpenReport(deal) }}>
                       <FileText size={17} aria-hidden="true" />
-                      {deal.closingReportStatus === 'SUBMITTED' ? 'Consulter le rapport' : 'Rapport de clôture'}
+                      {t(deal.closingReportStatus === 'SUBMITTED' ? 'Consulter le rapport' : 'Rapport de clôture')}
                     </button>
                   )}
                   {canWork && (
                     <button className="ui-button ui-button-secondary collaboration-action" type="button" onClick={() => { hideContacts(); onDeclareLost(deal) }}>
-                      <CircleOff size={17} aria-hidden="true" /> Déclarer perdu
+                      <CircleOff size={17} aria-hidden="true" /> {t('Déclarer perdu')}
                     </button>
                   )}
                 </div>
                 {isSigned && openTimelineId === deal.dealId && timelines[deal.dealId] && (
-                  <section className="collaboration-panel collaboration-timeline-panel" aria-label="Frise du dossier signé">
-                    <h3>Frise du dossier</h3>
-                    {timelines[deal.dealId].saleNumber && <p><strong>Numéro de vente :</strong> {timelines[deal.dealId].saleNumber}</p>}
+                  <section className="collaboration-panel collaboration-timeline-panel" aria-label={t('Frise du dossier signé')}>
+                    <h3>{t('Frise du dossier')}</h3>
+                    {timelines[deal.dealId].saleNumber && <p><strong>{t('Numéro de vente :')}</strong> {timelines[deal.dealId].saleNumber}</p>}
                     <ol className="collaboration-timeline">
                       {timelines[deal.dealId].steps.map((step, index) => (
                         <li key={`${step.status}-${step.at}-${index}`}>
                           <span className="collaboration-timeline-marker" aria-hidden="true" />
                           <div className="collaboration-timeline-content">
                             <StatusBadge status={step.status} />
-                            <time dateTime={step.at}>{formatAntananarivoDate(step.at)}</time>
+                            <time dateTime={step.at}>{formatAntananarivoDate(step.at, language)}</time>
                           </div>
                         </li>
                       ))}

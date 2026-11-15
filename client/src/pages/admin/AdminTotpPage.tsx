@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import QRCode from 'qrcode'
 import { CheckCircle2, Copy, ShieldCheck } from 'lucide-react'
 import api from '../../api/client'
+import { AdminTotpCodeField } from '../../components/admin/AdminTotpCodeField'
 import { Input } from '../../components/ui/Input'
 
 type TotpEnrollment = { secret: string; uri: string }
@@ -86,8 +87,8 @@ export default function AdminTotpPage() {
   return <div className="admin-totp-page">
     <section className="page-heading">
       <div>
-        <p className="eyebrow">SÉCURITÉ ADMINISTRATION</p>
-        <h1>Code administrateur</h1>
+        <p className="eyebrow">SÉCURITÉ DU COMPTE</p>
+        <h1>Code de sécurité</h1>
         <p className="intro">Configurez l’application qui génère les codes temporaires requis pour vérifier les ventes.</p>
       </div>
     </section>
@@ -104,7 +105,7 @@ export default function AdminTotpPage() {
 
       {!enrollment ? (
         <form className="admin-totp-form" onSubmit={(event) => void startEnrollment(event)}>
-          <Input id="admin-totp-password" name="admin-totp-password" label="Mot de passe actuel de votre compte administrateur" type="password" autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} required />
+          <Input id="admin-totp-password" name="admin-totp-password" label="Mot de passe actuel de votre compte" type="password" autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} required />
           <p>Après vérification, un QR code de configuration s’affichera. Scannez-le avec votre application, puis saisissez le code généré pour activer la protection.</p>
           <button className="primary-button" type="submit" disabled={starting}>{starting ? 'Vérification...' : 'Configurer mon application'}</button>
         </form>
@@ -123,8 +124,14 @@ export default function AdminTotpPage() {
             <p className="admin-totp-warning">Gardez cette clé privée. Ne la partagez pas. Elle ne sera plus affichée après la validation.</p>
           </div>
           <form className="admin-totp-form" onSubmit={(event) => void verifyEnrollment(event)}>
-            <label htmlFor="admin-totp-enrollment-code">2. Saisissez le code à 6 chiffres affiché par l’application</label>
-            <input id="admin-totp-enrollment-code" type="text" inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]{6}" maxLength={6} value={code} onChange={(event) => setCode(event.target.value.replace(/\D/g, '').slice(0, 6))} required />
+            <AdminTotpCodeField
+              id="admin-totp-enrollment-code"
+              label="2. Code de validation"
+              value={code}
+              onChange={setCode}
+              autoComplete="one-time-code"
+              required
+            />
             <div className="admin-totp-actions">
               <button className="primary-button" type="submit" disabled={verifying || code.length !== 6}>{verifying ? 'Vérification...' : 'Activer la double authentification'}</button>
               <button className="outline-button" type="button" disabled={verifying} onClick={cancelEnrollment}>Annuler</button>

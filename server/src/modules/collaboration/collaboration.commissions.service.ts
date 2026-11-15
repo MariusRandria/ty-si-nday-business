@@ -8,8 +8,10 @@ import {
   amountForCommissionRole,
   hasExactlyExpectedCommissionRecipients,
   isCommissionGenerationReady,
+  shouldCompleteCommissionsPaid,
   validateCommissionConfig,
 } from './collaboration.commissions.policy.js'
+import { transitionCollaborationDeal } from './collaboration.policy.js'
 
 const eventBatchSize = 50
 const eventCommissionConfigSchema = z.object({
@@ -135,6 +137,17 @@ export async function processContractSignedEvent(eventId: number, now = new Date
           createdAt: now,
         })
       }
+    }
+    if (deal.status === 'CONTRACT_SIGNED'
+      && shouldCompleteCommissionsPaid(commissions.map(({ status }) => status))) {
+      await transitionCollaborationDeal(
+        transaction,
+        { role: 'SYSTEM' },
+        deal.id,
+        'COMMISSIONS_PAID',
+        'Les deux commissions ont été créditées aux portefeuilles des agents.',
+        now,
+      )
     }
     await transaction.collaborationDomainEvent.update({
       where: { id: event.id },

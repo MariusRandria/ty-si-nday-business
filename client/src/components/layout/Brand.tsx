@@ -1,12 +1,13 @@
-import tySyNdayLogo from '../../assets/TD.png'
+import tySyNdayLogo from '../../assets/LOGO.png'
+import navLogo from '../../assets/LOGO-NAV.png'
 
-type Props = { compact?: boolean; inverted?: boolean }
+type Props = { compact?: boolean; inverted?: boolean; navbar?: boolean }
 
-export function Brand({ compact = false, inverted = false }: Props) {
+export function Brand({ compact = false, inverted = false, navbar = false }: Props) {
   const content = (
     <>
-      <img src={tySyNdayLogo} alt="" />
-      {!compact && (
+      <img src={navbar ? navLogo : tySyNdayLogo} alt="" />
+      {!compact && !navbar && (
         <span className={inverted ? 'brand-copy brand-copy-inverted' : 'brand-copy'}>
           <strong>TY SY NDAY</strong>
           <small>Business</small>
@@ -15,5 +16,5 @@ export function Brand({ compact = false, inverted = false }: Props) {
     </>
   )
 
-  return <a className="brand-lockup" href="/" aria-label="Ty sy Nday Business - Accueil">{content}</a>
+  return <a className={`brand-lockup${navbar ? ' brand-lockup-nav' : ''}`} href="/" aria-label="Ty sy Nday Business - Accueil">{content}</a>
 }

@@ -15,7 +15,7 @@ export function Navbar() {
   const [open, setOpen] = useState(false)
   return (
     <nav className="brand-navbar" aria-label="Navigation principale">
-      <Brand />
+      <Brand navbar />
       <button className="brand-navbar-toggle" type="button" aria-label={open ? 'Fermer le menu' : 'Ouvrir le menu'} aria-expanded={open} onClick={() => setOpen((current) => !current)}>
         {open ? <X /> : <Menu />}
       </button>

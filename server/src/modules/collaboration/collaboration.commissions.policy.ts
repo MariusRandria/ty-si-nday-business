@@ -29,7 +29,7 @@ export function canResolveHeldCommission(status: CollaborationCommissionStatus):
 }
 
 export function shouldCompleteCommissionsPaid(statuses: CollaborationCommissionStatus[]): boolean {
-  return statuses.length === 2 && statuses.every((status) => status === 'PAID')
+  return statuses.length === 2 && statuses.every((status) => status === 'PENDING' || status === 'PAID')
 }
 
 export function disputeResolutionStatus(

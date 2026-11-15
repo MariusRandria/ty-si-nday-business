@@ -11,6 +11,7 @@ import { isEmailDeliveryConfigured, sendAgentRegistrationCode } from '../../lib/
 import { prisma } from '../../lib/prisma.js';
 import {
   activateSchema,
+  changePasswordSchema,
   googleAuthSchema,
   loginSchema,
   registerSchema,
@@ -265,7 +266,7 @@ export async function verifyRegistrationOtp(request: Request, response: Response
 function publicUser(user: { id: number; email: string; role: string; status: string; agentProfile?: { firstName: string; lastName: string; phone: string; city: string; imageUrl: string | null } | null }) {
   return { id: user.id, email: user.email, role: user.role, status: user.status, profile: user.agentProfile ?? null };
 }
-function signUser(user: { id: number; role: 'AGENT' | 'ADMIN' | 'SUPER_ADMIN'; status: string }) {
+function signUser(user: { id: number; role: 'AGENT' | 'ADMIN' | 'SUPER_ADMIN' | 'SALES_REVIEWER' | 'SALES_SIGNER'; status: string }) {
   return jwt.sign({ id: user.id, role: user.role, status: user.status }, env.jwtSecret, { expiresIn: '3h' });
 }
 async function recordAuthentication(
@@ -368,6 +369,7 @@ export async function login(request: Request, response: Response) {
     } catch (error) {
       console.error('Unable to audit failed password login:', error)
     }
+
     response.status(401).json({ error: 'Email ou mot de passe incorrect' });
     return;
   }
@@ -385,6 +387,33 @@ export async function login(request: Request, response: Response) {
     })
   })
   response.json({ token: signUser(user), user: publicUser(user) });
+}
+
+export async function changePassword(request: AuthRequest, response: Response) {
+  if (!request.user) {
+    response.status(401).json({ error: 'Authentification requise.' })
+    return
+  }
+  const result = changePasswordSchema.safeParse(request.body)
+  if (!result.success) {
+    response.status(400).json({ error: 'Le nouveau mot de passe doit contenir entre 8 et 128 caractères et être différent de l’actuel.' })
+    return
+  }
+  const user = await prisma.user.findUnique({
+    where: { id: request.user.id },
+    select: { id: true, passwordHash: true },
+  })
+  if (!user) {
+    response.status(404).json({ error: 'Compte introuvable.' })
+    return
+  }
+  if (!(await bcrypt.compare(result.data.currentPassword, user.passwordHash))) {
+    response.status(400).json({ error: 'Le mot de passe actuel est incorrect.' })
+    return
+  }
+  const passwordHash = await bcrypt.hash(result.data.newPassword, 12)
+  await prisma.user.update({ where: { id: user.id }, data: { passwordHash } })
+  response.json({ message: 'Mot de passe mis à jour.' })
 }
 
 export async function googleAuth(request: Request, response: Response) {

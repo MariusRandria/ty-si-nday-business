@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Clock3, EyeOff, LockKeyhole, MapPinned, RefreshCw, Send, Sparkles } from 'lucide-react'
 import api, { ApiRequestError, type CollaborationProspect } from '../api/client'
+import { useI18n } from '../i18n'
 import { Countdown } from '../components/collaboration/Countdown'
 import { StatusBadge } from '../components/collaboration/StatusBadge'
 import '../components/collaboration/collaboration.css'
@@ -27,6 +28,7 @@ function requestError(error: unknown): string {
 }
 
 export default function CollaborationProspectsPage() {
+  const { t, language } = useI18n()
   const [prospects, setProspects] = useState<CollaborationProspect[]>([])
   const [messages, setMessages] = useState<Record<number, string>>({})
   const [loading, setLoading] = useState(true)
@@ -67,7 +69,7 @@ export default function CollaborationProspectsPage() {
     setActingIds(new Set(actionLocks.current))
     setError('')
     try {
-      const request = await api.requestCollaborationAccess(prospect.dealId, messages[prospect.dealId] ?? defaultMessage)
+      const request = await api.requestCollaborationAccess(prospect.dealId, messages[prospect.dealId] ?? t(defaultMessage))
       setProspects((current) => current.map((item) => item.dealId === prospect.dealId
         ? { ...item, myRequest: request }
         : item))
@@ -104,30 +106,30 @@ export default function CollaborationProspectsPage() {
     <section className="collaboration-page collaboration-workspace-page" aria-labelledby="closer-prospects-title">
       <header className="collaboration-page-header collaboration-home-header collaboration-workspace-header">
         <div>
-          <p className="collaboration-eyebrow">ESPACE CLOSEUR</p>
-          <h1 id="closer-prospects-title">Prospects disponibles</h1>
-          <p>Repérez une opportunité, envoyez votre demande et suivez son statut.</p>
+          <p className="collaboration-eyebrow">{t('ESPACE CLOSEUR')}</p>
+          <h1 id="closer-prospects-title">{t('Prospects disponibles')}</h1>
+          <p>{t('Repérez une opportunité, envoyez votre demande et suivez son statut.')}</p>
         </div>
         <button className="ui-button ui-button-secondary collaboration-action" type="button" onClick={() => void load()}>
-          <RefreshCw size={17} aria-hidden="true" /> Actualiser
+          <RefreshCw size={17} aria-hidden="true" /> {t('Actualiser')}
         </button>
       </header>
 
       {!loading && !error && (
-        <div className="collaboration-overview" aria-label="Résumé des opportunités">
+        <div className="collaboration-overview" aria-label={t('Résumé des opportunités')}>
           <article className="collaboration-overview-card">
             <span className="collaboration-overview-icon"><Sparkles size={18} aria-hidden="true" /></span>
-            <span className="collaboration-overview-label">Opportunités</span>
+            <span className="collaboration-overview-label">{t('Opportunités')}</span>
             <strong>{availableCount}</strong>
           </article>
           <article className="collaboration-overview-card collaboration-overview-pending">
             <span className="collaboration-overview-icon"><Clock3 size={18} aria-hidden="true" /></span>
-            <span className="collaboration-overview-label">En attente</span>
+            <span className="collaboration-overview-label">{t('En attente')}</span>
             <strong>{pendingCount}</strong>
           </article>
           <article className="collaboration-overview-card collaboration-overview-closed">
             <span className="collaboration-overview-icon"><LockKeyhole size={18} aria-hidden="true" /></span>
-            <span className="collaboration-overview-label">Déjà clôturés</span>
+            <span className="collaboration-overview-label">{t('Déjà clôturés')}</span>
             <strong>{signedCount}</strong>
           </article>
         </div>
@@ -135,18 +137,18 @@ export default function CollaborationProspectsPage() {
 
       {error && (
         <div className="collaboration-panel" role="alert">
-          <p className="collaboration-error">{error}</p>
+          <p className="collaboration-error">{t(error)}</p>
           <button className="ui-button ui-button-secondary collaboration-action" type="button" onClick={() => void load()}>
-            <RefreshCw size={17} aria-hidden="true" /> Réessayer
+            <RefreshCw size={17} aria-hidden="true" /> {t('Réessayer')}
           </button>
         </div>
       )}
-      {loading && <div className="collaboration-panel" role="status">Chargement des prospects masqués…</div>}
+      {loading && <div className="collaboration-panel" role="status">{t('Chargement des prospects masqués…')}</div>}
       {!loading && !error && prospects.length === 0 && (
         <div className="collaboration-panel collaboration-empty" role="status">
           <span className="collaboration-empty-icon"><MapPinned size={24} aria-hidden="true" /></span>
-          <h2>Aucun prospect disponible</h2>
-          <p>Les nouvelles opportunités apparaîtront ici.</p>
+          <h2>{t('Aucun prospect disponible')}</h2>
+          <p>{t('Les nouvelles opportunités apparaîtront ici.')}</p>
         </div>
       )}
       {!loading && !error && prospects.length > 0 && (
@@ -160,16 +162,16 @@ export default function CollaborationProspectsPage() {
                   <div className="collaboration-supplied-top">
                     <div className="collaboration-card-heading">
                       <span className="collaboration-card-icon collaboration-card-icon-closed"><LockKeyhole size={17} aria-hidden="true" /></span>
-                      <h2>Prospect clôturé</h2>
+                      <h2>{t('Prospect clôturé')}</h2>
                     </div>
                     <StatusBadge status="CLOSED_SIGNED" />
                   </div>
                   <p className="collaboration-muted collaboration-signed-explanation" id={`signed-prospect-${prospect.dealId}`}>
-                    Ce prospect est fermé aux autres agents. Aucune demande ni action n’est possible.
+                    {t('Ce prospect est fermé aux autres agents. Aucune demande ni action n’est possible.')}
                   </p>
                   <div className="collaboration-access-actions">
                     <button className="ui-button ui-button-secondary collaboration-action collaboration-signed-disabled" type="button" disabled aria-describedby={`signed-prospect-${prospect.dealId}`}>
-                      <LockKeyhole size={16} aria-hidden="true" /> Demande d’accès indisponible
+                      <LockKeyhole size={16} aria-hidden="true" /> {t('Demande d’accès indisponible')}
                     </button>
                     <button
                       className="ui-button ui-button-secondary collaboration-action collaboration-signed-remove"
@@ -178,7 +180,7 @@ export default function CollaborationProspectsPage() {
                       disabled={busy}
                     >
                       <EyeOff size={17} aria-hidden="true" />
-                      {busy ? 'Retrait…' : 'Retirer de ma liste'}
+                      {busy ? t('Retrait…') : t('Retirer de ma liste')}
                     </button>
                   </div>
                 </article>
@@ -199,34 +201,34 @@ export default function CollaborationProspectsPage() {
               <article className="collaboration-prospect-card" key={prospect.dealId}>
                 <div className="collaboration-supplied-top">
                   <div className="collaboration-card-title">
-                    <p className="collaboration-eyebrow">OPPORTUNITÉ MASQUÉE</p>
+                    <p className="collaboration-eyebrow">{t('OPPORTUNITÉ MASQUÉE')}</p>
                     <h2>{prospect.prospectName}</h2>
                   </div>
                   <StatusBadge status={prospect.dealStatus} />
                 </div>
                 <dl className="collaboration-prospect-details">
-                  <div><dt>Zone</dt><dd><MapPinned size={14} aria-hidden="true" />{prospect.city || 'Zone non précisée'}</dd></div>
-                  <div><dt>Besoin</dt><dd>{prospect.reportNature.replaceAll('_', ' ')}</dd></div>
-                  <div><dt>Date</dt><dd><Clock3 size={14} aria-hidden="true" />{formatAntananarivoDate(prospect.meetingAt || prospect.createdAt)}</dd></div>
-                  <div><dt>Fournisseur</dt><dd>{prospect.supplier.name}</dd></div>
+                  <div><dt>{t('Zone')}</dt><dd><MapPinned size={14} aria-hidden="true" />{prospect.city || t('Zone non précisée')}</dd></div>
+                  <div><dt>{t('Besoin')}</dt><dd>{t(prospect.reportNature.replaceAll('_', ' '))}</dd></div>
+                  <div><dt>{t('Date')}</dt><dd><Clock3 size={14} aria-hidden="true" />{formatAntananarivoDate(prospect.meetingAt || prospect.createdAt, language)}</dd></div>
+                  <div><dt>{t('Fournisseur')}</dt><dd>{prospect.supplier.name}</dd></div>
                   <div>
-                    <dt>Score fournisseur</dt>
+                    <dt>{t('Score fournisseur')}</dt>
                     <dd>{prospect.supplierTrustScore
-                      ? `${prospect.supplierTrustScore.score}/100 · ${formatAntananarivoDate(prospect.supplierTrustScore.calculatedAt)}`
-                      : 'Indisponible pour le moment'}</dd>
+                      ? `${prospect.supplierTrustScore.score}/100 · ${formatAntananarivoDate(prospect.supplierTrustScore.calculatedAt, language)}`
+                      : t('Indisponible pour le moment')}</dd>
                   </div>
                 </dl>
 
                 {request && (
                   <div className={`collaboration-prospect-request-state${requestExpired || request.status === 'REJECTED' ? ' is-warning' : ''}`} role="status">
                     <StatusBadge status={requestExpired ? 'EXPIRED' : request.status} />
-                    <span>{requestExpired ? requestLabels.EXPIRED : requestLabels[request.status] ?? request.status}</span>
+                    <span>{t(requestExpired ? requestLabels.EXPIRED : requestLabels[request.status] ?? request.status)}</span>
                     {request.status === 'PENDING' && !requestExpired && <Countdown expiresAt={request.expiresAt} />}
                     {(requestExpired || ['REJECTED', 'EXPIRED', 'NOT_SELECTED'].includes(request.status)) && retryAt && retryTime !== null && retryTime > now && (
-                      <span>Nouvelle demande possible {formatAntananarivoDate(retryAt)}.</span>
+                      <span>{t('Nouvelle demande possible')} {formatAntananarivoDate(retryAt, language)}.</span>
                     )}
                     {waitingForRetry && (!retryAt || retryTime === null) && (
-                      <span>Le délai avant une nouvelle demande sera indiqué par le serveur.</span>
+                      <span>{t('Le délai avant une nouvelle demande sera indiqué par le serveur.')}</span>
                     )}
                   </div>
                 )}
@@ -234,17 +236,17 @@ export default function CollaborationProspectsPage() {
                 {!request || requestExpired || (request.status !== 'PENDING' && request.status !== 'APPROVED' && !waitingForRetry) ? (
                   <div className="collaboration-prospect-request">
                     <label className="ui-field">
-                      <span>Message facultatif au fournisseur</span>
+                      <span>{t('Message facultatif au fournisseur')}</span>
                       <textarea
                         className="ui-control collaboration-message-input"
                         maxLength={500}
-                        value={messages[prospect.dealId] ?? defaultMessage}
+                        value={messages[prospect.dealId] ?? t(defaultMessage)}
                         onChange={(event) => setMessages((current) => ({ ...current, [prospect.dealId]: event.target.value }))}
                         disabled={blocked}
                       />
                     </label>
                     <button className="ui-button ui-button-primary collaboration-action" type="button" onClick={() => void requestAccess(prospect)} disabled={blocked} aria-busy={actingIds.has(prospect.dealId)}>
-                      <Send size={17} aria-hidden="true" /> Demander l’accès
+                      <Send size={17} aria-hidden="true" /> {t('Demander l’accès')}
                     </button>
                   </div>
                 ) : null}
