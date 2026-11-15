@@ -1,4 +1,4 @@
-import { useRef, useState, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { AlertTriangle, ArrowLeft, CheckCircle2, CircleDot, Clock3, Download, FileText, LoaderCircle, RefreshCw, ShieldCheck, XCircle, Users, ScrollText } from 'lucide-react'
 import api, {
   ApiRequestError,
@@ -9,12 +9,16 @@ import api, {
   type AdminCollaborationCommission,
   type AdminCollaborationDashboard,
   type AdminCollaborationDealDetail,
+  type AdminCollaborationAssignmentOption,
+  type AdminCollaborationQueueFilters,
   type AdminCollaborationSignatureResult,
   type AdminCollaborationDealSummary,
   type AdminCollaborationOverrideSummary,
   type AdminCollaborationReadyDeal,
   type AdminCollaborationTrustAgent,
+  type SessionUser,
 } from '../../api/client'
+import { AdminTotpCodeField } from '../../components/admin/AdminTotpCodeField'
 import { confirmAction } from '../../utils/confirmation'
 import { sortAdminCollaborationDeals } from '../../utils/admin-collaboration-queue'
 import { antananarivoDateToIso, antananarivoDayBoundaryToIso, auditChainTone, canResolveAdminDispute, isAllowedCollaborationUpload } from '../../utils/admin-collaboration-workflows'
@@ -35,11 +39,20 @@ const STATUS_LABELS: Record<string, string> = {
   CONFIRMED: 'Vente confirmée',
   REJECTED: 'Rejetée',
 }
+const MAX_SIGNED_BIGINT = 9_223_372_036_854_775_807n
 
 function formatDate(value: string | null | undefined): string {
   if (!value) return 'Non renseignée'
   const date = new Date(value)
   return Number.isNaN(date.getTime()) ? 'Date invalide' : DATE_FORMATTER.format(date)
+}
+
+function validContractAmount(value: string): boolean {
+  return /^\d{1,19}$/.test(value) && BigInt(value) > 0n && BigInt(value) <= MAX_SIGNED_BIGINT
+}
+
+function formatAriaryAmount(value: string): string {
+  return `${BigInt(value).toLocaleString('fr-FR')} Ar`
 }
 
 function agentName(agent: { email: string; profile: { firstName: string; lastName: string } | null } | null): string {
@@ -87,9 +100,9 @@ type QueueRow =
   | { kind: 'commission'; value: AdminCollaborationCommission }
 
 const QUEUE_LABELS: Record<QueueKind, string> = {
-  review: 'Ventes à vérifier',
-  ready: 'Contrats à signer',
-  disputes: 'Litiges',
+  review: 'Vérification des ventes',
+  ready: 'Signature des contrats',
+  disputes: 'Litiges à arbitrer',
   overrides: 'Dérogations',
   commissions: 'Commissions créditées aux agents',
   bypass: 'Alertes de contournement',
@@ -99,9 +112,55 @@ const QUEUE_LABELS: Record<QueueKind, string> = {
   agents: 'Confiance des agents',
 }
 
-const DASHBOARD_CARDS: Array<{ key: keyof AdminCollaborationDashboard; label: string; queue: QueueKind; icon: typeof ShieldCheck }> = [
-  { key: 'salesToVerify', label: 'Ventes à vérifier', queue: 'review', icon: FileText },
-  { key: 'contractsToSign', label: 'Contrats à signer', queue: 'ready', icon: CheckCircle2 },
+const QUEUE_GUIDANCE: Record<QueueKind, string> = {
+  review: 'Vérifiez les informations et les pièces du rapport, puis confirmez la vente ou rejetez-la avec un motif.',
+  ready: 'Consultez les prérequis, puis enregistrez la référence, la date et le contrat signé.',
+  disputes: 'Examinez le désaccord client et décidez du traitement des commissions associées.',
+  overrides: 'Consultez les décisions prises avec dérogation à la confirmation client.',
+  commissions: 'Suivez les montants crédités aux agents après validation de la vente.',
+  bypass: 'Examinez les tentatives de contournement du processus de collaboration.',
+  extraction: 'Examinez les alertes d’extraction et les dossiers concernés.',
+  expirations: 'Repérez les expirations répétées qui peuvent nécessiter un suivi.',
+  audit: 'Consultez les événements enregistrés et vérifiez la chaîne d’audit.',
+  agents: 'Consultez les scores de confiance, les alertes et les statuts des agents.',
+}
+
+type QueueFilterState = {
+  from: string
+  to: string
+  assignment: 'ALL' | 'ASSIGNED' | 'UNASSIGNED'
+  reviewStage: 'ALL' | 'WAITING_CLIENT' | 'CLIENT_CONFIRMED' | 'NO_RESPONSE' | 'DISPUTED'
+  sla: 'ALL' | 'OVERDUE'
+}
+
+const EMPTY_QUEUE_FILTERS: QueueFilterState = {
+  from: '',
+  to: '',
+  assignment: 'ALL',
+  reviewStage: 'ALL',
+  sla: 'ALL',
+}
+
+function formatDuration(minutes: number): string {
+  const hours = Math.floor(minutes / 60)
+  const remainingMinutes = minutes % 60
+  if (hours === 0) return `${remainingMinutes} min`
+  return remainingMinutes === 0 ? `${hours} h` : `${hours} h ${remainingMinutes} min`
+}
+
+function slaLabel(startAt: string | null | undefined, targetHours: number | undefined): { text: string; overdue: boolean } | null {
+  if (!startAt || !targetHours) return null
+  const deadline = new Date(startAt).getTime() + targetHours * 60 * 60_000
+  if (!Number.isFinite(deadline)) return null
+  const minutes = Math.ceil(Math.abs(deadline - Date.now()) / 60_000)
+  return deadline < Date.now()
+    ? { text: `Hors délai de ${formatDuration(minutes)}`, overdue: true }
+    : { text: `Échéance dans ${formatDuration(minutes)}`, overdue: false }
+}
+
+const DASHBOARD_CARDS: Array<{ key: Exclude<keyof AdminCollaborationDashboard, 'sla'>; label: string; queue: QueueKind; icon: typeof ShieldCheck }> = [
+  { key: 'salesToVerify', label: '1 · Vérifier les ventes', queue: 'review', icon: FileText },
+  { key: 'contractsToSign', label: '2 · Signer les contrats', queue: 'ready', icon: CheckCircle2 },
   { key: 'commissionsToPay', label: 'Commissions créditées', queue: 'commissions', icon: CircleDot },
   { key: 'disputes', label: 'Litiges', queue: 'disputes', icon: AlertTriangle },
   { key: 'bypassAlerts', label: 'Contournements', queue: 'bypass', icon: AlertTriangle },
@@ -114,10 +173,21 @@ function isDealRow(row: QueueRow): row is Extract<QueueRow, { kind: 'deal' }> {
   return row.kind === 'deal'
 }
 
-export default function AdminCollaborationReviewPage() {
+export default function AdminCollaborationReviewPage({ userRole }: { userRole: SessionUser['role'] }) {
+  const isSalesReviewer = userRole === 'SALES_REVIEWER'
+  const isSalesSigner = userRole === 'SALES_SIGNER'
+  const isScopedSalesRole = isSalesReviewer || isSalesSigner
+  const dashboardCards = isSalesReviewer
+    ? DASHBOARD_CARDS.filter(({ key }) => key === 'salesToVerify')
+    : isSalesSigner
+      ? DASHBOARD_CARDS.filter(({ key }) => key === 'contractsToSign')
+      : DASHBOARD_CARDS
   const [dashboard, setDashboard] = useState<AdminCollaborationDashboard | null>(null)
   const [chainStatus, setChainStatus] = useState<AdminAuditVerification | null>(null)
   const [queue, setQueue] = useState<QueueKind | null>(null)
+  const [queueFilters, setQueueFilters] = useState<QueueFilterState>(EMPTY_QUEUE_FILTERS)
+  const [appliedQueueFilters, setAppliedQueueFilters] = useState<QueueFilterState | null>(null)
+  const [, setSlaClock] = useState(0)
   const [rows, setRows] = useState<QueueRow[]>([])
   const [hasLoaded, setHasLoaded] = useState(false)
   const [queueLoading, setQueueLoading] = useState(false)
@@ -134,6 +204,11 @@ export default function AdminCollaborationReviewPage() {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const requestLock = useRef(false)
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setSlaClock(Date.now()), 60_000)
+    return () => window.clearInterval(timer)
+  }, [])
 
   async function loadDashboard(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -160,6 +235,10 @@ export default function AdminCollaborationReviewPage() {
   async function loadQueue(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     if (!queue || requestLock.current) return
+    if (queueFilters.from && queueFilters.to && queueFilters.from > queueFilters.to) {
+      setError('La date « Du » doit précéder ou être égale à la date « Au ».')
+      return
+    }
     const code = totp.trim()
     if (!/^\d{6}$/.test(code)) {
       setError('Saisissez le code administrateur à 6 chiffres.')
@@ -170,12 +249,29 @@ export default function AdminCollaborationReviewPage() {
     setQueueLoading(true)
     setError('')
     try {
+      const dateFilters: Pick<AdminCollaborationQueueFilters, 'from' | 'to'> = {
+        ...(queueFilters.from ? { from: antananarivoDayBoundaryToIso(queueFilters.from, false) } : {}),
+        ...(queueFilters.to ? { to: antananarivoDayBoundaryToIso(queueFilters.to, true) } : {}),
+      }
+      const assignmentFilter = !isScopedSalesRole && queueFilters.assignment !== 'ALL'
+        ? { assignment: queueFilters.assignment }
+        : {}
+      const queryFilters: AdminCollaborationQueueFilters = {
+        ...dateFilters,
+        ...assignmentFilter,
+        ...(queue === 'review' && !isSalesReviewer && queueFilters.reviewStage !== 'ALL'
+          ? { reviewStage: queueFilters.reviewStage }
+          : {}),
+        ...((queue === 'review' || queue === 'ready') && queueFilters.sla === 'OVERDUE'
+          ? { sla: 'OVERDUE' }
+          : {}),
+      }
       if (queue === 'ready') {
-        const result = await api.adminCollaborationReadyToSign(code, page, 50)
+        const result = await api.adminCollaborationReadyToSign(code, page, 50, queryFilters)
         setRows(result.data.map((value) => ({ kind: 'deal', value })))
         setTotal(result.pagination.total)
       } else if (queue === 'commissions') {
-        const result = await api.adminCollaborationPendingCommissions(code, page, 50)
+        const result = await api.adminCollaborationPendingCommissions(code, page, 50, dateFilters)
         setRows(result.data.map((value) => ({ kind: 'commission', value })))
         setTotal(result.pagination.total)
       } else if (queue === 'bypass' || queue === 'extraction' || queue === 'expirations') {
@@ -184,21 +280,22 @@ export default function AdminCollaborationReviewPage() {
           : queue === 'extraction'
             ? 'EXTRACTION'
             : 'REPEATED_EXPIRATIONS'
-        const result = await api.adminCollaborationAlerts(code, type, page, 50)
+        const result = await api.adminCollaborationAlerts(code, type, page, 50, dateFilters)
         setRows(result.data.map((value) => ({ kind: 'alert', value })))
         setTotal(result.pagination.total)
       } else if (queue === 'overrides') {
-        const result = await api.adminCollaborationOverrides(code, page, 50)
+        const result = await api.adminCollaborationOverrides(code, page, 50, dateFilters)
         setRows(result.data.map((value) => ({ kind: 'deal', value })))
         setTotal(result.pagination.total)
       } else if (queue === 'disputes' || queue === 'review') {
-        const result = await api.adminCollaborationDeals(code, page, 50, queue === 'disputes' ? 'DISPUTED' : undefined)
+        const result = await api.adminCollaborationDeals(code, page, 50, queue === 'disputes' ? 'DISPUTED' : undefined, queryFilters)
         const sorted = sortAdminCollaborationDeals(result.data)
         setRows(sorted.map((value) => ({ kind: 'deal', value })))
         setTotal(result.pagination.total)
       } else {
         return
       }
+      setAppliedQueueFilters({ ...queueFilters })
       setHasLoaded(true)
     } catch (caught) {
       setError(errorMessage(caught))
@@ -249,6 +346,23 @@ export default function AdminCollaborationReviewPage() {
     setOverrideConfirmation(false)
     setPendingDecision(null)
     setSummaryDisplayed(false)
+    setError('')
+  }
+
+  function openQueue(nextQueue: QueueKind) {
+    setQueue(nextQueue)
+    setQueueFilters(EMPTY_QUEUE_FILTERS)
+    setAppliedQueueFilters(null)
+    setPage(1)
+    setRows([])
+    setHasLoaded(false)
+    setTotp('')
+    setError('')
+  }
+
+  function updateQueueFilters(update: (current: QueueFilterState) => QueueFilterState) {
+    setQueueFilters(update)
+    setPage(1)
     setError('')
   }
 
@@ -313,6 +427,27 @@ export default function AdminCollaborationReviewPage() {
 
   const selectedSummary = rows.find((row) => row.kind === 'deal' && row.value.id === dealId)
   const maxPage = Math.max(1, Math.ceil(total / 50))
+  const renderDashboardCards = (data: AdminCollaborationDashboard, cards: typeof DASHBOARD_CARDS) => (
+    <div className="admin-collab-dashboard">
+      {cards.map(({ key, label, queue: targetQueue, icon: Icon }) => {
+        const sla = key === 'salesToVerify'
+          ? data.sla.review
+          : key === 'contractsToSign'
+            ? data.sla.signature
+            : null
+        return (
+          <button className="admin-collab-dashboard-card" type="button" key={key} onClick={() => openQueue(targetQueue)}>
+            <span><Icon size={20} aria-hidden="true" />{label}</span>
+            <strong>{data[key]}</strong>
+            {sla && <small className={`admin-collab-dashboard-sla${sla.overdue > 0 ? ' is-overdue' : ''}`}>
+              {sla.overdue} hors délai · objectif {sla.targetHours} h{!isScopedSalesRole ? ` · ${sla.unassigned} sans affectation` : ''}
+            </small>}
+            <small>Consulter les dossiers →</small>
+          </button>
+        )
+      })}
+    </div>
+  )
 
   return (
     <div className="admin-collaboration">
@@ -328,15 +463,15 @@ export default function AdminCollaborationReviewPage() {
               </div>
               <form className="admin-collab-totp-form" onSubmit={(event) => void loadDetail(event)}>
                 <p>Un nouveau code administrateur est requis pour accéder au détail.</p>
-                <label htmlFor="admin-collab-detail-totp">Code administrateur</label>
                 <div className="admin-collab-inline-form">
-                  <input id="admin-collab-detail-totp" inputMode="numeric" autoComplete="off" maxLength={6} pattern="[0-9]{6}" value={totp} onChange={(event) => setTotp(event.target.value.replace(/\D/g, '').slice(0, 6))} />
+                  <AdminTotpCodeField id="admin-collab-detail-totp" label="Code administrateur" value={totp} onChange={setTotp} />
                   <button className="primary-button" type="submit" disabled={detailLoading}>{detailLoading ? <LoaderCircle className="spin" size={18} /> : <ShieldCheck size={18} />}Afficher le dossier</button>
                 </div>
               </form>
             </section>
           ) : (
             <DealReview
+              key={detail.id}
               detail={detail}
               reason={reason}
               onReasonChange={setReason}
@@ -351,6 +486,22 @@ export default function AdminCollaborationReviewPage() {
               onPrepareDecision={(decision) => void prepareDecision(decision)}
               onSubmitDecision={(event) => void submitDecision(event)}
               onCancelDecision={() => { setPendingDecision(null); setSummaryDisplayed(false); setTotp(''); setError('') }}
+              canReview={userRole !== 'SALES_SIGNER'}
+              canOverrideConfirmation={userRole === 'ADMIN' || userRole === 'SUPER_ADMIN'}
+              canRestoreHiddenAgent={userRole === 'ADMIN' || userRole === 'SUPER_ADMIN'}
+              canManageAssignments={userRole === 'ADMIN' || userRole === 'SUPER_ADMIN'}
+              onAssignmentChange={(assignment) => setDetail((current) => {
+                if (!current) return current
+                const reviewer = current.assignmentTeam?.reviewers.find(({ id }) => id === assignment.reviewAssignedToId) ?? null
+                const signer = current.assignmentTeam?.signers.find(({ id }) => id === assignment.signAssignedToId) ?? null
+                return {
+                  ...current,
+                  reviewAssignedToId: assignment.reviewAssignedToId,
+                  signAssignedToId: assignment.signAssignedToId,
+                  reviewAssignedTo: reviewer,
+                  signAssignedTo: signer,
+                }
+              })}
               onRestoreHiddenAgent={(agentId) => setDetail((current) => current
                 ? { ...current, hiddenAgents: current.hiddenAgents.filter((agent) => agent.id !== agentId) }
                 : current)}
@@ -362,8 +513,9 @@ export default function AdminCollaborationReviewPage() {
           <button type="button" className="admin-collab-back" onClick={() => { setQueue(null); setRows([]); setHasLoaded(false); setTotp(''); setError('') }}><ArrowLeft size={18} /> Tableau de bord</button>
           <header className="page-heading">
             <div>
-              <p className="eyebrow">COLLABORATION · CONTRÔLE ADMIN</p>
+              <p className="eyebrow">{isScopedSalesRole ? 'ÉQUIPE VENTES · TRAITEMENT' : 'COLLABORATION · ADMINISTRATION'}</p>
               <h1>{QUEUE_LABELS[queue]}</h1>
+              <p className="intro">{QUEUE_GUIDANCE[queue]}</p>
               {hasLoaded && <p className="intro">{total} élément{total === 1 ? '' : 's'} · Page {page} sur {maxPage}</p>}
             </div>
           </header>
@@ -374,29 +526,79 @@ export default function AdminCollaborationReviewPage() {
           ) : (
           <>
           <section className="admin-collab-panel">
-            {!hasLoaded ? (
-              <form className="admin-collab-totp-form" onSubmit={(event) => void loadQueue(event)}>
-                <p>Un code à usage unique est requis pour consulter cette liste. Il ne sera utilisé que pour cette requête.</p>
-                <label htmlFor="admin-collab-queue-totp">Code administrateur</label>
-                <div className="admin-collab-inline-form">
-                  <input id="admin-collab-queue-totp" inputMode="numeric" autoComplete="off" maxLength={6} pattern="[0-9]{6}" value={totp} onChange={(event) => setTotp(event.target.value.replace(/\D/g, '').slice(0, 6))} />
-                  <button className="primary-button" type="submit" disabled={queueLoading}>{queueLoading ? <LoaderCircle className="spin" size={18} /> : <ShieldCheck size={18} />}Charger la liste</button>
-                </div>
-              </form>
-            ) : rows.length === 0 ? (
-              <div className="admin-collab-empty"><CheckCircle2 size={26} /><p>Aucun élément dans cette liste pour le moment.</p></div>
-            ) : (
+            <div className="admin-collab-panel-heading">
+              <div><RefreshCw size={19} /><h2>Filtres de la file</h2></div>
+              <span>{hasLoaded ? `${total} résultat${total === 1 ? '' : 's'} · Page ${page}/${maxPage}` : 'Affinez avant de charger'}</span>
+            </div>
+            <form className="admin-collab-queue-filters" onSubmit={(event) => void loadQueue(event)}>
+              <label>Du
+                <input type="date" value={queueFilters.from} onChange={(event) => updateQueueFilters((current) => ({ ...current, from: event.target.value }))} />
+              </label>
+              <label>Au
+                <input type="date" value={queueFilters.to} onChange={(event) => updateQueueFilters((current) => ({ ...current, to: event.target.value }))} />
+              </label>
+              {queue === 'review' && !isSalesReviewer && (
+                <label>Étape
+                  <select value={queueFilters.reviewStage} onChange={(event) => updateQueueFilters((current) => ({ ...current, reviewStage: event.target.value as QueueFilterState['reviewStage'] }))}>
+                    <option value="ALL">Toutes les étapes</option>
+                    <option value="WAITING_CLIENT">Confirmation client attendue</option>
+                    <option value="CLIENT_CONFIRMED">Client confirmé · à vérifier</option>
+                    <option value="NO_RESPONSE">Sans réponse client</option>
+                    <option value="DISPUTED">Litiges</option>
+                  </select>
+                </label>
+              )}
+              {(queue === 'review' || queue === 'ready') && !isScopedSalesRole && (
+                <label>Affectation
+                  <select value={queueFilters.assignment} onChange={(event) => updateQueueFilters((current) => ({ ...current, assignment: event.target.value as QueueFilterState['assignment'] }))}>
+                    <option value="ALL">Toutes</option>
+                    <option value="ASSIGNED">Attribués</option>
+                    <option value="UNASSIGNED">À attribuer</option>
+                  </select>
+                </label>
+              )}
+              {(queue === 'review' || queue === 'ready') && (
+                <label>Priorité SLA
+                  <select value={queueFilters.sla} onChange={(event) => updateQueueFilters((current) => ({ ...current, sla: event.target.value as QueueFilterState['sla'] }))}>
+                    <option value="ALL">Tous les délais</option>
+                    <option value="OVERDUE">Hors délai uniquement</option>
+                  </select>
+                </label>
+              )}
+              {isScopedSalesRole && (queue === 'review' || queue === 'ready') && (
+                <p className="admin-collab-filter-scope">Cette file ne contient que les dossiers qui vous sont attribués.</p>
+              )}
+              <AdminTotpCodeField className="admin-collab-filter-totp" label="Code administrateur" value={totp} onChange={setTotp} />
+              <button className="primary-button" type="submit" disabled={queueLoading}>
+                {queueLoading ? <LoaderCircle className="spin" size={18} /> : <RefreshCw size={18} />}
+                {hasLoaded ? 'Appliquer et actualiser' : 'Afficher les dossiers'}
+              </button>
+              <button className="outline-button" type="button" onClick={() => updateQueueFilters(() => EMPTY_QUEUE_FILTERS)} disabled={queueLoading}>
+                Effacer les filtres
+              </button>
+            </form>
+            {appliedQueueFilters && JSON.stringify(queueFilters) !== JSON.stringify(appliedQueueFilters) && (
+              <p className="admin-collab-filter-pending">Les filtres ont changé. Appliquez-les avec un nouveau code TOTP pour actualiser les résultats.</p>
+            )}
+          </section>
+          {hasLoaded && (rows.length === 0 ? (
+            <section className="admin-collab-panel admin-collab-empty admin-collab-empty-panel">
+              <CheckCircle2 size={26} />
+              <div><strong>Aucun dossier ne correspond aux filtres.</strong><p>Modifiez la période ou les critères, ou revenez plus tard.</p></div>
+            </section>
+          ) : (
+            <section className="admin-collab-panel">
               <div className="admin-collab-deal-list">
                 {rows.map((row) => row.kind === 'deal'
                   ? queue === 'ready' && 'prerequisites' in row.value
-                    ? <SignatureQueueCard key={`deal-${row.value.id}`} deal={row.value} onSuccess={() => setDashboard(null)} onReload={() => { setHasLoaded(false); setRows([]); setTotp(''); setError('') }} />
-                    : <DealQueueCard key={`deal-${row.value.id}`} deal={row.value} queue={queue} onOpen={openDeal} />
+                    ? <SignatureQueueCard key={`deal-${row.value.id}`} deal={row.value} slaTargetHours={dashboard?.sla.signature.targetHours} onOpen={() => openDeal(row.value.id)} onSuccess={() => setDashboard(null)} onReload={() => { setHasLoaded(false); setRows([]); setTotp(''); setError('') }} />
+                    : <DealQueueCard key={`deal-${row.value.id}`} deal={row.value} queue={queue} reviewSlaTargetHours={dashboard?.sla.review.targetHours} onOpen={openDeal} />
                   : row.kind === 'alert'
                     ? <AlertQueueCard key={row.value.id} alert={row.value} onOpen={openDeal} />
                     : <CommissionWalletCard key={`commission-${row.value.id}`} commission={row.value} />)}
               </div>
-            )}
-          </section>
+            </section>
+          ))}
           {queue === 'commissions' && hasLoaded && <CommissionCsvExport onError={setError} />}
           {error && <p className="admin-collab-error" role="alert">{error}<button type="button" onClick={() => setError('')} aria-label="Fermer le message">×</button></p>}
           {hasLoaded && (
@@ -411,14 +613,6 @@ export default function AdminCollaborationReviewPage() {
               </button>
             </>
           )}
-          {(queue === 'disputes' || queue === 'overrides') && (
-            <section className="admin-collab-note">
-              <AlertTriangle size={18} />
-              <p>{queue === 'disputes'
-                ? 'La file utilise /deals : les litiges sont triés en premier et marqués selon leur statut. Un filtre serveur dédié n’est pas encore disponible.'
-                : 'La file utilise /deals comme convenu, mais cette route ne renvoie pas les dossiers déjà confirmés ni le motif de dérogation. Le motif reste visible dans la fiche du dossier ; un filtre serveur dédié sera nécessaire pour afficher toute cette file.'}</p>
-            </section>
-          )}
           {queue === 'disputes' && hasLoaded && (
             <DisputeCommissionsPanel
               deals={rows.flatMap((row) => row.kind === 'deal' && row.value.status === 'DISPUTED' ? [row.value as AdminCollaborationDealSummary] : [])}
@@ -432,42 +626,57 @@ export default function AdminCollaborationReviewPage() {
         <>
           <header className="page-heading">
             <div>
-              <p className="eyebrow">COLLABORATION · CONTRÔLE ADMIN</p>
-              <h1>À traiter maintenant</h1>
-              <p className="intro">Choisissez une file à consulter. Un code administrateur sera demandé pour chaque requête.</p>
+              <p className="eyebrow">{isScopedSalesRole ? 'ÉQUIPE VENTES · TRAITEMENT' : 'COLLABORATION · ADMINISTRATION'}</p>
+              <h1>Suivi des ventes collaboratives</h1>
+              <p className="intro">Parcourez chaque étape, repérez les retards et ouvrez directement les dossiers à traiter. Les équipes voient uniquement les dossiers qui leur sont attribués.</p>
             </div>
           </header>
           {!dashboard ? (
             <section className="admin-collab-panel">
               <form className="admin-collab-totp-form" onSubmit={(event) => void loadDashboard(event)}>
                 <p>Un code à usage unique est requis pour charger les compteurs. Il ne sera utilisé que pour cette requête.</p>
-                <label htmlFor="admin-collab-dashboard-totp">Code administrateur</label>
                 <div className="admin-collab-inline-form">
-                  <input id="admin-collab-dashboard-totp" inputMode="numeric" autoComplete="off" maxLength={6} pattern="[0-9]{6}" value={totp} onChange={(event) => setTotp(event.target.value.replace(/\D/g, '').slice(0, 6))} />
+                  <AdminTotpCodeField id="admin-collab-dashboard-totp" label="Code administrateur" value={totp} onChange={setTotp} />
                   <button className="primary-button" type="submit" disabled={queueLoading}>{queueLoading ? <LoaderCircle className="spin" size={18} /> : <ShieldCheck size={18} />}Afficher les compteurs</button>
                 </div>
               </form>
             </section>
           ) : (
-            <div className="admin-collab-dashboard">
-              {DASHBOARD_CARDS.map(({ key, label, queue: targetQueue, icon: Icon }) => (
-                <button className="admin-collab-dashboard-card" type="button" key={key} onClick={() => { setQueue(targetQueue); setPage(1); setRows([]); setHasLoaded(false); setTotp(''); setError('') }}>
-                  <span><Icon size={20} aria-hidden="true" />{label}</span>
-                  <strong>{dashboard[key]}</strong>
-                  <small>Ouvrir la liste</small>
-                </button>
-              ))}
-              <button className="admin-collab-dashboard-card" type="button" onClick={() => { setQueue('audit'); setPage(1); setRows([]); setHasLoaded(false); setTotp(''); setError('') }}>
-                <span><ScrollText size={20} aria-hidden="true" />Journal d’audit</span>
-                <small>Consulter et exporter</small>
-              </button>
-              <button className="admin-collab-dashboard-card" type="button" onClick={() => { setQueue('agents'); setPage(1); setRows([]); setHasLoaded(false); setTotp(''); setError('') }}>
-                <span><Users size={20} aria-hidden="true" />Agents</span>
-                <small>Scores, alertes et statuts</small>
-              </button>
+            <div className="admin-collab-dashboard-groups">
+              {dashboardCards.some(({ queue: targetQueue }) => targetQueue === 'review' || targetQueue === 'ready') && (
+                <section className="admin-collab-dashboard-group">
+                  <header><h2>Traitement de la vente</h2><p>Suivez le dossier de la vérification jusqu’à la signature.</p></header>
+                  {renderDashboardCards(dashboard, dashboardCards.filter(({ queue: targetQueue }) => targetQueue === 'review' || targetQueue === 'ready'))}
+                </section>
+              )}
+              {dashboardCards.some(({ queue: targetQueue }) => targetQueue === 'commissions') && (
+                <section className="admin-collab-dashboard-group">
+                  <header><h2>Après signature</h2><p>Consultez les commissions créditées aux agents.</p></header>
+                  {renderDashboardCards(dashboard, dashboardCards.filter(({ queue: targetQueue }) => targetQueue === 'commissions'))}
+                </section>
+              )}
+              {dashboardCards.some(({ queue: targetQueue }) => !['review', 'ready', 'commissions'].includes(targetQueue)) && (
+                <section className="admin-collab-dashboard-group">
+                  <header><h2>Exceptions et contrôles</h2><p>Traitez les litiges, dérogations et alertes nécessitant une vérification.</p></header>
+                  {renderDashboardCards(dashboard, dashboardCards.filter(({ queue: targetQueue }) => !['review', 'ready', 'commissions'].includes(targetQueue)))}
+                </section>
+              )}
+              {!isScopedSalesRole && <section className="admin-collab-dashboard-group">
+                <header><h2>Outils de suivi</h2><p>Consultez les décisions, l’activité et les alertes générales.</p></header>
+                <div className="admin-collab-dashboard">
+                  <button className="admin-collab-dashboard-card" type="button" onClick={() => openQueue('audit')}>
+                    <span><ScrollText size={20} aria-hidden="true" />Journal d’audit</span>
+                    <small>Consulter et exporter</small>
+                  </button>
+                  <button className="admin-collab-dashboard-card" type="button" onClick={() => openQueue('agents')}>
+                    <span><Users size={20} aria-hidden="true" />Agents</span>
+                    <small>Scores, alertes et statuts</small>
+                  </button>
+                </div>
+              </section>}
             </div>
           )}
-          {dashboard && <AuditChainStatusCard status={chainStatus} onChange={setChainStatus} />}
+          {dashboard && !isScopedSalesRole && <AuditChainStatusCard status={chainStatus} onChange={setChainStatus} />}
         </>
       )}
       {error && dealId === null && !queue && <p className="admin-collab-error" role="alert">{error}<button type="button" onClick={() => setError('')} aria-label="Fermer le message">×</button></p>}
@@ -476,27 +685,45 @@ export default function AdminCollaborationReviewPage() {
   )
 }
 
-function DealQueueCard({ deal, queue, onOpen }: { deal: AdminCollaborationDealSummary | AdminCollaborationReadyDeal | AdminCollaborationOverrideSummary; queue: QueueKind; onOpen: (id: number) => void }) {
+function DealQueueCard({
+  deal,
+  queue,
+  reviewSlaTargetHours,
+  onOpen,
+}: {
+  deal: AdminCollaborationDealSummary | AdminCollaborationReadyDeal | AdminCollaborationOverrideSummary
+  queue: QueueKind
+  reviewSlaTargetHours: number | undefined
+  onOpen: (id: number) => void
+}) {
   const summary = 'closingReportedAt' in deal
   const override = 'overrideReason' in deal
   const reason = override ? deal.overrideReason : summary ? deal.disputeReason || deal.clientConfirmationOverrideReason : undefined
   const highlighted = queue === 'disputes' ? deal.status === 'DISPUTED' : queue === 'overrides' ? Boolean(reason) : summary && (deal.status === 'DISPUTED' || Boolean(reason))
   const prerequisites = 'prerequisites' in deal ? deal.prerequisites : null
+  const reviewer = 'reviewAssignedTo' in deal ? deal.reviewAssignedTo : null
+  const reviewSla = queue === 'review' && 'reviewSlaStartedAt' in deal
+    ? slaLabel(deal.reviewSlaStartedAt, reviewSlaTargetHours)
+    : null
   return (
     <article className={`admin-collab-deal-card ${highlighted ? 'is-priority' : ''}`}>
       <div className="admin-collab-deal-card-main">
-        <strong>Dossier #{deal.id}</strong>
+        <strong>Dossier #{deal.id} · {queue === 'review' ? 'Vérification' : queue === 'ready' ? 'Signature' : queue === 'disputes' ? 'Litige' : queue === 'overrides' ? 'Dérogation' : 'Suivi'}</strong>
         <DealStatus status={deal.status} />
         <span>Fournisseur : {deal.supplier?.name ?? 'Non attribué'}</span>
         <span>Closeur : {deal.closer?.name ?? 'Non attribué'}</span>
         <small>{override ? `Dérogation le ${formatDate(deal.overrideAt)}` : queue === 'disputes' && 'disputedAt' in deal ? `Litige ouvert le ${formatDate(deal.disputedAt)}` : summary ? `Rapport soumis le ${formatDate(deal.closingReportedAt)}` : `Mis à jour le ${formatDate(deal.updatedAt)}`}</small>
+        {queue === 'review' && <>
+          <small>Vérificateur : {reviewer?.name ?? 'À attribuer'}</small>
+          {reviewSla && <span className={`admin-collab-sla${reviewSla.overdue ? ' is-overdue' : ''}`}>{reviewSla.overdue ? <AlertTriangle size={15} /> : <Clock3 size={15} />}{reviewSla.text}</span>}
+        </>}
         {override && <small>Admin : {deal.admin?.name ?? 'Non renseigné'}</small>}
         {prerequisites && <small>Prérequis : {prerequisites.blockers.length ? prerequisites.blockers.join(', ') : 'Prêts à signer'}</small>}
         {reason && <p className="admin-collab-override"><AlertTriangle size={18} />{reason}</p>}
       </div>
       {queue === 'ready'
-        ? <span className="admin-collab-muted">La signature sera disponible dans le lot 3–4.</span>
-        : <button className="outline-button" type="button" onClick={() => onOpen(deal.id)}>Ouvrir le dossier</button>}
+        ? <button className="outline-button" type="button" onClick={() => onOpen(deal.id)}>Consulter avant signature</button>
+        : <button className="outline-button" type="button" onClick={() => onOpen(deal.id)}>{queue === 'review' ? 'Examiner le dossier' : 'Ouvrir le dossier'}</button>}
     </article>
   )
 }
@@ -522,15 +749,20 @@ function localAntananarivoDate(): string {
 
 function SignatureQueueCard({
   deal,
+  slaTargetHours,
+  onOpen,
   onSuccess,
   onReload,
 }: {
   deal: AdminCollaborationReadyDeal
+  slaTargetHours: number | undefined
+  onOpen: () => void
   onSuccess: () => void
   onReload: () => void
 }) {
   const [reference, setReference] = useState('')
   const [signedDate, setSignedDate] = useState(localAntananarivoDate)
+  const [contractAmount, setContractAmount] = useState('')
   const [file, setFile] = useState<File | null>(null)
   const [totp, setTotp] = useState('')
   const [review, setReview] = useState(false)
@@ -541,12 +773,13 @@ function SignatureQueueCard({
   const [networkUncertain, setNetworkUncertain] = useState(false)
   const [busy, setBusy] = useState(false)
   const lock = useRef(false)
+  const sla = slaLabel(deal.confirmedAt, slaTargetHours)
 
   async function prepareSignature() {
     if (!deal.prerequisites.canSign || lock.current || result) return
     const cleanReference = reference.trim()
-    if (!cleanReference || !signedDate || !file) {
-      setError('Renseignez la référence, la date et le fichier du contrat.')
+    if (!cleanReference || !signedDate || !validContractAmount(contractAmount) || !file) {
+      setError('Renseignez la référence, la date, le montant final du projet et le fichier du contrat.')
       return
     }
     if (!isAllowedCollaborationUpload(file)) {
@@ -555,7 +788,14 @@ function SignatureQueueCard({
     }
     const confirmed = await confirmAction({
       title: 'Récapitulatif avant signature',
-      message: `Dossier #${deal.id}\nRéférence : ${cleanReference}\nDate de signature : ${formatDate(antananarivoDateToIso(signedDate))}\nFichier : ${file.name}\nCette signature est définitive.`,
+      message: [
+        `Dossier #${deal.id}`,
+        `Référence : ${cleanReference}`,
+        `Date de signature : ${formatDate(antananarivoDateToIso(signedDate))}`,
+        `Montant final du projet : ${formatAriaryAmount(contractAmount)}`,
+        `Fichier : ${file.name}`,
+        'Cette signature est définitive.',
+      ].join('\n'),
       confirmLabel: 'Confirmer le récapitulatif',
     })
     if (!confirmed) return
@@ -568,6 +808,10 @@ function SignatureQueueCard({
   async function submitSignature(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     if (!file || lock.current || result) return
+    if (!validContractAmount(contractAmount)) {
+      setError('Saisissez un montant final strictement positif en Ariary.')
+      return
+    }
     const code = totp.trim()
     if (!/^\d{6}$/.test(code)) {
       setError('Saisissez un nouveau code administrateur à 6 chiffres.')
@@ -582,6 +826,7 @@ function SignatureQueueCard({
       const signed = await api.signAdminCollaborationDeal(deal.id, code, {
         contractReference: reference,
         contractDate: antananarivoDateToIso(signedDate),
+        contractAmount,
         file,
       })
       setResult(signed)
@@ -631,9 +876,12 @@ function SignatureQueueCard({
   return (
     <article className="admin-collab-deal-card admin-collab-action-card">
       <div className="admin-collab-deal-card-main">
-        <strong>Dossier #{deal.id} · Contrat à signer</strong>
+        <strong>Dossier #{deal.id} · Étape 2 — Signature</strong>
         <span>Fournisseur : {deal.supplier?.name ?? 'Non attribué'} · Closeur : {deal.closer?.name ?? 'Non attribué'}</span>
         <small>Confirmé le {formatDate(deal.confirmedAt)} · mis à jour le {formatDate(deal.updatedAt)}</small>
+        <small>Signataire : {deal.signAssignedTo?.name ?? 'À attribuer'}</small>
+        {sla && <span className={`admin-collab-sla${sla.overdue ? ' is-overdue' : ''}`}>{sla.overdue ? <AlertTriangle size={15} /> : <Clock3 size={15} />}{sla.text}</span>}
+        <button className="outline-button" type="button" onClick={onOpen}>Consulter le dossier avant signature</button>
         {!deal.prerequisites.canSign && (
           <div className="admin-collab-blockers">
             <strong>Signature bloquée</strong>
@@ -645,12 +893,12 @@ function SignatureQueueCard({
         <div className="admin-collab-action-result" role="status">
           <strong><CheckCircle2 size={18} /> Contrat signé</strong>
           <span>Numéro de vente : {result.saleNumber}</span>
+          <span>Montant final du projet : {formatAriaryAmount(result.contractAmount)}</span>
           {!hash ? (
             <form className="admin-collab-totp-form" onSubmit={(event) => void loadHash(event)}>
               <p>Pour afficher l’empreinte SHA-256, confirmez votre identité avec un nouveau TOTP.</p>
-              <label htmlFor={`signature-hash-totp-${deal.id}`}>Code administrateur</label>
               <div className="admin-collab-inline-form">
-                <input id={`signature-hash-totp-${deal.id}`} inputMode="numeric" autoComplete="off" maxLength={6} pattern="[0-9]{6}" value={totp} onChange={(event) => setTotp(event.target.value.replace(/\D/g, '').slice(0, 6))} />
+                <AdminTotpCodeField id={`signature-hash-totp-${deal.id}`} label="Code administrateur" value={totp} onChange={setTotp} />
                 <button className="outline-button" type="submit" disabled={busy}>{busy ? <LoaderCircle className="spin" size={18} /> : <ShieldCheck size={18} />}Voir le hash</button>
               </div>
               {hashError && <p className="admin-collab-error" role="alert">{hashError}</p>}
@@ -661,6 +909,20 @@ function SignatureQueueCard({
         <div className="admin-collab-signature-fields">
           <label>Référence du contrat<input value={reference} maxLength={150} onChange={(event) => setReference(event.target.value)} /></label>
           <label>Date de signature<input type="date" value={signedDate} onChange={(event) => setSignedDate(event.target.value)} /></label>
+          <label>Montant final du projet (Ariary)
+            <input
+              type="text"
+              inputMode="numeric"
+              autoComplete="off"
+              maxLength={19}
+              pattern="[0-9]{1,19}"
+              placeholder="Ex. 2500000"
+              value={contractAmount}
+              onChange={(event) => setContractAmount(event.target.value.replace(/\D/g, '').slice(0, 19))}
+            />
+          </label>
+          <p className="admin-collab-amount-note">Saisissez le montant exact indiqué sur le contrat signé. Le montant du rapport de clôture restera conservé séparément.</p>
+          {contractAmount && validContractAmount(contractAmount) && <small>Montant final : {formatAriaryAmount(contractAmount)}</small>}
           <label>Fichier du contrat (PDF, JPEG, PNG ou WebP · 10 Mio max.)
             <input type="file" accept=".pdf,.jpg,.jpeg,.png,.webp,application/pdf,image/jpeg,image/png,image/webp" onChange={(event) => {
               const selected = event.target.files?.[0] ?? null
@@ -678,12 +940,12 @@ function SignatureQueueCard({
             <span>Dossier #{deal.id} · {deal.supplier?.name ?? 'Fournisseur'} / {deal.closer?.name ?? 'Closeur'}</span>
             <span>Référence : {reference}</span>
             <span>Date : {formatDate(antananarivoDateToIso(signedDate))}</span>
+            <span>Montant final : {formatAriaryAmount(contractAmount)}</span>
             <span>Fichier : {file?.name}</span>
             <span>Cette action est irréversible et ne peut être effectuée qu’une fois.</span>
           </div>
-          <label htmlFor={`signature-totp-${deal.id}`}>Nouveau code administrateur</label>
           <div className="admin-collab-inline-form">
-            <input id={`signature-totp-${deal.id}`} inputMode="numeric" autoComplete="off" maxLength={6} pattern="[0-9]{6}" value={totp} onChange={(event) => setTotp(event.target.value.replace(/\D/g, '').slice(0, 6))} />
+            <AdminTotpCodeField id={`signature-totp-${deal.id}`} label="Code administrateur pour signer" value={totp} onChange={setTotp} />
             <button className="primary-button" type="submit" disabled={busy}>{busy ? <LoaderCircle className="spin" size={18} /> : <ShieldCheck size={18} />}Signer le contrat</button>
             <button className="outline-button" type="button" disabled={busy} onClick={() => { setReview(false); setTotp('') }}>Annuler</button>
           </div>
@@ -752,9 +1014,8 @@ function CommissionCsvExport({ onError }: { onError: (message: string) => void }
     <section className="admin-collab-panel admin-collab-export-panel">
       <div className="admin-collab-note"><AlertTriangle size={18} /><p>Export contenant des données financières. Le fichier est préparé en mémoire et n’est pas enregistré dans le stockage de l’application.</p></div>
       <form className="admin-collab-totp-form" onSubmit={(event) => void exportCsv(event)}>
-        <label htmlFor="admin-collab-export-totp">Code administrateur pour l’export CSV</label>
         <div className="admin-collab-inline-form">
-          <input id="admin-collab-export-totp" inputMode="numeric" autoComplete="off" maxLength={6} pattern="[0-9]{6}" value={totp} onChange={(event) => setTotp(event.target.value.replace(/\D/g, '').slice(0, 6))} />
+          <AdminTotpCodeField id="admin-collab-export-totp" label="Code pour l’export CSV" value={totp} onChange={setTotp} />
           <button className="outline-button" type="submit" disabled={busy}>{busy ? <LoaderCircle className="spin" size={18} /> : <Download size={18} />}Exporter le CSV</button>
         </div>
       </form>
@@ -777,6 +1038,11 @@ function DealReview({
   onPrepareDecision,
   onSubmitDecision,
   onCancelDecision,
+  canReview,
+  canOverrideConfirmation,
+  canRestoreHiddenAgent,
+  canManageAssignments,
+  onAssignmentChange,
   onRestoreHiddenAgent,
 }: {
   detail: AdminCollaborationDealDetail
@@ -793,6 +1059,11 @@ function DealReview({
   onPrepareDecision: (decision: 'CONFIRM' | 'REJECT') => void
   onSubmitDecision: (event: FormEvent<HTMLFormElement>) => void
   onCancelDecision: () => void
+  canReview: boolean
+  canOverrideConfirmation: boolean
+  canRestoreHiddenAgent: boolean
+  canManageAssignments: boolean
+  onAssignmentChange: (assignment: { reviewAssignedToId: number | null; signAssignedToId: number | null }) => void
   onRestoreHiddenAgent: (agentId: number) => void
 }) {
   const confirmedByClient = detail.clientConfirmation?.status === 'CONFIRMED_BY_CLIENT' || detail.clientConfirmation?.status === 'CONFIRMED'
@@ -802,6 +1073,40 @@ function DealReview({
   const [restoreTotp, setRestoreTotp] = useState('')
   const [restoreBusy, setRestoreBusy] = useState(false)
   const [restoreError, setRestoreError] = useState('')
+  const [reviewAssigneeId, setReviewAssigneeId] = useState(detail.reviewAssignedToId?.toString() ?? '')
+  const [signAssigneeId, setSignAssigneeId] = useState(detail.signAssignedToId?.toString() ?? '')
+  const [assignmentTotp, setAssignmentTotp] = useState('')
+  const [assignmentBusy, setAssignmentBusy] = useState(false)
+  const [assignmentError, setAssignmentError] = useState('')
+  const [assignmentSuccess, setAssignmentSuccess] = useState('')
+
+  async function saveAssignment(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (assignmentBusy) return
+    const code = assignmentTotp.trim()
+    if (!/^\d{6}$/.test(code)) {
+      setAssignmentError('Saisissez un nouveau code administrateur à 6 chiffres.')
+      return
+    }
+    const input = detail.assignmentEligibility.review
+      ? { reviewAssignedToId: reviewAssigneeId ? Number(reviewAssigneeId) : null }
+      : { signAssignedToId: signAssigneeId ? Number(signAssigneeId) : null }
+    setAssignmentTotp('')
+    setAssignmentBusy(true)
+    setAssignmentError('')
+    setAssignmentSuccess('')
+    try {
+      const updated = await api.assignAdminCollaborationDeal(code, detail.id, input)
+      onAssignmentChange(updated)
+      setReviewAssigneeId(updated.reviewAssignedToId?.toString() ?? '')
+      setSignAssigneeId(updated.signAssignedToId?.toString() ?? '')
+      setAssignmentSuccess('Affectation enregistrée.')
+    } catch (caught) {
+      setAssignmentError(errorMessage(caught))
+    } finally {
+      setAssignmentBusy(false)
+    }
+  }
 
   async function restoreHiddenAgent(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -864,6 +1169,7 @@ function DealReview({
               <div><dt>Contact déclaré</dt><dd>{detail.report.contactName} · {detail.report.contactRole}</dd></div>
               <div><dt>Coordonnées du dossier</dt><dd>{detail.prospect?.phone ?? detail.report.contactPhone}{detail.prospect?.email || detail.report.contactEmail ? ` · ${detail.prospect?.email ?? detail.report.contactEmail}` : ''}</dd></div>
               <div><dt>Montant déclaré</dt><dd>{detail.closingReport.saleAmount ? `${Number(detail.closingReport.saleAmount).toLocaleString('fr-FR')} Ar` : 'Non renseigné'}</dd></div>
+              {detail.contractAmount !== null && <div><dt>Montant final au contrat</dt><dd>{formatAriaryAmount(detail.contractAmount)}</dd></div>}
               <div><dt>Date de vente</dt><dd>{formatDate(detail.closingReport.saleDate)}</dd></div>
               <div><dt>Rapport soumis</dt><dd>{formatDate(detail.closingReport.submittedAt ?? detail.closingReport.reportedAt)}</dd></div>
               <div className="admin-collab-data-wide"><dt>Description</dt><dd>{detail.closingReport.details || detail.report.summary || 'Aucune description.'}</dd></div>
@@ -896,7 +1202,43 @@ function DealReview({
           </div>
         </section>
 
-        <section className="admin-collab-panel">
+        {canManageAssignments && <section className="admin-collab-panel">
+          <div className="admin-collab-panel-heading"><div><Users size={20} /><h2>Affectation de l’équipe</h2></div></div>
+          <dl className="admin-collab-data compact">
+            <div><dt>Vérificateur actuel</dt><dd>{detail.reviewAssignedTo?.name ?? 'Non attribué'}</dd></div>
+            <div><dt>Signataire actuel</dt><dd>{detail.signAssignedTo?.name ?? 'Non attribué'}</dd></div>
+          </dl>
+          {detail.assignmentEligibility.review || detail.assignmentEligibility.sign ? (
+            <form className="admin-collab-totp-form" onSubmit={(event) => void saveAssignment(event)}>
+              {detail.assignmentEligibility.review && <>
+                <label htmlFor={`review-assignee-${detail.id}`}>Vérificateur</label>
+                <select id={`review-assignee-${detail.id}`} value={reviewAssigneeId} onChange={(event) => setReviewAssigneeId(event.target.value)}>
+                  <option value="">Aucun · remettre dans la file d’affectation</option>
+                  {detail.reviewAssignedTo && !detail.assignmentTeam?.reviewers.some(({ id }) => id === detail.reviewAssignedTo?.id)
+                    && <option value={detail.reviewAssignedTo.id}>{detail.reviewAssignedTo.name} · compte non opérationnel</option>}
+                  {detail.assignmentTeam?.reviewers.map((member: AdminCollaborationAssignmentOption) => <option value={member.id} key={member.id}>{member.name} · {member.email}</option>)}
+                </select>
+              </>}
+              {detail.assignmentEligibility.sign && <>
+                <label htmlFor={`sign-assignee-${detail.id}`}>Signataire</label>
+                <select id={`sign-assignee-${detail.id}`} value={signAssigneeId} onChange={(event) => setSignAssigneeId(event.target.value)}>
+                  <option value="">Aucun · remettre dans la file d’affectation</option>
+                  {detail.signAssignedTo && !detail.assignmentTeam?.signers.some(({ id }) => id === detail.signAssignedTo?.id)
+                    && <option value={detail.signAssignedTo.id}>{detail.signAssignedTo.name} · compte non opérationnel</option>}
+                  {detail.assignmentTeam?.signers.map((member: AdminCollaborationAssignmentOption) => <option value={member.id} key={member.id}>{member.name} · {member.email}</option>)}
+                </select>
+              </>}
+              <div className="admin-collab-inline-form">
+                <AdminTotpCodeField id={`assignment-totp-${detail.id}`} label="Code pour confirmer l’affectation" value={assignmentTotp} onChange={setAssignmentTotp} />
+                <button className="primary-button" type="submit" disabled={assignmentBusy}>{assignmentBusy ? <LoaderCircle className="spin" size={18} /> : <RefreshCw size={18} />}Enregistrer l’affectation</button>
+              </div>
+              {assignmentError && <p className="admin-collab-error" role="alert">{assignmentError}</p>}
+              {assignmentSuccess && <p className="admin-collab-confirmation is-confirmed" role="status">{assignmentSuccess}</p>}
+            </form>
+          ) : <p className="admin-collab-muted">Ce dossier n’est pas actuellement dans une file d’affectation.</p>}
+        </section>}
+
+        {canRestoreHiddenAgent && <section className="admin-collab-panel">
           <div className="admin-collab-panel-heading"><div><Users size={20} /><h2>Prospect retiré des listes</h2></div></div>
           {detail.hiddenAgents.length === 0
             ? <p className="admin-collab-muted">Aucun agent n’a retiré ce prospect de sa liste.</p>
@@ -912,15 +1254,14 @@ function DealReview({
               ))}
             </div>}
           {restoreAgentId !== null && <form className="admin-collab-totp-form" onSubmit={(event) => void restoreHiddenAgent(event)}>
-            <label htmlFor={`restore-hidden-agent-${restoreAgentId}`}>Code TOTP frais pour réafficher le prospect</label>
             <div className="admin-collab-inline-form">
-              <input id={`restore-hidden-agent-${restoreAgentId}`} inputMode="numeric" autoComplete="off" maxLength={6} pattern="[0-9]{6}" value={restoreTotp} onChange={(event) => setRestoreTotp(event.target.value.replace(/\D/g, '').slice(0, 6))} />
+              <AdminTotpCodeField id={`restore-hidden-agent-${restoreAgentId}`} label="Code pour réafficher le prospect" value={restoreTotp} onChange={setRestoreTotp} />
               <button className="primary-button" type="submit" disabled={restoreBusy}>{restoreBusy ? <LoaderCircle className="spin" size={18} /> : <RefreshCw size={18} />}Réafficher</button>
               <button className="outline-button" type="button" onClick={() => { setRestoreAgentId(null); setRestoreTotp(''); setRestoreError('') }} disabled={restoreBusy}>Annuler</button>
             </div>
             {restoreError && <p className="admin-collab-error" role="alert">{restoreError}</p>}
           </form>}
-        </section>
+        </section>}
 
         <section className="admin-collab-panel">
           <div className="admin-collab-panel-heading"><div><FileText size={20} /><h2>Pièces jointes</h2></div></div>
@@ -946,7 +1287,7 @@ function DealReview({
         </section>
       </div>
 
-      <section className="admin-collab-panel admin-collab-decision-panel">
+      {canReview && <section className="admin-collab-panel admin-collab-decision-panel">
         <div className="admin-collab-panel-heading"><div><AlertTriangle size={20} /><h2>Décision</h2></div></div>
         {!detail.closingReport ? (
           <p className="admin-collab-muted">Aucune décision n’est proposée : l’API exige un rapport de clôture pour confirmer ou rejeter ce dossier.</p>
@@ -954,10 +1295,11 @@ function DealReview({
           <>
             <label className="admin-collab-field-label" htmlFor="admin-collab-reason">Motif de rejet ou de dérogation (obligatoire si concerné)</label>
             <textarea id="admin-collab-reason" rows={3} maxLength={2000} value={reason} onChange={(event) => onReasonChange(event.target.value)} placeholder="Expliquez clairement la décision…" />
-            {!confirmedByClient && <label className="admin-collab-checkbox"><input type="checkbox" checked={overrideConfirmation} onChange={(event) => onOverrideChange(event.target.checked)} /><span>Confirmer malgré l’absence de confirmation client (dérogation motivée)</span></label>}
+            {!confirmedByClient && canOverrideConfirmation && <label className="admin-collab-checkbox"><input type="checkbox" checked={overrideConfirmation} onChange={(event) => onOverrideChange(event.target.checked)} /><span>Confirmer malgré l’absence de confirmation client (dérogation motivée)</span></label>}
+            {!confirmedByClient && !canOverrideConfirmation && <p className="admin-collab-override"><AlertTriangle size={18} />À transmettre à un administrateur : la confirmation client est absente.</p>}
             <div className="admin-collab-decision-actions">
-              <button type="button" className="admin-collab-confirm-button" onClick={() => onPrepareDecision('CONFIRM')} disabled={busy}><CheckCircle2 size={18} />Confirmer la vente</button>
-              <button type="button" className="admin-collab-reject-button" onClick={() => onPrepareDecision('REJECT')} disabled={busy}><XCircle size={18} />Rejeter le dossier</button>
+              <button type="button" className="admin-collab-confirm-button" onClick={() => onPrepareDecision('CONFIRM')} disabled={busy || (!confirmedByClient && !canOverrideConfirmation)}><CheckCircle2 size={18} />Confirmer la vente</button>
+              <button type="button" className="admin-collab-reject-button" onClick={() => onPrepareDecision('REJECT')} disabled={busy || (!confirmedByClient && !canOverrideConfirmation)}><XCircle size={18} />Rejeter le dossier</button>
             </div>
           </>
         ) : (
@@ -971,15 +1313,14 @@ function DealReview({
               {pendingDecision.overrideConfirmation && <span>Dérogation : confirmation client absente ; motif enregistré et visible dans le dossier.</span>}
             </div>}
             {pendingDecision.overrideConfirmation && <p className="admin-collab-override"><AlertTriangle size={18} />Cette confirmation déroge à l’absence de confirmation client.</p>}
-            <label htmlFor="admin-collab-decision-totp">Code administrateur</label>
             <div className="admin-collab-inline-form">
-              <input id="admin-collab-decision-totp" inputMode="numeric" autoComplete="off" maxLength={6} pattern="[0-9]{6}" value={totp} onChange={(event) => onTotpChange(event.target.value)} />
+              <AdminTotpCodeField id="admin-collab-decision-totp" label="Code pour confirmer la décision" value={totp} onChange={onTotpChange} />
               <button className="primary-button" type="submit" disabled={busy || !summaryDisplayed}>{busy ? <LoaderCircle className="spin" size={18} /> : <ShieldCheck size={18} />}Confirmer et enregistrer</button>
               <button className="outline-button" type="button" onClick={onCancelDecision} disabled={busy}>Annuler</button>
             </div>
           </form>
         )}
-      </section>
+      </section>}
     </>
   )
 }
@@ -1014,9 +1355,8 @@ function AuditChainStatusCard({ status, onChange }: { status: AdminAuditVerifica
       {status && status.status !== 'VALID' && status.status !== 'BROKEN' && <p className="admin-collab-muted">Chaîne non certifiée : {status.status === 'STALE' ? 'la dernière vérification a plus de 36 heures.' : 'aucune vérification exploitable n’est disponible.'}</p>}
       {status?.checkedAt && <p className="admin-collab-muted">Dernière vérification : {formatDate(status.checkedAt)}</p>}
       <form className="admin-collab-totp-form" onSubmit={(event) => void load(event)}>
-        <label htmlFor="admin-collab-dashboard-chain-totp">Code administrateur frais</label>
         <div className="admin-collab-inline-form">
-          <input id="admin-collab-dashboard-chain-totp" inputMode="numeric" autoComplete="off" maxLength={6} pattern="[0-9]{6}" value={totp} onChange={(event) => setTotp(event.target.value.replace(/\D/g, '').slice(0, 6))} />
+          <AdminTotpCodeField id="admin-collab-dashboard-chain-totp" label="Code pour vérifier la chaîne" value={totp} onChange={setTotp} />
           <button type="submit" className="outline-button" disabled={busy}>{busy ? <LoaderCircle className="spin" size={18} /> : <RefreshCw size={18} />}Vérifier la chaîne</button>
         </div>
       </form>
@@ -1108,9 +1448,8 @@ function AuditPanel() {
         {chain && chain.status !== 'VALID' && chain.status !== 'BROKEN' && <p className="admin-collab-muted">{chain.status === 'STALE' ? 'La vérification date de plus de 36 heures.' : 'Aucune vérification exploitable.'}</p>}
         {chain?.checkedAt && <p className="admin-collab-muted">Dernière vérification : {formatDate(chain.checkedAt)}</p>}
         <form className="admin-collab-totp-form" onSubmit={(event) => void loadChain(event)}>
-          <label htmlFor="admin-collab-audit-chain-totp">Code TOTP frais</label>
           <div className="admin-collab-inline-form">
-            <input id="admin-collab-audit-chain-totp" inputMode="numeric" autoComplete="off" maxLength={6} pattern="[0-9]{6}" value={verificationTotp} onChange={(event) => setVerificationTotp(event.target.value.replace(/\D/g, '').slice(0, 6))} />
+            <AdminTotpCodeField id="admin-collab-audit-chain-totp" label="Code pour vérifier la chaîne" value={verificationTotp} onChange={setVerificationTotp} />
             <button type="submit" className="outline-button" disabled={verificationBusy}>{verificationBusy ? <LoaderCircle className="spin" size={18} /> : <RefreshCw size={18} />}Vérifier</button>
           </div>
         </form>
@@ -1138,7 +1477,7 @@ function AuditPanel() {
           <label>Action<input value={draftFilters.action ?? ''} onChange={(event) => setDraftFilters((value) => ({ ...value, action: event.target.value }))} /></label>
           <label>Du<input type="date" value={draftFilters.from?.slice(0, 10) ?? ''} onChange={(event) => setDraftFilters((value) => ({ ...value, from: event.target.value }))} /></label>
           <label>Au<input type="date" value={draftFilters.to?.slice(0, 10) ?? ''} onChange={(event) => setDraftFilters((value) => ({ ...value, to: event.target.value }))} /></label>
-          <label className="admin-collab-filter-totp">Code TOTP<input inputMode="numeric" autoComplete="off" maxLength={6} pattern="[0-9]{6}" value={totp} onChange={(event) => setTotp(event.target.value.replace(/\D/g, '').slice(0, 6))} /></label>
+          <AdminTotpCodeField className="admin-collab-filter-totp" label="Code administrateur" value={totp} onChange={setTotp} />
           <button className="primary-button" type="submit" disabled={busy}>{busy ? <LoaderCircle className="spin" size={18} /> : <RefreshCw size={18} />}Appliquer les filtres</button>
         </form>
         {error && <p className="admin-collab-error" role="alert">{error}</p>}
@@ -1160,9 +1499,8 @@ function AuditPanel() {
           </div>
           <form className="admin-collab-totp-form admin-collab-audit-export" onSubmit={(event) => void exportCsv(event)}>
             <p className="admin-collab-note"><AlertTriangle size={18} />Le CSV contient des données de journal sensibles. Il est téléchargé en mémoire et ne sera pas conservé par l’application.</p>
-            <label htmlFor="admin-collab-audit-export-totp">Code TOTP frais pour l’export</label>
             <div className="admin-collab-inline-form">
-              <input id="admin-collab-audit-export-totp" inputMode="numeric" autoComplete="off" maxLength={6} pattern="[0-9]{6}" value={exportTotp} onChange={(event) => setExportTotp(event.target.value.replace(/\D/g, '').slice(0, 6))} />
+              <AdminTotpCodeField id="admin-collab-audit-export-totp" label="Code pour l’export du journal" value={exportTotp} onChange={setExportTotp} />
               <button type="submit" className="outline-button" disabled={exportBusy}>{exportBusy ? <LoaderCircle className="spin" size={18} /> : <Download size={18} />}Exporter le CSV</button>
             </div>
             {exportError && <p className="admin-collab-error" role="alert">{exportError}</p>}
@@ -1237,9 +1575,8 @@ function AgentTrustPanel() {
         <div className="admin-collab-panel-heading"><div><Users size={20} /><h2>Confiance et statut des agents</h2></div>{loaded && <span>{trustTotal} agent{trustTotal === 1 ? '' : 's'} · Page {trustPage}/{Math.max(1, Math.ceil(trustTotal / 50))}</span>}</div>
         {!loaded ? <form className="admin-collab-totp-form" onSubmit={(event) => void loadAgents(event)}>
           <p>La liste paginée affiche jusqu’à 50 agents par page.</p>
-          <label htmlFor="admin-collab-trust-totp">Code administrateur frais</label>
           <div className="admin-collab-inline-form">
-            <input id="admin-collab-trust-totp" inputMode="numeric" autoComplete="off" maxLength={6} pattern="[0-9]{6}" value={totp} onChange={(event) => setTotp(event.target.value.replace(/\D/g, '').slice(0, 6))} />
+            <AdminTotpCodeField id="admin-collab-trust-totp" label="Code pour charger les scores" value={totp} onChange={setTotp} />
             <button type="submit" className="primary-button" disabled={busy}>{busy ? <LoaderCircle className="spin" size={18} /> : <ShieldCheck size={18} />}Charger les scores</button>
           </div>
         </form> : agents.length === 0 ? <p className="admin-collab-muted">Aucun agent dans la réponse.</p> : (
@@ -1260,7 +1597,7 @@ function AgentTrustPanel() {
           <label>Agent (ID)<input inputMode="numeric" value={alertAgentId} onChange={(event) => setAlertAgentId(event.target.value)} /></label>
           <label>Du<input type="date" value={alertFrom} onChange={(event) => setAlertFrom(event.target.value)} /></label>
           <label>Au<input type="date" value={alertTo} onChange={(event) => setAlertTo(event.target.value)} /></label>
-          <label className="admin-collab-filter-totp">Code TOTP<input inputMode="numeric" autoComplete="off" maxLength={6} pattern="[0-9]{6}" value={alertsTotp} onChange={(event) => setAlertsTotp(event.target.value.replace(/\D/g, '').slice(0, 6))} /></label>
+          <AdminTotpCodeField className="admin-collab-filter-totp" label="Code administrateur" value={alertsTotp} onChange={setAlertsTotp} />
           <button className="primary-button" type="submit" disabled={busy}>{busy ? <LoaderCircle className="spin" size={18} /> : <RefreshCw size={18} />}Charger les alertes</button>
         </form>
         {alertsLoaded && <div className="admin-collab-special-panels">
@@ -1335,7 +1672,7 @@ function AgentStatusCard({ agent, onSuccess }: { agent: AdminCollaborationTrustA
       ) : (
         <form className="admin-collab-totp-form" onSubmit={(event) => void submit(event)}>
           <div className="admin-collab-decision-summary"><strong>Récapitulatif prêt</strong><span>{targetStatus === 'SUSPENDU' ? 'Suspension' : 'Réactivation'} · {agent.name}</span><span>Motif : {reason.trim()}</span></div>
-          <label>Code administrateur frais<input inputMode="numeric" autoComplete="off" maxLength={6} pattern="[0-9]{6}" value={totp} onChange={(event) => setTotp(event.target.value.replace(/\D/g, '').slice(0, 6))} /></label>
+          <AdminTotpCodeField label="Code pour confirmer le changement" value={totp} onChange={setTotp} />
           <div className="admin-collab-inline-form">
             <button className="primary-button" type="submit" disabled={busy}>{busy ? <LoaderCircle className="spin" size={18} /> : <ShieldCheck size={18} />}Confirmer</button>
             <button className="outline-button" type="button" disabled={busy} onClick={() => { setTargetStatus(null); setTotp('') }}>Annuler</button>
@@ -1406,9 +1743,8 @@ function DisputeCommissionsPanel({ deals, onSuccess }: { deals: AdminCollaborati
       <div className="admin-collab-panel-heading admin-collab-hold-heading"><div><CircleDot size={20} /><h2>Commissions ON_HOLD</h2></div><strong>{loaded ? `${totals} en attente de décision` : 'État non chargé'}</strong></div>
       {!loaded && <form className="admin-collab-totp-form" onSubmit={(event) => void loadHolds(event, page)}>
         <p>Rechargez l’état serveur avec TOTP. Les commissions sont triées par ancienneté · page {page}/{holdPages}.</p>
-        <label htmlFor="admin-collab-dispute-load-totp">Code administrateur frais</label>
         <div className="admin-collab-inline-form">
-          <input id="admin-collab-dispute-load-totp" inputMode="numeric" autoComplete="off" maxLength={6} pattern="[0-9]{6}" value={totp} onChange={(event) => setTotp(event.target.value.replace(/\D/g, '').slice(0, 6))} />
+          <AdminTotpCodeField id="admin-collab-dispute-load-totp" label="Code pour recharger l’état" value={totp} onChange={setTotp} />
           <button className="primary-button" type="submit" disabled={busy}>{busy ? <LoaderCircle className="spin" size={18} /> : <RefreshCw size={18} />}Recharger l’état</button>
         </div>
       </form>}
@@ -1498,11 +1834,11 @@ function DisputeResolutionCard({ deal, heldCount, stateKnown, onSuccess }: { dea
       </> : !stateRefreshed ? <form className="admin-collab-totp-form" onSubmit={(event) => void refreshBeforeResolution(event)}>
         <div className="admin-collab-decision-summary"><strong>Confirmation irréversible</strong><span>Dossier #{deal.id} · {heldCount} commission ON_HOLD</span><span>Motif : {reason.trim()}</span></div>
         <p>Un nouveau TOTP recharge les commissions juste avant la décision.</p>
-        <label>Code TOTP de rechargement<input inputMode="numeric" autoComplete="off" maxLength={6} pattern="[0-9]{6}" value={refreshTotp} onChange={(event) => setRefreshTotp(event.target.value.replace(/\D/g, '').slice(0, 6))} /></label>
+        <AdminTotpCodeField label="Code pour recharger l’état" value={refreshTotp} onChange={setRefreshTotp} />
         <div className="admin-collab-inline-form"><button className="primary-button" type="submit" disabled={busy}>{busy ? <LoaderCircle className="spin" size={18} /> : <RefreshCw size={18} />}Recharger l’état serveur</button><button type="button" className="outline-button" disabled={busy} onClick={() => { setReview(false); setRefreshTotp('') }}>Annuler</button></div>
       </form> : <form className="admin-collab-totp-form" onSubmit={(event) => void submit(event)}>
         <div className="admin-collab-decision-summary"><strong>État rechargé : aucune commission ON_HOLD</strong><span>Dossier #{deal.id} · Motif : {reason.trim()}</span></div>
-        <label>Code TOTP frais pour la décision<input inputMode="numeric" autoComplete="off" maxLength={6} pattern="[0-9]{6}" value={totp} onChange={(event) => setTotp(event.target.value.replace(/\D/g, '').slice(0, 6))} /></label>
+        <AdminTotpCodeField label="Code pour confirmer la résolution" value={totp} onChange={setTotp} />
         <div className="admin-collab-inline-form"><button className="primary-button" type="submit" disabled={busy || heldCount > 0}>{busy ? <LoaderCircle className="spin" size={18} /> : <ShieldCheck size={18} />}Confirmer la résolution</button><button type="button" className="outline-button" disabled={busy} onClick={() => { setReview(false); setStateRefreshed(false); setTotp('') }}>Annuler</button></div>
       </form>}
       {error && <p className="admin-collab-error" role="alert">{error}</p>}
@@ -1619,7 +1955,7 @@ function HeldCommissionCard({ commission, page, onSuccess, onReload }: { commiss
             {!activeAgentsLoaded ? (
               <div className="admin-collab-totp-form">
                 <p>Choisissez parmi les agents actifs. Page {activeAgentsPage}/{Math.max(1, Math.ceil(activeAgentsTotal / 50))}.</p>
-                <label>Code TOTP pour charger les agents<input inputMode="numeric" autoComplete="off" maxLength={6} pattern="[0-9]{6}" value={activeAgentsTotp} onChange={(event) => setActiveAgentsTotp(event.target.value.replace(/\D/g, '').slice(0, 6))} /></label>
+                <AdminTotpCodeField label="Code pour charger les agents" value={activeAgentsTotp} onChange={setActiveAgentsTotp} />
                 <button className="outline-button" type="button" disabled={busy} onClick={() => void loadActiveAgents(undefined, activeAgentsPage)}>{busy ? <LoaderCircle className="spin" size={18} /> : <Users size={18} />}Charger les agents actifs</button>
               </div>
             ) : <>
@@ -1635,12 +1971,12 @@ function HeldCommissionCard({ commission, page, onSuccess, onReload }: { commiss
             </>}
           </>}
           <label>Motif obligatoire<textarea rows={2} maxLength={2000} value={reason} onChange={(event) => setReason(event.target.value)} /></label>
-          <label>Code TOTP pour recharger l’état<input inputMode="numeric" autoComplete="off" maxLength={6} pattern="[0-9]{6}" value={refreshTotp} onChange={(event) => setRefreshTotp(event.target.value.replace(/\D/g, '').slice(0, 6))} /></label>
+          <AdminTotpCodeField label="Code pour recharger l’état" value={refreshTotp} onChange={setRefreshTotp} />
           <div className="admin-collab-inline-form"><button className="primary-button" type="submit" disabled={busy || (decision === 'REASSIGN' && !activeAgentsLoaded)}>{busy ? <LoaderCircle className="spin" size={18} /> : <RefreshCw size={18} />}Récapitulatif et rechargement</button><button type="button" className="outline-button" disabled={busy} onClick={() => setDecision(null)}>Annuler</button></div>
         </form>
       ) : <form className="admin-collab-totp-form" onSubmit={(event) => void submit(event)}>
         <div className="admin-collab-decision-summary"><strong>État rechargé : ON_HOLD</strong><span>Agent actuel : {commission.agent.name} (#{commission.agentId})</span>{decision === 'REASSIGN' && <span>Nouvel agent : {activeAgents.find((agent) => agent.id === Number(targetAgentId))?.name ?? 'Agent'} (#{targetAgentId})</span>}<span>Motif : {reason.trim()}</span>{decision === 'CANCEL' && <span>Annulation irréversible.</span>}</div>
-        <label>Code TOTP frais pour la décision<input inputMode="numeric" autoComplete="off" maxLength={6} pattern="[0-9]{6}" value={totp} onChange={(event) => setTotp(event.target.value.replace(/\D/g, '').slice(0, 6))} /></label>
+        <AdminTotpCodeField label="Code pour confirmer la décision" value={totp} onChange={setTotp} />
         <div className="admin-collab-inline-form"><button className="primary-button" type="submit" disabled={busy}>{busy ? <LoaderCircle className="spin" size={18} /> : <ShieldCheck size={18} />}Enregistrer la décision</button><button type="button" className="outline-button" disabled={busy} onClick={() => { setConfirmed(false); setTotp(''); onReload(page) }}>Recharger l’état</button></div>
       </form>}
       {error && <p className="admin-collab-error" role="alert">{error}</p>}

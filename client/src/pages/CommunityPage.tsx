@@ -1,15 +1,18 @@
-import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from 'react'
+import { useCallback, useEffect, useRef, useState, type ChangeEvent, type FormEvent } from 'react'
 import {
   ArrowRight,
+  Clock3,
   Eye,
   EyeOff,
   Flag,
   Heart,
   ImagePlus,
+  Inbox,
   MessageCircle,
   MoreHorizontal,
   Pencil,
   Plus,
+  RefreshCw,
   Search,
   Save,
   Send,
@@ -18,11 +21,12 @@ import {
   Video,
   X,
 } from 'lucide-react'
-import api, { type CommunityAuthor, type CommunityFeed, type CommunityPost } from '../api/client'
+import api, { type CollaborationPendingAccessRequest, type CommunityAuthor, type CommunityFeed, type CommunityPost } from '../api/client'
 import { CommunityOfficialBadge } from '../components/ui/CommunityOfficialBadge'
 import { SubscriberBadge } from '../components/ui/SubscriberBadge'
 import { AgentPresenceDot } from '../components/ui/AgentPresence'
 import { useI18n } from '../i18n'
+import { formatAntananarivoDate } from '../utils/collaboration-ui'
 
 type FeedFilter = 'ALL' | 'DISCUSSIONS' | 'OFFERS'
 type ReportTarget = { targetType: 'POST' | 'COMMENT'; targetId: number }
@@ -71,9 +75,15 @@ function normalizeSearchText(value: string) {
 
 type CommunitySearchData = { query: string; posts: CommunityPost[]; hasMore: boolean; error?: string }
 
-export default function CommunityPage({ onOpenChat, focusPostId, currentUserId }: { onOpenChat: () => void; focusPostId?: number; currentUserId: number }) {
+export default function CommunityPage({ onOpenChat, onOpenAccessRequests, focusPostId, currentUserId }: { onOpenChat: () => void; onOpenAccessRequests: () => void; focusPostId?: number; currentUserId: number }) {
   const { t, language } = useI18n()
   const [feed, setFeed] = useState<CommunityFeed>({ posts: [], offers: [] })
+  const [accessRequests, setAccessRequests] = useState<CollaborationPendingAccessRequest[]>([])
+  const [accessRequestsLoading, setAccessRequestsLoading] = useState(true)
+  const [accessRequestsRefreshing, setAccessRequestsRefreshing] = useState(false)
+  const [accessRequestsError, setAccessRequestsError] = useState('')
+  const accessRequestsMounted = useRef(false)
+  const accessRequestsRequestInFlight = useRef(false)
   const [filter, setFilter] = useState<FeedFilter>('ALL')
   const [communitySearch, setCommunitySearch] = useState('')
   const [communitySearchData, setCommunitySearchData] = useState<CommunitySearchData | null>(null)
@@ -104,9 +114,69 @@ export default function CommunityPage({ onOpenChat, focusPostId, currentUserId }
   const [savingContentId, setSavingContentId] = useState<string | null>(null)
   const [openActionsMenu, setOpenActionsMenu] = useState<string | null>(null)
 
+  const loadAccessRequests = useCallback(async () => {
+    if (accessRequestsRequestInFlight.current) return
+    accessRequestsRequestInFlight.current = true
+    try {
+      const requests = await api.collaborationPendingAccessRequests()
+      if (accessRequestsMounted.current) {
+        setAccessRequests(requests)
+        setAccessRequestsError('')
+      }
+    } catch (caught) {
+      if (accessRequestsMounted.current) {
+        setAccessRequestsError(caught instanceof Error ? caught.message : t('Impossible de charger les demandes.'))
+      }
+    } finally {
+      accessRequestsRequestInFlight.current = false
+      if (accessRequestsMounted.current) {
+        setAccessRequestsLoading(false)
+        setAccessRequestsRefreshing(false)
+      }
+    }
+  }, [t])
+  const refreshAccessRequests = useCallback(() => {
+    if (accessRequestsRequestInFlight.current) return
+    setAccessRequestsRefreshing(true)
+    void loadAccessRequests()
+  }, [loadAccessRequests])
+
   useEffect(() => () => {
     if (mediaPreviewUrl.current) URL.revokeObjectURL(mediaPreviewUrl.current)
   }, [])
+
+  useEffect(() => {
+    let active = true
+    accessRequestsMounted.current = true
+    accessRequestsRequestInFlight.current = true
+    api.collaborationPendingAccessRequests()
+      .then((requests) => {
+        if (!active) return
+        setAccessRequests(requests)
+        setAccessRequestsError('')
+      })
+      .catch((caught) => {
+        if (active) {
+          setAccessRequestsError(caught instanceof Error ? caught.message : t('Impossible de charger les demandes.'))
+        }
+      })
+      .finally(() => {
+        accessRequestsRequestInFlight.current = false
+        if (active) {
+          setAccessRequestsLoading(false)
+          setAccessRequestsRefreshing(false)
+        }
+      })
+    const refresh = () => { void loadAccessRequests() }
+    const interval = window.setInterval(refresh, 60_000)
+    window.addEventListener('focus', refresh)
+    return () => {
+      active = false
+      accessRequestsMounted.current = false
+      window.clearInterval(interval)
+      window.removeEventListener('focus', refresh)
+    }
+  }, [loadAccessRequests, t])
 
   useEffect(() => {
     if (!openActionsMenu) return
@@ -391,6 +461,8 @@ export default function CommunityPage({ onOpenChat, focusPostId, currentUserId }
       <div className="community-hero-copy"><span className="community-hero-kicker">{t('COMMUNAUTÉ TY SY NDAY')}</span><h1>{t('Partageons, grandissons')}<br />{t('ensemble.')}</h1><p>{t('Échangez avec les agents, partagez vos réussites et découvrez les opportunités de notre réseau.')}</p><button type="button" className="community-hero-button" onClick={onOpenChat}><MessageCircle size={17} aria-hidden="true" /> {t('Écrire à un agent')} <ArrowRight size={16} aria-hidden="true" /></button></div>
       <div className="community-hero-stats"><span><strong>{feed.posts.length}</strong> {t('échanges')}</span><i /> <span><strong>{feed.offers.length}</strong> {t('offres actives')}</span></div>
     </section>
+    <div className="community-body-layout">
+      <div className="community-feed-column">
     <div className="community-search-panel">
       <Search size={19} aria-hidden="true" />
       <input
@@ -492,6 +564,89 @@ export default function CommunityPage({ onOpenChat, focusPostId, currentUserId }
         {offer.publishedAt && <time>{new Date(offer.publishedAt).toLocaleDateString(language === 'en' ? 'en-US' : 'fr-FR')}</time>}
       </article>)}</div>}
     </section>}
+      </div>
+      <aside className="community-side-panel" aria-label={t('Informations de la communauté')}>
+        <section className="community-access-panel">
+          <div className="community-side-heading">
+            <div className="community-side-heading-icon"><Inbox size={17} aria-hidden="true" /></div>
+            <div className="community-access-header-actions">
+              <span className="community-request-count" aria-label={`${accessRequests.length} ${t('Demandes en attente')}`}>
+                {accessRequestsLoading ? '…' : accessRequests.length}
+              </span>
+              <button
+                type="button"
+                className="community-access-refresh"
+                aria-label={t('Actualiser les demandes')}
+                onClick={refreshAccessRequests}
+                disabled={accessRequestsLoading || accessRequestsRefreshing}
+              >
+                <RefreshCw size={14} aria-hidden="true" />
+              </button>
+            </div>
+          </div>
+          <h2>{t('Demandes d’accès')}</h2>
+          <p className="community-side-description">{t('Demandes réelles envoyées par les agents pour accéder à vos prospects.')}</p>
+          {accessRequestsLoading ? (
+            <div className="community-access-feedback" role="status">{t('Chargement des demandes…')}</div>
+          ) : accessRequestsError ? (
+            <div className="community-access-feedback community-access-error" role="alert">
+              <span>{accessRequestsError}</span>
+              <button type="button" onClick={refreshAccessRequests} disabled={accessRequestsRefreshing}>
+                {t('Réessayer')}
+              </button>
+            </div>
+          ) : accessRequests.length === 0 ? (
+            <div className="community-access-feedback">
+              <strong>{t('Aucune demande en attente')}</strong>
+              <span>{t('Les nouvelles demandes d’accès à vos prospects apparaîtront ici.')}</span>
+            </div>
+          ) : (
+            <div className="community-access-list" aria-live="polite">
+              {[...accessRequests]
+                .sort((a, b) => Date.parse(b.requestedAt) - Date.parse(a.requestedAt))
+                .slice(0, 3)
+                .map((request) => {
+                  const requesterInitials = request.requester.name
+                    .trim()
+                    .split(/\s+/)
+                    .map((part) => part[0])
+                    .slice(0, 2)
+                    .join('')
+                    .toUpperCase()
+                  const expiresAt = Date.parse(request.expiresAt)
+                  const isExpired = Number.isFinite(expiresAt) && expiresAt <= Date.now()
+                  return (
+                    <article className="community-access-request" key={request.id}>
+                      <span className="community-request-avatar">{requesterInitials}</span>
+                      <div className="community-request-copy">
+                        <strong>{request.requester.name}</strong>
+                        <span>{t('Demande d’accès au prospect')}</span>
+                        <small>{request.prospectName}</small>
+                      </div>
+                      <time><Clock3 size={12} aria-hidden="true" /> {formatAntananarivoDate(request.requestedAt, language)}</time>
+                      <span className={`community-request-status${isExpired ? ' expired' : ''}`}>
+                        {t(isExpired ? 'Expirée' : 'À examiner')}
+                      </span>
+                      <button type="button" className="community-request-action" onClick={onOpenAccessRequests}>
+                        {t('Examiner')} <ArrowRight size={13} aria-hidden="true" />
+                      </button>
+                    </article>
+                  )
+                })}
+            </div>
+          )}
+          {accessRequests.length > 3 && !accessRequestsLoading && (
+            <button type="button" className="community-access-link" onClick={onOpenAccessRequests}>
+              {t('Voir toutes les demandes')} <ArrowRight size={15} aria-hidden="true" />
+            </button>
+          )}
+        </section>
+        <section className="community-side-tip">
+          <span className="community-side-tip-label">{t('À SAVOIR')}</span>
+          <p>{t('Vérifiez le score de confiance et les ventes réussies avant d’accorder un accès.')}</p>
+        </section>
+      </aside>
+    </div>
     {composer && <div className="modal-backdrop community-composer-backdrop" onClick={() => setComposer(false)}><form className="modal community-composer" onSubmit={publish} onClick={(event) => event.stopPropagation()}><button type="button" className="modal-close" onClick={() => setComposer(false)} aria-label={t('Fermer')}>×</button><p className="eyebrow">{t('COMMUNAUTÉ TY SY NDAY')}</p><h2>{t('Nouvelle publication')}</h2><label>{t('Catégorie')}<select value={category} onChange={(event) => setCategory(event.target.value as typeof category)}><option value="Discussion">{t('Discussion')}</option><option value="Question">{t('Question')}</option><option value="Astuce">{t('Astuce')}</option></select></label><label>{t('Titre')}<input required minLength={3} maxLength={200} value={title} onChange={(event) => setTitle(event.target.value)} /></label><label>{t('Message')}<textarea className="community-textarea" required maxLength={3000} value={content} onChange={(event) => setContent(event.target.value)} placeholder={t('Partagez une astuce ou posez une question...')} /></label><div className="community-image-picker"><input ref={mediaInput} id="community-post-media-input" type="file" accept="image/jpeg,image/png,image/webp,video/mp4,video/webm" onChange={selectMedia} aria-describedby={mediaError ? 'community-media-error' : undefined} /><button type="button" className="outline-button community-image-select" onClick={() => mediaInput.current?.click()}><ImagePlus size={17} aria-hidden="true" /><Video size={17} aria-hidden="true" /> {t('Ajouter une photo ou vidéo')}</button><small>{t('Images JPEG/PNG/WebP · 5 Mo max. | Vidéos MP4/WebM · 50 Mo max.')}</small></div>{mediaError && <p className="community-image-error" id="community-media-error" role="alert">{t(mediaError)}</p>}{media && mediaPreview && <div className="community-image-preview">{media.type.startsWith('video/') ? <video src={mediaPreview} controls playsInline /> : <img src={mediaPreview} alt={`${t('Aperçu de')} ${media.name}`} />}<div><strong>{media.name}</strong><small>{(media.size / (1024 * 1024)).toLocaleString(language === 'en' ? 'en-US' : 'fr-FR', { maximumFractionDigits: 1 })} {language === 'en' ? 'MB' : 'Mo'}</small></div><button type="button" className="community-image-remove" aria-label={t('Retirer le média')} onClick={() => { setSelectedMedia(null); setMediaError('') }}><X size={17} aria-hidden="true" /></button></div>}<div className="modal-actions"><button type="button" className="outline-button" onClick={() => setComposer(false)}>{t('Annuler')}</button><button className="primary-button" disabled={saving}>{saving ? t('Publication...') : t('Publier')}</button></div></form></div>}
     {reportTarget && <div className="modal-backdrop" onClick={() => setReportTarget(null)}><form className="modal" onSubmit={submitReport} onClick={(event) => event.stopPropagation()}><button type="button" className="modal-close" onClick={() => setReportTarget(null)} aria-label={t('Fermer')}>×</button><p className="eyebrow">{t('MODÉRATION')}</p><h2>{t('Signaler ce contenu')}</h2><p className="modal-intro">{t('Le signalement sera transmis à l’administration pour examen.')}</p><label>{t('Motif')}<input required minLength={5} maxLength={500} value={reportReason} onChange={(event) => setReportReason(event.target.value)} /></label><div className="modal-actions"><button type="button" className="outline-button" onClick={() => setReportTarget(null)}>{t('Annuler')}</button><button className="primary-button" disabled={saving}>{saving ? t('Envoi...') : t('Envoyer le signalement')}</button></div></form></div>}
   </>

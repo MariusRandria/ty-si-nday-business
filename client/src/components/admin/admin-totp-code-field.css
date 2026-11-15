@@ -1,0 +1,163 @@
+.admin-totp-code-field {
+  display: grid;
+  gap: 8px;
+  width: min(100%, 360px);
+  min-width: 0;
+  color: var(--text, var(--ink, #202033));
+  text-align: left;
+}
+
+.admin-totp-code-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+}
+
+.admin-totp-code-label {
+  min-width: 0;
+  font-size: .84rem;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.admin-totp-code-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 8px;
+  border: 1px solid rgb(102 65 164 / 18%);
+  border-radius: 999px;
+  color: #633d9b;
+  background: rgb(102 65 164 / 7%);
+  font-size: .66rem;
+  font-weight: 750;
+  letter-spacing: .035em;
+  white-space: nowrap;
+}
+
+.admin-totp-code-control {
+  position: relative;
+  display: block;
+  width: 100%;
+  min-height: 58px;
+  padding: 5px;
+  border: 1px solid var(--border, var(--line, #d6dce5));
+  border-radius: 14px;
+  background: var(--surface, #fff);
+  transition: border-color .18s ease, box-shadow .18s ease;
+}
+
+.admin-totp-code-control:focus-within {
+  border-color: #7952b4;
+  box-shadow: 0 0 0 3px rgb(121 82 180 / 15%);
+}
+
+.admin-totp-code-display {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: clamp(4px, 1.5vw, 8px);
+}
+
+.admin-totp-code-cell {
+  display: grid;
+  min-width: 0;
+  height: 46px;
+  place-items: center;
+  border: 1px solid var(--border, var(--line, #e0e5ec));
+  border-radius: 10px;
+  color: var(--text, var(--ink, #202033));
+  background: var(--surface, #fff);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 1.15rem;
+  font-weight: 750;
+  transition: border-color .18s ease, background-color .18s ease, box-shadow .18s ease;
+}
+
+.admin-totp-code-cell.is-filled {
+  border-color: rgb(102 65 164 / 34%);
+  background: rgb(102 65 164 / 6%);
+}
+
+.admin-totp-code-control:focus-within .admin-totp-code-cell.is-current {
+  border-color: #7952b4;
+  background: rgb(121 82 180 / 10%);
+  box-shadow: 0 0 0 2px rgb(121 82 180 / 10%);
+}
+
+.admin-totp-code-input {
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  width: 100% !important;
+  height: 100% !important;
+  min-height: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 13px;
+  outline: 0 !important;
+  color: transparent !important;
+  background: transparent !important;
+  caret-color: transparent;
+  -webkit-text-fill-color: transparent !important;
+  box-shadow: none !important;
+}
+
+.admin-totp-code-hint {
+  color: var(--muted, #687084);
+  font-size: .72rem;
+  font-weight: 450;
+  line-height: 1.45;
+}
+
+.app-shell.theme-dark .admin-totp-code-badge {
+  border-color: rgb(192 163 237 / 28%);
+  color: #d3b9fa;
+  background: rgb(192 163 237 / 10%);
+}
+
+.app-shell.theme-dark .admin-totp-code-control {
+  border-color: #4b4d65;
+  background: #191a28;
+}
+
+.app-shell.theme-dark .admin-totp-code-cell {
+  border-color: #45475d;
+  color: #f0effa;
+  background: #202132;
+}
+
+.app-shell.theme-dark .admin-totp-code-cell.is-filled {
+  border-color: rgb(192 163 237 / 38%);
+  background: rgb(192 163 237 / 12%);
+}
+
+.app-shell.theme-dark .admin-totp-code-field .admin-totp-code-control input.admin-totp-code-input {
+  border: 0 !important;
+  background: transparent !important;
+  color: transparent !important;
+  -webkit-text-fill-color: transparent !important;
+  box-shadow: none !important;
+}
+
+.app-shell.theme-dark .admin-totp-code-label {
+  color: var(--ink, #f5f7ff);
+}
+
+.app-shell.theme-dark .admin-totp-code-hint {
+  color: #b7bdd1;
+}
+
+@media (max-width: 520px) {
+  .admin-totp-code-control {
+    min-height: 54px;
+  }
+
+  .admin-totp-code-cell {
+    height: 42px;
+    border-radius: 8px;
+    font-size: 1.05rem;
+  }
+}

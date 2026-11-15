@@ -671,7 +671,7 @@ test('signing atomically closes pending access requests, cancels their email job
     })
     await prisma.collaborationClosingReport.update({
       where: { dealId },
-      data: { closerId },
+      data: { closerId, saleAmount: 1_900_000n },
     })
     await prisma.collaborationProspectSecret.create({
       data: {
@@ -742,6 +742,7 @@ test('signing atomically closes pending access requests, cancels their email job
     const form = new FormData()
     form.append('contractReference', `CONTRACT-${suffix}`)
     form.append('contractDate', now.toISOString())
+    form.append('contractAmount', '2750000')
     form.append('file', new Blob(['%PDF-1.4 contract test'], { type: 'application/pdf' }), 'contract.pdf')
     const response = await fetch(`${baseUrl}/api/admin/collaboration/deals/${dealId}/signature`, {
       method: 'POST',
@@ -752,11 +753,19 @@ test('signing atomically closes pending access requests, cancels their email job
       body: form,
     })
     assert.equal(response.status, 201)
+    const signatureResult = await response.json() as { data: { contractAmount: string } }
+    assert.equal(signatureResult.data.contractAmount, '2750000')
     const signedDeal = await prisma.collaborationDeal.findUniqueOrThrow({
       where: { id: dealId },
-      select: { status: true },
+      select: { status: true, contractAmount: true },
     })
     assert.equal(signedDeal.status, 'CONTRACT_SIGNED')
+    assert.equal(signedDeal.contractAmount, 2750000n)
+    const closingReport = await prisma.collaborationClosingReport.findUniqueOrThrow({
+      where: { dealId },
+      select: { saleAmount: true },
+    })
+    assert.equal(closingReport.saleAmount, 1900000n)
     const closedRequests = await prisma.collaborationAccessRequest.findMany({
       where: { id: { in: pending.map(({ id }) => id) } },
       select: { status: true, pendingKey: true },

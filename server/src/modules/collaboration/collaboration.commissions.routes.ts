@@ -505,8 +505,9 @@ collaborationAdminCommissionsRouter.patch('/commissions/:commissionId/decision',
       where: { dealId: commission.dealId },
       select: { status: true },
     })
+    const remainingStatuses = remaining.map(({ status: itemStatus }) => itemStatus)
     if (commission.deal.status === 'DISPUTED' && !remaining.some(({ status: itemStatus }) => itemStatus === 'ON_HOLD')) {
-      const nextDealStatus = shouldCompleteCommissionsPaid(remaining.map(({ status: itemStatus }) => itemStatus))
+      const nextDealStatus = shouldCompleteCommissionsPaid(remainingStatuses)
         ? 'COMMISSIONS_PAID'
         : 'CONTRACT_SIGNED'
       await transitionCollaborationDeal(
@@ -515,6 +516,15 @@ collaborationAdminCommissionsRouter.patch('/commissions/:commissionId/decision',
         commission.dealId,
         nextDealStatus,
         `Litige résolu par décision admin : ${body.data.reason}`,
+      )
+    } else if (commission.deal.status === 'CONTRACT_SIGNED'
+      && shouldCompleteCommissionsPaid(remainingStatuses)) {
+      await transitionCollaborationDeal(
+        transaction,
+        { id: adminId, role: request.user!.role, status: 'ACTIF' },
+        commission.dealId,
+        'COMMISSIONS_PAID',
+        `Les deux commissions ont été créditées aux portefeuilles des agents : ${body.data.reason}`,
       )
     }
     return { status, commissionId: commission.id, agentId: targetAgentId ?? commission.agentId }

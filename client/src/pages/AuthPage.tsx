@@ -5,7 +5,8 @@ import { Alert } from '../components/ui/Alert'
 import { Button } from '../components/ui/Button'
 import { Input } from '../components/ui/Input'
 import { GoogleSignInButton } from '../components/ui/GoogleSignInButton'
-import tySyNdayLogo from '../assets/TD.png'
+import authImage from '../assets/SUCCES.png'
+import adminLogo from '../assets/LOGO-NAV.png'
 import './auth-brand.css'
 
 type Props = { onLogin: (token: string, user: SessionUser) => boolean; portal: 'agent' | 'admin' }
@@ -142,14 +143,8 @@ export default function AuthPage({ onLogin, portal }: Props) {
 
   return (
     <main className={`auth-shell auth-${audience} auth-mode-${mode}`}>
-      <section className="auth-visual" aria-label="Présentation Ty sy Nday Business">
-        <a className="auth-brand" href="/" aria-label="Ty sy Nday Business"><img src={tySyNdayLogo} alt="" /><span><strong>TY SY NDAY</strong><small>BUSINESS</small></span></a>
-        <div className="auth-visual-copy">
-          <span className="auth-kicker">{audience === 'admin' ? 'Espace de pilotage' : 'Votre espace professionnel'}</span>
-          <h1>{audience === 'admin' ? 'Pilotez vos projets avec confiance.' : 'Construisons vos réussites ensemble.'}</h1>
-          <p>{audience === 'admin' ? 'Centralisez les candidatures, les rapports et les opérations dans un environnement sécurisé.' : 'Accédez à vos activités, suivez vos résultats et développez vos opportunités.'}</p>
-          <strong className="auth-script">Ensemble pour vos projets</strong>
-        </div>
+      <section className="auth-visual" aria-hidden="true">
+        <img className="auth-visual-image" src={audience === 'admin' ? adminLogo : authImage} alt="" />
       </section>
       <section className="auth-panel">
         <div className="auth-card">
@@ -172,7 +167,7 @@ export default function AuthPage({ onLogin, portal }: Props) {
                 <button type="button" className="auth-back-link" onClick={() => { setRegistrationStep(1); setError('') }}>Modifier mes coordonnées</button>
                 <Input name="email" type="email" label="Email professionnel" autoComplete="email" value={form.email} onChange={(event) => update('email', event.target.value)} required />
                 <Input name="password" type="password" label="Mot de passe" autoComplete="new-password" minLength={8} value={form.password} onChange={(event) => update('password', event.target.value)} required />
-                <label className="auth-check"><input type="checkbox" checked={form.consent} onChange={(event) => update('consent', event.target.checked)} required /> J’accepte les conditions d’utilisation.</label>
+                <label className="auth-check"><input type="checkbox" checked={form.consent} onChange={(event) => update('consent', event.target.checked)} required /><span>J’accepte les <a href="/conditions-generales-utilisation" target="_blank" rel="noreferrer">conditions générales d’utilisation</a> et reconnais avoir lu la <a href="/politique-de-confidentialite" target="_blank" rel="noreferrer">politique de confidentialité</a>.</span></label>
                 {error && <Alert tone="error">{error}</Alert>}
                 <Button type="submit" loading={loading} className="auth-submit">Recevoir un code de vérification</Button>
               </>}
@@ -201,6 +196,10 @@ export default function AuthPage({ onLogin, portal }: Props) {
               : <Button type="button" variant="secondary" disabled className="google-signin-placeholder">Connexion Google indisponible</Button>}
           </>}
           <p className="auth-security"><ShieldCheck size={18} /> {audience === 'admin' ? 'Les comptes administrateurs sont créés par la plateforme.' : 'Connexion sécurisée à vos informations professionnelles.'}</p>
+          <nav className="auth-legal-links" aria-label="Informations légales">
+            <a href="/politique-de-confidentialite" target="_blank" rel="noreferrer">Confidentialité</a>
+            <a href="/conditions-generales-utilisation" target="_blank" rel="noreferrer">Conditions générales</a>
+          </nav>
         </div>
       </section>
     </main>

@@ -30,6 +30,55 @@ export type GoogleAuthInput = {
 
 export type Product = { id: number; title: string; description: string; targetAudience: string; salesPitch: string; status: string }
 export type AdminProduct = Product & { slug: string; publishedAt: string | null; createdAt: string }
+export type MarketplaceProductStatus = 'BROUILLON' | 'PUBLIE' | 'ARCHIVE'
+export type MarketplaceOrderStatus = 'DEMANDEE' | 'CONFIRMEE' | 'EN_PREPARATION' | 'PRETE' | 'EXPEDIEE' | 'LIVREE' | 'ANNULEE'
+export type MarketplaceDeliveryMethod = 'LIVRAISON' | 'COLIS' | 'RECUPERATION'
+export type MarketplacePaymentMethod = 'MVOLA' | 'ORANGE_MONEY' | 'AIRTEL_MONEY' | 'ESPECES'
+export type MarketplaceMobilePaymentMethod = Exclude<MarketplacePaymentMethod, 'ESPECES'>
+export type MarketplacePaymentSettings = {
+  providers: Array<{ method: MarketplaceMobilePaymentMethod; label: string; account: string | null; accountName: string | null }>
+  instructions: string
+}
+export type AdminMarketplacePaymentSettings = {
+  mvolaNumber: string | null
+  mvolaAccountName: string | null
+  orangeMoneyNumber: string | null
+  orangeMoneyName: string | null
+  airtelMoneyNumber: string | null
+  airtelMoneyName: string | null
+  instructions: string
+}
+export type MarketplaceVariant = { id: number; label: string; stock: number; isActive?: boolean }
+export type MarketplaceProduct = { id: number; title: string; category: string; description: string; price: string; imageUrl: string | null; status: MarketplaceProductStatus; publishedAt: string | null; variants: MarketplaceVariant[] }
+export type MarketplaceProductInput = { title: string; category: string; description: string; price: number; status: MarketplaceProductStatus; variants: Array<{ id?: number; label: string; stock: number }> }
+export type MarketplaceOrderItem = { id: number; productId: number | null; variantId: number | null; productName: string; variantLabel: string; quantity: number; unitPrice: string; lineTotal: string }
+export type MarketplaceOrder = {
+  id: number
+  agentId: number
+  status: MarketplaceOrderStatus
+  paymentStatus: 'A_CONFIRMER' | 'PAYE'
+  deliveryMethod: MarketplaceDeliveryMethod
+  deliveryAddress: string | null
+  agentNote: string | null
+  itemsAmount: string
+  deliveryFee: string | null
+  totalAmount: string | null
+  paymentMethod: MarketplacePaymentMethod | null
+  paymentAccount: string | null
+  paymentAccountName: string | null
+  paymentInstructions: string | null
+  paymentReference: string | null
+  quotedAt: string | null
+  quoteExpiresAt: string | null
+  paymentExpiresAt: string | null
+  cancellationReason: string | null
+  paidAt: string | null
+  createdAt: string
+  updatedAt: string
+  items: MarketplaceOrderItem[]
+  agent?: { id: number; email: string; agentProfile: { firstName: string; lastName: string; phone: string; city: string } | null }
+  paidBy?: { id: number; email: string } | null
+}
 export type ProspectContact = {
   id: number
   companyName: string
@@ -47,7 +96,7 @@ export type AdminSubscriptionRequest = SubscriptionRequest & { proofMimeType: st
 export type NewProspectContact = Omit<ProspectContact, 'id' | 'createdAt'>
 export type AdminDashboardData = { pendingApplications: number; pendingReports: number; pendingWithdrawals: number; activeAgents: number; totalPaid: number; recentActivity: { id: string; kind: string; title: string; detail: string; status: string; createdAt: string; view: string }[] }
 export type SearchResult = { id: string; title: string; detail: string; view: string }
-export type SessionUser = { id: number; email: string; role: 'AGENT' | 'ADMIN' | 'SUPER_ADMIN'; status: string; profile: { firstName: string; lastName: string; phone?: string; city?: string; imageUrl?: string | null } | null }
+export type SessionUser = { id: number; email: string; role: 'AGENT' | 'ADMIN' | 'SUPER_ADMIN' | 'SALES_REVIEWER' | 'SALES_SIGNER'; status: string; profile: { firstName: string; lastName: string; phone?: string; city?: string; imageUrl?: string | null } | null }
 export type AgentStats = {
   reportCounts: Record<string, number>
   pendingReports: number
@@ -212,12 +261,14 @@ export type AdminCollaborationDealSummary = {
   id: number
   status: string
   closingReportedAt: string | null
+  reviewSlaStartedAt?: string | null
   updatedAt: string
   disputeReason?: string | null
   disputedAt?: string | null
   clientConfirmationOverrideReason?: string | null
   supplier: { id: number; name: string } | null
   closer: { id: number; name: string } | null
+  reviewAssignedTo?: { id: number; name: string } | null
 }
 export type AdminCollaborationOverrideSummary = {
   id: number
@@ -240,6 +291,40 @@ export type AdminCollaborationDashboard = {
   extractionAlerts: number
   repeatedExpirations: number
   overrides: number
+  sla: {
+    review: { targetHours: number; overdue: number; unassigned: number }
+    signature: { targetHours: number; overdue: number; unassigned: number }
+  }
+}
+export type AdminSignedContractStatus = 'CONTRACT_SIGNED' | 'COMMISSIONS_PAID' | 'DISPUTED'
+export type AdminSignedContractsFilters = {
+  q?: string
+  status?: 'ALL' | AdminSignedContractStatus
+  from?: string
+  to?: string
+}
+export type AdminSignedContract = {
+  id: number
+  status: string
+  saleNumber: string
+  contractReference: string | null
+  contractSignedAt: string
+  supplier: string
+  closer: string | null
+  signatory: string | null
+  client: { companyName: string; contactName: string }
+  project: string
+  projectDetails: string | null
+  contractAmount: string | null
+  reportedAmount: string | null
+  saleDate: string | null
+  closingDetails: string | null
+  contractFiles: AdminCollaborationEvidence[]
+}
+export type AdminCollaborationQueueFilters = Pick<AdminAuditFilters, 'from' | 'to'> & {
+  assignment?: 'ASSIGNED' | 'UNASSIGNED'
+  reviewStage?: 'WAITING_CLIENT' | 'CLIENT_CONFIRMED' | 'NO_RESPONSE' | 'DISPUTED'
+  sla?: 'OVERDUE'
 }
 export type AdminCollaborationPagination = { page: number; limit: number; total: number }
 export type AdminCollaborationPage<T> = { data: T[]; pagination: AdminCollaborationPagination }
@@ -250,8 +335,22 @@ export type AdminCollaborationReadyDeal = {
   confirmedAt: string | null
   supplier: { id: number; name: string } | null
   closer: { id: number; name: string } | null
+  signAssignedTo?: { id: number; name: string } | null
   prerequisites: { closingReportSubmitted: boolean; confirmationSatisfied: boolean; canSign: boolean; blockers: string[] }
 }
+export type AdminCollaborationTeamMember = {
+  id: number
+  email: string
+  role: 'SALES_REVIEWER' | 'SALES_SIGNER'
+  status: string
+  totpEnabled: boolean
+  createdAt: string
+  lastActiveAt: string | null
+  name: string
+  reviewLoad: number
+  signLoad: number
+}
+export type AdminCollaborationAssignmentOption = { id: number; email: string; name: string }
 export type AdminCollaborationAlert = {
   id: string
   type: 'BYPASS' | 'EXTRACTION' | 'REPEATED_EXPIRATIONS'
@@ -281,6 +380,7 @@ export type AdminCollaborationCommission = {
 export type AdminCollaborationSignatureResult = {
   status: 'CONTRACT_SIGNED'
   saleNumber: string
+  contractAmount: string
   evidenceId: number
 }
 export type AdminCollaborationTrustAgent = {
@@ -351,9 +451,19 @@ export type AdminCollaborationDealDetail = {
   declaredAt: string
   closingReportedAt: string | null
   contractSignedAt: string | null
+  contractAmount: string | null
   saleNumber: string | null
   disputeReason: string | null
   clientConfirmationOverrideReason: string | null
+  reviewAssignedToId: number | null
+  signAssignedToId: number | null
+  reviewAssignedTo: AdminCollaborationAssignmentOption | null
+  signAssignedTo: AdminCollaborationAssignmentOption | null
+  assignmentTeam: {
+    reviewers: AdminCollaborationAssignmentOption[]
+    signers: AdminCollaborationAssignmentOption[]
+  } | null
+  assignmentEligibility: { review: boolean; sign: boolean }
   report: {
     id: number
     companyName: string
@@ -461,7 +571,7 @@ export type AdminReport = Report & {
   commissionAmount?: number
 }
 export type AdminWithdrawal = { id: number; amount: string | number; status: string; operator: string; phoneNumber: string; createdAt: string; agent: { agentProfile?: { firstName: string; lastName: string } | null } }
-export type CommunityAuthor = { id: number; role?: 'AGENT' | 'ADMIN' | 'SUPER_ADMIN'; lastActiveAt?: string | null; agentProfile: { firstName: string; lastName: string; imageUrl?: string | null } | null; isSubscriber: boolean }
+export type CommunityAuthor = { id: number; role?: 'AGENT' | 'ADMIN' | 'SUPER_ADMIN' | 'SALES_REVIEWER' | 'SALES_SIGNER'; lastActiveAt?: string | null; agentProfile: { firstName: string; lastName: string; imageUrl?: string | null } | null; isSubscriber: boolean }
 export type CommunityComment = { id: number; content: string; createdAt: string; parentCommentId: number | null; author: CommunityAuthor; isAuthorHidden: boolean }
 export type CommunityPost = {
   id: number
@@ -873,6 +983,108 @@ const api = {
     const payload = await response.json() as { data: Product[] }
     return payload.data
   },
+  async marketplaceProducts(): Promise<MarketplaceProduct[]> {
+    const response = await fetch('/api/marketplace/products', { headers: authHeaders() })
+    const payload = await response.json().catch(() => ({})) as { data?: MarketplaceProduct[]; error?: string }
+    if (!response.ok || !payload.data) throw new Error(payload.error ?? 'Impossible de charger la boutique.')
+    return payload.data
+  },
+  async marketplacePaymentSettings(): Promise<MarketplacePaymentSettings> {
+    const response = await fetch('/api/marketplace/payment-settings', { headers: authHeaders() })
+    const payload = await response.json().catch(() => ({})) as { data?: MarketplacePaymentSettings; error?: string }
+    if (!response.ok || !payload.data) throw new Error(payload.error ?? 'Impossible de charger les modes de paiement.')
+    return payload.data
+  },
+  async marketplaceOrders(): Promise<MarketplaceOrder[]> {
+    const response = await fetch('/api/marketplace/orders', { headers: authHeaders() })
+    const payload = await response.json().catch(() => ({})) as { data?: MarketplaceOrder[]; error?: string }
+    if (!response.ok || !payload.data) throw new Error(payload.error ?? 'Impossible de charger vos commandes.')
+    return payload.data
+  },
+  async createMarketplaceOrder(input: { items: Array<{ variantId: number; quantity: number }>; deliveryMethod: MarketplaceDeliveryMethod; paymentMethod: MarketplacePaymentMethod; deliveryAddress?: string; agentNote?: string }): Promise<MarketplaceOrder> {
+    const response = await fetch('/api/marketplace/orders', { method: 'POST', headers: { 'Content-Type': 'application/json', ...authHeaders() }, body: JSON.stringify(input) })
+    const payload = await response.json().catch(() => ({})) as { data?: MarketplaceOrder; error?: string }
+    if (!response.ok || !payload.data) throw new Error(payload.error ?? 'Impossible d’enregistrer votre commande.')
+    return payload.data
+  },
+  async submitMarketplacePaymentReference(id: number, paymentReference: string, paymentMethod?: MarketplaceMobilePaymentMethod): Promise<MarketplaceOrder> {
+    const response = await fetch(`/api/marketplace/orders/${id}/payment-reference`, { method: 'PATCH', headers: { 'Content-Type': 'application/json', ...authHeaders() }, body: JSON.stringify({ paymentReference, ...(paymentMethod ? { paymentMethod } : {}) }) })
+    const payload = await response.json().catch(() => ({})) as { data?: MarketplaceOrder; error?: string }
+    if (!response.ok || !payload.data) throw new Error(payload.error ?? 'Impossible d’envoyer la référence de transaction.')
+    return payload.data
+  },
+  async adminMarketplacePaymentSettings(): Promise<AdminMarketplacePaymentSettings> {
+    const response = await fetch('/api/admin/marketplace/payment-settings', { headers: authHeaders() })
+    const payload = await response.json().catch(() => ({})) as { data?: AdminMarketplacePaymentSettings; error?: string }
+    if (!response.ok || !payload.data) throw new Error(payload.error ?? 'Impossible de charger les coordonnées de paiement.')
+    return payload.data
+  },
+  async saveAdminMarketplacePaymentSettings(input: AdminMarketplacePaymentSettings, totp: string): Promise<AdminMarketplacePaymentSettings> {
+    const response = await fetch('/api/admin/marketplace/payment-settings', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', ...authHeaders(), 'x-admin-totp': totp },
+      body: JSON.stringify(input),
+    })
+    const payload = await response.json().catch(() => ({})) as { data?: AdminMarketplacePaymentSettings; error?: string }
+    if (!response.ok || !payload.data) throw new Error(payload.error ?? 'Impossible d’enregistrer les coordonnées de paiement.')
+    return payload.data
+  },
+  async adminMarketplaceProducts(): Promise<MarketplaceProduct[]> {
+    const response = await fetch('/api/admin/marketplace/products', { headers: authHeaders() })
+    const payload = await response.json().catch(() => ({})) as { data?: MarketplaceProduct[]; error?: string }
+    if (!response.ok || !payload.data) throw new Error(payload.error ?? 'Impossible de charger les articles marketplace.')
+    return payload.data
+  },
+  async saveAdminMarketplaceProduct(input: MarketplaceProductInput, image?: File, id?: number): Promise<MarketplaceProduct> {
+    const body = new FormData()
+    body.append('title', input.title)
+    body.append('category', input.category)
+    body.append('description', input.description)
+    body.append('price', String(input.price))
+    body.append('status', input.status)
+    body.append('variants', JSON.stringify(input.variants))
+    if (image) body.append('image', image)
+    const response = await fetch(id ? `/api/admin/marketplace/products/${id}` : '/api/admin/marketplace/products', {
+      method: id ? 'PATCH' : 'POST',
+      headers: authHeaders(),
+      body,
+    })
+    const payload = await response.json().catch(() => ({})) as { data?: MarketplaceProduct; error?: string }
+    if (!response.ok || !payload.data) throw new Error(payload.error ?? 'Impossible d’enregistrer cet article.')
+    return payload.data
+  },
+  async adminMarketplaceOrders(): Promise<MarketplaceOrder[]> {
+    const response = await fetch('/api/admin/marketplace/orders', { headers: authHeaders() })
+    const payload = await response.json().catch(() => ({})) as { data?: MarketplaceOrder[]; error?: string }
+    if (!response.ok || !payload.data) throw new Error(payload.error ?? 'Impossible de charger les commandes marketplace.')
+    return payload.data
+  },
+  async updateAdminMarketplaceOrderStatus(id: number, status: MarketplaceOrderStatus): Promise<MarketplaceOrder> {
+    const response = await fetch(`/api/admin/marketplace/orders/${id}/status`, { method: 'PATCH', headers: { 'Content-Type': 'application/json', ...authHeaders() }, body: JSON.stringify({ status }) })
+    const payload = await response.json().catch(() => ({})) as { data?: MarketplaceOrder; error?: string }
+    if (!response.ok || !payload.data) throw new Error(payload.error ?? 'Impossible de mettre à jour le statut de la commande.')
+    return payload.data
+  },
+  async quoteAdminMarketplaceOrder(id: number, deliveryFee: number, totp: string): Promise<MarketplaceOrder> {
+    const response = await fetch(`/api/admin/marketplace/orders/${id}/quote`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', ...authHeaders(), 'x-admin-totp': totp },
+      body: JSON.stringify({ deliveryFee }),
+    })
+    const payload = await response.json().catch(() => ({})) as { data?: MarketplaceOrder; error?: string }
+    if (!response.ok || !payload.data) throw new Error(payload.error ?? 'Impossible de transmettre le devis de remise.')
+    return payload.data
+  },
+  async confirmAdminMarketplacePayment(id: number, paymentNote: string, totp: string): Promise<MarketplaceOrder> {
+    const response = await fetch(`/api/admin/marketplace/orders/${id}/payment`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', ...authHeaders(), 'x-admin-totp': totp },
+      body: JSON.stringify({ paymentNote }),
+    })
+    const payload = await response.json().catch(() => ({})) as { data?: MarketplaceOrder; error?: string }
+    if (!response.ok || !payload.data) throw new Error(payload.error ?? 'Impossible de confirmer le paiement.')
+    return payload.data
+  },
   async adminProducts(): Promise<AdminProduct[]> { const response = await fetch('/api/admin/products', { headers: authHeaders() }); const payload = await response.json() as { data?: AdminProduct[]; error?: string }; if (!response.ok || !payload.data) throw new Error(payload.error ?? 'Impossible de charger le catalogue admin'); return payload.data },
   async agentProspects(): Promise<ProspectContact[]> { const response = await fetch('/api/prospects', { headers: authHeaders() }); const payload = await response.json() as { data?: ProspectContact[]; error?: string }; if (!response.ok || !payload.data) throw new Error(payload.error ?? 'Impossible de charger les contacts de prospection'); return payload.data },
   async subscriptionOverview(): Promise<SubscriptionOverview> { const response = await fetch('/api/subscriptions/me', { headers: authHeaders() }); const payload = await response.json() as { data?: SubscriptionOverview; error?: string }; if (!response.ok || !payload.data) throw new Error(payload.error ?? 'Impossible de charger votre badge abonné'); return payload.data },
@@ -924,23 +1136,66 @@ const api = {
     if (!response.ok || !payload.data) throw new ApiRequestError(payload.error ?? adminCollaborationErrorMessage(response.status), response.status)
     return payload.data
   },
-  async adminCollaborationDeals(totp: string, page = 1, limit = 50, status?: 'DISPUTED'): Promise<AdminCollaborationPage<AdminCollaborationDealSummary>> {
+  async adminCollaborationTeam(totp: string): Promise<AdminCollaborationTeamMember[]> {
+    const response = await fetch('/api/admin/collaboration/team', { headers: { ...authHeaders(), 'x-admin-totp': totp } })
+    const payload = await response.json().catch(() => ({})) as { data?: AdminCollaborationTeamMember[]; error?: string }
+    if (!response.ok || !payload.data) throw new ApiRequestError(payload.error ?? adminCollaborationErrorMessage(response.status), response.status)
+    return payload.data
+  },
+  async inviteAdminCollaborationTeamMember(totp: string, input: { email: string; role: AdminCollaborationTeamMember['role'] }): Promise<Pick<AdminCollaborationTeamMember, 'id' | 'email' | 'role' | 'status'>> {
+    const response = await fetch('/api/admin/collaboration/team/invitations', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...authHeaders(), 'x-admin-totp': totp },
+      body: JSON.stringify(input),
+    })
+    const payload = await response.json().catch(() => ({})) as { data?: Pick<AdminCollaborationTeamMember, 'id' | 'email' | 'role' | 'status'>; error?: string }
+    if (!response.ok || !payload.data) throw new ApiRequestError(payload.error ?? adminCollaborationErrorMessage(response.status), response.status)
+    return payload.data
+  },
+  async resendAdminCollaborationTeamInvitation(totp: string, userId: number): Promise<void> {
+    const response = await fetch(`/api/admin/collaboration/team/${userId}/invitation`, {
+      method: 'POST',
+      headers: { ...authHeaders(), 'x-admin-totp': totp },
+    })
+    const payload = await response.json().catch(() => ({})) as { error?: string }
+    if (!response.ok) throw new ApiRequestError(payload.error ?? adminCollaborationErrorMessage(response.status), response.status)
+  },
+  async adminSignedContracts(totp: string, page: number, limit: number, filters: AdminSignedContractsFilters): Promise<AdminCollaborationPage<AdminSignedContract>> {
+    const params = new URLSearchParams({ page: String(page), limit: String(limit) })
+    for (const [key, value] of Object.entries(filters)) if (value) params.set(key, value)
+    const response = await fetch(`/api/admin/collaboration/contracts/signed?${params}`, {
+      headers: { ...authHeaders(), 'x-admin-totp': totp },
+    })
+    const payload = await response.json().catch(() => ({})) as {
+      data?: AdminSignedContract[]
+      pagination?: AdminCollaborationPagination
+      error?: string
+    }
+    if (!response.ok || !payload.data || !payload.pagination) {
+      throw new ApiRequestError(payload.error ?? adminCollaborationErrorMessage(response.status), response.status)
+    }
+    return { data: payload.data, pagination: payload.pagination }
+  },
+  async adminCollaborationDeals(totp: string, page = 1, limit = 50, status?: 'DISPUTED', filters: AdminCollaborationQueueFilters = {}): Promise<AdminCollaborationPage<AdminCollaborationDealSummary>> {
     const params = new URLSearchParams({ page: String(page), limit: String(limit) })
     if (status) params.set('status', status)
+    for (const [key, value] of Object.entries(filters)) if (value) params.set(key, value)
     const response = await fetch(`/api/admin/collaboration/deals?${params}`, { headers: { ...authHeaders(), 'x-admin-totp': totp } })
     const payload = await response.json().catch(() => ({})) as { data?: AdminCollaborationDealSummary[]; pagination?: AdminCollaborationPagination; error?: string }
     if (!response.ok || !payload.data || !payload.pagination) throw new ApiRequestError(payload.error ?? adminCollaborationErrorMessage(response.status), response.status)
     return { data: payload.data, pagination: payload.pagination }
   },
-  async adminCollaborationOverrides(totp: string, page = 1, limit = 50): Promise<AdminCollaborationPage<AdminCollaborationOverrideSummary>> {
+  async adminCollaborationOverrides(totp: string, page = 1, limit = 50, filters: Pick<AdminAuditFilters, 'from' | 'to'> = {}): Promise<AdminCollaborationPage<AdminCollaborationOverrideSummary>> {
     const params = new URLSearchParams({ page: String(page), limit: String(limit) })
+    for (const [key, value] of Object.entries(filters)) if (value) params.set(key, value)
     const response = await fetch(`/api/admin/collaboration/deals/overrides?${params}`, { headers: { ...authHeaders(), 'x-admin-totp': totp } })
     const payload = await response.json().catch(() => ({})) as { data?: AdminCollaborationOverrideSummary[]; pagination?: AdminCollaborationPagination; error?: string }
     if (!response.ok || !payload.data || !payload.pagination) throw new ApiRequestError(payload.error ?? adminCollaborationErrorMessage(response.status), response.status)
     return { data: payload.data, pagination: payload.pagination }
   },
-  async adminCollaborationReadyToSign(totp: string, page = 1, limit = 50): Promise<AdminCollaborationPage<AdminCollaborationReadyDeal>> {
+  async adminCollaborationReadyToSign(totp: string, page = 1, limit = 50, filters: AdminCollaborationQueueFilters = {}): Promise<AdminCollaborationPage<AdminCollaborationReadyDeal>> {
     const params = new URLSearchParams({ page: String(page), limit: String(limit) })
+    for (const [key, value] of Object.entries(filters)) if (value) params.set(key, value)
     const response = await fetch(`/api/admin/collaboration/deals/ready-to-sign?${params}`, { headers: { ...authHeaders(), 'x-admin-totp': totp } })
     const payload = await response.json().catch(() => ({})) as { data?: AdminCollaborationReadyDeal[]; pagination?: AdminCollaborationPagination; error?: string }
     if (!response.ok || !payload.data || !payload.pagination) throw new ApiRequestError(payload.error ?? adminCollaborationErrorMessage(response.status), response.status)
@@ -954,11 +1209,12 @@ const api = {
     if (!response.ok || !payload.data || !payload.pagination) throw new ApiRequestError(payload.error ?? adminCollaborationErrorMessage(response.status), response.status)
     return { data: payload.data, pagination: payload.pagination }
   },
-  async adminCollaborationPendingCommissions(totp: string, page = 1, limit = 50): Promise<AdminCollaborationPage<AdminCollaborationCommission>> {
-    return api.adminCollaborationCommissionsByStatus(totp, 'PENDING', page, limit)
+  async adminCollaborationPendingCommissions(totp: string, page = 1, limit = 50, filters: Pick<AdminAuditFilters, 'from' | 'to'> = {}): Promise<AdminCollaborationPage<AdminCollaborationCommission>> {
+    return api.adminCollaborationCommissionsByStatus(totp, 'PENDING', page, limit, filters)
   },
-  async adminCollaborationCommissionsByStatus(totp: string, status: 'PENDING' | 'ON_HOLD', page = 1, limit = 50): Promise<AdminCollaborationPage<AdminCollaborationCommission>> {
+  async adminCollaborationCommissionsByStatus(totp: string, status: 'PENDING' | 'ON_HOLD', page = 1, limit = 50, filters: Pick<AdminAuditFilters, 'from' | 'to'> = {}): Promise<AdminCollaborationPage<AdminCollaborationCommission>> {
     const params = new URLSearchParams({ status, page: String(page), limit: String(limit) })
+    for (const [key, value] of Object.entries(filters)) if (value) params.set(key, value)
     const response = await fetch(`/api/admin/collaboration/commissions?${params}`, { headers: { ...authHeaders(), 'x-admin-totp': totp } })
     const payload = await response.json().catch(() => ({})) as { data?: AdminCollaborationCommission[]; pagination?: AdminCollaborationPagination; error?: string }
     if (!response.ok || !payload.data || !payload.pagination) throw new ApiRequestError(payload.error ?? adminCollaborationErrorMessage(response.status), response.status)
@@ -1033,10 +1289,11 @@ const api = {
     const payload = await response.json().catch(() => ({})) as { error?: string }
     if (!response.ok) throw new ApiRequestError(payload.error ?? adminCollaborationErrorMessage(response.status), response.status)
   },
-  async signAdminCollaborationDeal(dealId: number, totp: string, input: { contractReference: string; contractDate: string; file: File }): Promise<AdminCollaborationSignatureResult> {
+  async signAdminCollaborationDeal(dealId: number, totp: string, input: { contractReference: string; contractDate: string; contractAmount: string; file: File }): Promise<AdminCollaborationSignatureResult> {
     const body = new FormData()
     body.set('contractReference', input.contractReference)
     body.set('contractDate', input.contractDate)
+    body.set('contractAmount', input.contractAmount)
     body.set('file', input.file)
     const response = await fetch(`/api/admin/collaboration/deals/${dealId}/signature`, {
       method: 'POST',
@@ -1061,6 +1318,22 @@ const api = {
   async adminCollaborationDeal(dealId: number, totp: string): Promise<AdminCollaborationDealDetail> {
     const response = await fetch(`/api/admin/collaboration/deals/${dealId}`, { headers: { ...authHeaders(), 'x-admin-totp': totp } })
     const payload = await response.json().catch(() => ({})) as { data?: AdminCollaborationDealDetail; error?: string }
+    if (!response.ok || !payload.data) throw new ApiRequestError(payload.error ?? adminCollaborationErrorMessage(response.status), response.status)
+    return payload.data
+  },
+  async assignAdminCollaborationDeal(totp: string, dealId: number, input: {
+    reviewAssignedToId?: number | null
+    signAssignedToId?: number | null
+  }): Promise<{ reviewAssignedToId: number | null; signAssignedToId: number | null }> {
+    const response = await fetch(`/api/admin/collaboration/deals/${dealId}/assignment`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', ...authHeaders(), 'x-admin-totp': totp },
+      body: JSON.stringify(input),
+    })
+    const payload = await response.json().catch(() => ({})) as {
+      data?: { reviewAssignedToId: number | null; signAssignedToId: number | null }
+      error?: string
+    }
     if (!response.ok || !payload.data) throw new ApiRequestError(payload.error ?? adminCollaborationErrorMessage(response.status), response.status)
     return payload.data
   },

@@ -16,6 +16,7 @@ import { decryptPii, encryptPii } from './report-pii.js'
 import { assessClientConfirmationAttempt } from './client-confirmation.guard.js'
 import { serializeSupplierCollaborationTimeline } from './collaboration.timeline.js'
 import { holdPendingCommissionsForDeal } from './collaboration.commissions.service.js'
+import { assignCollaborationDealToLeastLoadedStaff } from './collaboration.assignments.js'
 
 const draftSchema = z.object({
   saleAmount: z.number().int().positive().safe().nullable().optional(),
@@ -276,7 +277,12 @@ collaborationClosingRouter.post('/:dealId/closing-report/submit', collaborationR
       throw new CollaborationAccessError('Complétez le montant, la date et la description avant de soumettre.', 409)
     }
     if (report.status === 'SUBMITTED') {
-      if (report.idempotencyKey === body.data.idempotencyKey) return { duplicate: true, reportId: report.id, supplierId: deal.supplierId }
+      if (report.idempotencyKey === body.data.idempotencyKey) return {
+        duplicate: true,
+        reportId: report.id,
+        supplierId: deal.supplierId,
+        assignReviewer: !env.clientConfirmationRequired,
+      }
       throw new CollaborationAccessError('Ce rapport a déjà été soumis.', 409)
     }
     const customerEmail = report.deal.secret?.emailCiphertext
@@ -338,8 +344,22 @@ collaborationClosingRouter.post('/:dealId/closing-report/submit', collaborationR
       ...audit,
       createdAt: now,
     })
-    return { duplicate: false, reportId: report.id, supplierId: deal.supplierId, confirmationId }
+    return {
+      duplicate: false,
+      reportId: report.id,
+      supplierId: deal.supplierId,
+      confirmationId,
+      assignReviewer: !env.clientConfirmationRequired,
+    }
   })
+  if (result.assignReviewer) {
+    try {
+      await prisma.$transaction((transaction) =>
+        assignCollaborationDealToLeastLoadedStaff(transaction, dealId, 'SALES_REVIEWER', now))
+    } catch (error) {
+      console.error('Failed to auto-assign submitted collaboration deal; scheduler will retry:', error)
+    }
+  }
   if (!result.duplicate) {
     await Promise.all([
       notifyUser(result.supplierId, {
@@ -708,6 +728,14 @@ collaborationPublicRouter.post('/confirmations/:publicToken/respond', collaborat
   if (result.outcome === 'INVALID') {
     response.status(400).json({ error: 'Code incorrect.', attemptsRemaining: Math.max(0, 5 - result.attempts) })
     return
+  }
+  if (result.outcome === 'CONFIRMED_BY_CLIENT') {
+    try {
+      await prisma.$transaction((transaction) =>
+        assignCollaborationDealToLeastLoadedStaff(transaction, result.dealId, 'SALES_REVIEWER', now))
+    } catch (error) {
+      console.error('Failed to auto-assign client-confirmed collaboration deal; scheduler will retry:', error)
+    }
   }
   if (result.outcome === 'DENIED') {
     await notifyAdmins({

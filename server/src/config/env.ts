@@ -6,6 +6,16 @@ loadEnv({ path: fileURLToPath(new URL('../../.env', import.meta.url)) });
 const fallbackJwtSecret = 'dev-only-change-this-secret';
 const configuredJwtSecret = process.env.JWT_SECRET ?? process.env.JWT_ACCESS_SECRET ?? process.env.JWT_REFRESH_SECRET;
 
+function readPositiveIntegerEnv(name: string, fallback: number): number {
+  const raw = process.env[name]
+  if (raw === undefined) return fallback
+  const value = Number(raw)
+  if (!Number.isSafeInteger(value) || value < 1) {
+    throw new Error(`${name} must be a positive integer number of hours.`)
+  }
+  return value
+}
+
 if (process.env.NODE_ENV === 'production' && (!configuredJwtSecret || configuredJwtSecret.length < 32 || configuredJwtSecret === fallbackJwtSecret)) {
   throw new Error('Production requires a unique JWT secret with at least 32 characters.');
 }
@@ -19,10 +29,13 @@ export const env = {
     'http://localhost:5175',
   ].map((origin) => origin.trim()).filter(Boolean))],
   agentAppUrl: process.env.AGENT_APP_URL ?? 'http://localhost:5174',
+  adminAppUrl: process.env.ADMIN_APP_URL ?? 'http://localhost:5175',
   clientAppUrl: process.env.CLIENT_APP_URL ?? 'http://localhost:5173',
   apiPublicUrl: process.env.API_PUBLIC_URL ?? 'http://localhost:3000',
   collaborationSchedulerEnabled: process.env.COLLABORATION_SCHEDULER_ENABLED !== 'false',
   clientConfirmationRequired: process.env.CLIENT_CONFIRMATION_REQUIRED !== 'false',
+  collaborationReviewSlaHours: readPositiveIntegerEnv('COLLABORATION_REVIEW_SLA_HOURS', 4),
+  collaborationSignatureSlaHours: readPositiveIntegerEnv('COLLABORATION_SIGNATURE_SLA_HOURS', 8),
   commissionProviderAmount: Number(process.env.COMMISSION_PROVIDER_AMOUNT ?? 50000),
   commissionCloserAmount: Number(process.env.COMMISSION_CLOSER_AMOUNT ?? 100000),
   commissionCurrency: process.env.COMMISSION_CURRENCY ?? 'Ar',

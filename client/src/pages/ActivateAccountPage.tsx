@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { ShieldCheck } from 'lucide-react'
 import api, { type SessionUser } from '../api/client'
 import { Input } from '../components/ui/Input'
-import tySyNdayLogo from '../assets/TD.png'
+import authImage from '../assets/SUCCES.png'
 import './auth-brand.css'
 
 export default function ActivateAccountPage({ email: initialEmail, token, onLogin }: { email: string; token: string; onLogin: (token: string, user: SessionUser) => void }) {
@@ -31,17 +31,8 @@ export default function ActivateAccountPage({ email: initialEmail, token, onLogi
 
   return (
     <main className="auth-shell auth-agent auth-activation">
-      <section className="auth-visual" aria-label="Ty sy Nday Business">
-        <div className="auth-brand" aria-label="Ty sy Nday Business">
-          <img src={tySyNdayLogo} alt="" />
-          <span><strong>TY SY NDAY</strong><small>BUSINESS</small></span>
-        </div>
-        <div className="auth-visual-copy">
-          <span className="auth-kicker">Espace agent</span>
-          <h1>Sécurisez votre espace professionnel.</h1>
-          <p>Choisissez un mot de passe personnel pour finaliser l’activation de votre compte.</p>
-          <strong className="auth-script">Ensemble pour vos projets</strong>
-        </div>
+      <section className="auth-visual" aria-hidden="true">
+        <img className="auth-visual-image" src={authImage} alt="" />
       </section>
       <section className="auth-panel">
         <div className="auth-card">

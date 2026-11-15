@@ -4,7 +4,7 @@ import type { Report } from '../types/report'
 import Metric from '../components/dashboard/Metric'
 import ReportTable from '../components/reports/ReportTable'
 import useCommissionAmounts from '../hooks/useCommissionAmounts'
-import tySyNdayLogo from '../assets/TD.png'
+import tySyNdayLogo from '../assets/LOGO.png'
 import QRCode from 'qrcode'
 import Swal from 'sweetalert2'
 import { BadgeCheck, Camera, Download, FilePlus2, Mail, MapPin, Phone, QrCode } from 'lucide-react'
@@ -35,7 +35,7 @@ export function DashboardPage({ reports, user, onNewReport, onViewReports }: { r
     { key: 'REJETE', label: t('Rejeté') },
   ]
   return <div className="agent-dashboard">
-    <section className="welcome-row agent-dashboard-welcome"><div><p className="eyebrow">{t('ESPACE AGENT')}</p><h1>{t('Bonjour')} {firstName} <span>✦</span></h1><p className="intro">{t('Retrouvez ici votre activité et vos résultats.')}</p></div><button className="primary-button" onClick={onNewReport}><FilePlus2 size={17} aria-hidden="true" /> {t('Nouveau rapport')}</button></section>
+    <section className="welcome-row agent-dashboard-welcome"><div><p className="eyebrow">{t('ESPACE AGENT')}</p><h1>{t('')} {firstName} <span></span></h1><p className="intro">{t('Retrouvez ici votre activité et vos résultats.')}</p></div><button className="primary-button" onClick={onNewReport}><FilePlus2 size={17} aria-hidden="true" /> {t('Nouveau rapport')}</button></section>
     {statsError && <p className="settings-error" role="alert">{statsError}</p>}
     <section className="metric-grid agent-dashboard-metrics" aria-label={t('Indicateurs clés')}>
       <Metric label={t('Solde disponible')} value={stats ? money(stats.availableBalance, language) : '—'} suffix="Ar" note={t('Après retraits payés et en cours')} />
@@ -215,12 +215,12 @@ export function ProfilePage({ user, onUserUpdate }: { user: SessionUser; onUserU
     }
   }
 
-  return <>
+  return <div className="agent-profile-page">
     <section className="page-heading profile-page-heading">
       <div>
         <p className="eyebrow">{t('MON ESPACE')}</p>
-          <h1>{t('Mon profil')}</h1>
-          <p className="intro">{t('Gérez votre identité professionnelle et partagez vos coordonnées.')}</p>
+        <h1>{t('Mon profil')}</h1>
+        <p className="intro">{t('Gérez votre identité professionnelle et partagez vos coordonnées.')}</p>
       </div>
       <span className="profile-member-id">{t('AGENT N°')} {String(user.id).padStart(5, '0')}</span>
     </section>
@@ -295,7 +295,7 @@ export function ProfilePage({ user, onUserUpdate }: { user: SessionUser; onUserU
         <span className="badge-preview-caption">{t('APERÇU DE VOTRE BADGE')}</span>
       </div>
     </section>
-  </>
+  </div>
 }
 
 function drawAgentBadge(

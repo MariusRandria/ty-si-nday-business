@@ -2,7 +2,7 @@ import type { NextFunction, Request, Response } from 'express';
 import jwt from 'jsonwebtoken';
 import { env } from '../../config/env.js';
 
-export type AuthUser = { id: number; role: 'AGENT' | 'ADMIN' | 'SUPER_ADMIN'; status: string };
+export type AuthUser = { id: number; role: 'AGENT' | 'ADMIN' | 'SUPER_ADMIN' | 'SALES_REVIEWER' | 'SALES_SIGNER'; status: string };
 export type AuthRequest = Request & { user?: AuthUser };
 
 export function requireAuth(request: AuthRequest, response: Response, next: NextFunction) {

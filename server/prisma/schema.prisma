@@ -10,6 +10,8 @@ enum UserRole {
   AGENT
   ADMIN
   SUPER_ADMIN
+  SALES_REVIEWER
+  SALES_SIGNER
 }
 
 enum UserStatus {
@@ -44,6 +46,40 @@ enum ProductStatus {
   BROUILLON
   PUBLIE
   ARCHIVE
+}
+
+enum MarketplaceProductStatus {
+  BROUILLON
+  PUBLIE
+  ARCHIVE
+}
+
+enum MarketplaceOrderStatus {
+  DEMANDEE
+  CONFIRMEE
+  EN_PREPARATION
+  PRETE
+  EXPEDIEE
+  LIVREE
+  ANNULEE
+}
+
+enum MarketplacePaymentStatus {
+  A_CONFIRMER
+  PAYE
+}
+
+enum MarketplacePaymentMethod {
+  MVOLA
+  ORANGE_MONEY
+  AIRTEL_MONEY
+  ESPECES
+}
+
+enum MarketplaceDeliveryMethod {
+  LIVRAISON
+  COLIS
+  RECUPERATION
 }
 
 enum ContactType {
@@ -208,6 +244,10 @@ model User {
   activationTokens                    ActivationToken[]
   refreshTokens                       RefreshToken[]
   createdProducts                     Product[]                           @relation("ProductCreator")
+  createdMarketplaceProducts          MarketplaceProduct[]                @relation("MarketplaceProductCreator")
+  marketplaceOrders                   MarketplaceOrder[]                  @relation("MarketplaceOrderAgent")
+  paidMarketplaceOrders               MarketplaceOrder[]                  @relation("MarketplaceOrderPaidBy")
+  updatedMarketplaceOrders            MarketplaceOrder[]                  @relation("MarketplaceOrderUpdatedBy")
   reportHistories                     ReportStatusHistory[]
   transactions                        Transaction[]
   withdrawals                         Withdrawal[]
@@ -230,6 +270,8 @@ model User {
   suppliedCollaborationDeals          CollaborationDeal[]                 @relation("CollaborationSupplier")
   closedCollaborationDeals            CollaborationDeal[]                 @relation("CollaborationCloser")
   reviewedCollaborationDeals          CollaborationDeal[]                 @relation("CollaborationDealReviewer")
+  assignedCollaborationReviewDeals    CollaborationDeal[]                 @relation("CollaborationReviewAssignee")
+  assignedCollaborationSignDeals      CollaborationDeal[]                 @relation("CollaborationSignAssignee")
   collaborationAccessRequests         CollaborationAccessRequest[]        @relation("CollaborationAccessRequester")
   reviewedCollaborationAccessRequests CollaborationAccessRequest[]        @relation("CollaborationAccessReviewer")
   collaborationStatusChanges          CollaborationDealStatusHistory[]
@@ -421,6 +463,114 @@ model ProductFile {
   @@map("product_files")
 }
 
+model MarketplaceProduct {
+  id          Int                         @id @default(autoincrement())
+  title       String                      @db.VarChar(200)
+  category    String                      @db.VarChar(100)
+  description String                      @db.Text
+  price       BigInt                      @db.BigInt
+  imageUrl    String?                     @map("image_url") @db.VarChar(500)
+  status      MarketplaceProductStatus    @default(BROUILLON)
+  publishedAt DateTime?                   @map("published_at")
+  createdBy   Int                         @map("created_by")
+  createdAt   DateTime                    @default(now()) @map("created_at")
+  updatedAt   DateTime                    @updatedAt @map("updated_at")
+  creator     User                        @relation("MarketplaceProductCreator", fields: [createdBy], references: [id])
+  variants    MarketplaceProductVariant[]
+  orderItems  MarketplaceOrderItem[]
+
+  @@index([status, createdAt])
+  @@map("marketplace_products")
+}
+
+model MarketplaceProductVariant {
+  id         Int                    @id @default(autoincrement())
+  productId  Int                    @map("product_id")
+  label      String                 @db.VarChar(100)
+  stock      Int                    @default(0)
+  isActive   Boolean                @default(true) @map("is_active")
+  createdAt  DateTime               @default(now()) @map("created_at")
+  updatedAt  DateTime               @updatedAt @map("updated_at")
+  product    MarketplaceProduct     @relation(fields: [productId], references: [id], onDelete: Cascade)
+  orderItems MarketplaceOrderItem[]
+
+  @@unique([productId, label])
+  @@index([productId, isActive])
+  @@map("marketplace_product_variants")
+}
+
+model MarketplaceOrder {
+  id                  Int                       @id @default(autoincrement())
+  agentId             Int                       @map("agent_id")
+  status              MarketplaceOrderStatus    @default(DEMANDEE)
+  paymentStatus       MarketplacePaymentStatus  @default(A_CONFIRMER) @map("payment_status")
+  deliveryMethod      MarketplaceDeliveryMethod @map("delivery_method")
+  deliveryAddress     String?                   @map("delivery_address") @db.Text
+  agentNote           String?                   @map("agent_note") @db.Text
+  itemsAmount         BigInt                    @map("items_amount") @db.BigInt
+  deliveryFee         BigInt?                   @map("delivery_fee") @db.BigInt
+  totalAmount         BigInt?                   @map("total_amount") @db.BigInt
+  paymentMethod       MarketplacePaymentMethod? @map("payment_method")
+  paymentAccount      String?                   @map("payment_account") @db.VarChar(100)
+  paymentAccountName  String?                   @map("payment_account_name") @db.VarChar(150)
+  paymentInstructions String?                   @map("payment_instructions") @db.Text
+  paymentReference    String?                   @map("payment_reference") @db.VarChar(100)
+  quotedAt            DateTime?                 @map("quoted_at")
+  quoteExpiresAt      DateTime?                 @map("quote_expires_at")
+  paymentExpiresAt    DateTime?                 @map("payment_expires_at")
+  cancellationReason  String?                   @map("cancellation_reason") @db.VarChar(255)
+  paidById            Int?                      @map("paid_by_id")
+  paidAt              DateTime?                 @map("paid_at")
+  updatedById         Int?                      @map("updated_by_id")
+  createdAt           DateTime                  @default(now()) @map("created_at")
+  updatedAt           DateTime                  @updatedAt @map("updated_at")
+  agent               User                      @relation("MarketplaceOrderAgent", fields: [agentId], references: [id])
+  paidBy              User?                     @relation("MarketplaceOrderPaidBy", fields: [paidById], references: [id], onDelete: SetNull)
+  updatedBy           User?                     @relation("MarketplaceOrderUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+  items               MarketplaceOrderItem[]
+
+  @@index([agentId, createdAt])
+  @@index([status, createdAt])
+  @@index([paymentStatus, createdAt])
+  @@index([paymentStatus, paymentExpiresAt])
+  @@index([paymentStatus, quoteExpiresAt])
+  @@map("marketplace_orders")
+}
+
+model MarketplaceOrderItem {
+  id           Int                        @id @default(autoincrement())
+  orderId      Int                        @map("order_id")
+  productId    Int?                       @map("product_id")
+  variantId    Int?                       @map("variant_id")
+  productName  String                     @map("product_name") @db.VarChar(200)
+  variantLabel String                     @map("variant_label") @db.VarChar(100)
+  quantity     Int
+  unitPrice    BigInt                     @map("unit_price") @db.BigInt
+  lineTotal    BigInt                     @map("line_total") @db.BigInt
+  order        MarketplaceOrder           @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product      MarketplaceProduct?        @relation(fields: [productId], references: [id], onDelete: SetNull)
+  variant      MarketplaceProductVariant? @relation(fields: [variantId], references: [id], onDelete: SetNull)
+
+  @@index([orderId])
+  @@index([productId])
+  @@index([variantId])
+  @@map("marketplace_order_items")
+}
+
+model MarketplacePaymentSettings {
+  id                Int      @id @default(1)
+  mvolaNumber       String?  @map("mvola_number") @db.VarChar(100)
+  mvolaAccountName  String?  @map("mvola_account_name") @db.VarChar(150)
+  orangeMoneyNumber String?  @map("orange_money_number") @db.VarChar(100)
+  orangeMoneyName   String?  @map("orange_money_name") @db.VarChar(150)
+  airtelMoneyNumber String?  @map("airtel_money_number") @db.VarChar(100)
+  airtelMoneyName   String?  @map("airtel_money_name") @db.VarChar(150)
+  instructions      String   @default("") @db.Text
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  @@map("marketplace_payment_settings")
+}
+
 model ProspectContact {
   id              Int      @id @default(autoincrement())
   companyName     String   @map("company_name") @db.VarChar(200)
@@ -500,6 +650,7 @@ model CollaborationDeal {
   clientConfirmedAt                DateTime?                        @map("client_confirmed_at")
   confirmedAt                      DateTime?                        @map("confirmed_at")
   contractSignedAt                 DateTime?                        @map("contract_signed_at")
+  contractAmount                   BigInt?                          @map("contract_amount") @db.BigInt
   contractReference                String?                          @map("contract_reference") @db.VarChar(150)
   contractFileSha256               String?                          @map("contract_file_sha256") @db.Char(64)
   saleNumber                       String?                          @unique @map("sale_number") @db.VarChar(40)
@@ -508,6 +659,8 @@ model CollaborationDeal {
   disputeReason                    String?                          @map("dispute_reason") @db.Text
   clientConfirmationOverrideReason String?                          @map("client_confirmation_override_reason") @db.Text
   reviewedById                     Int?                             @map("reviewed_by")
+  reviewAssignedToId               Int?                             @map("review_assigned_to_id")
+  signAssignedToId                 Int?                             @map("sign_assigned_to_id")
   resolvedAt                       DateTime?                        @map("resolved_at")
   createdAt                        DateTime                         @default(now()) @map("created_at")
   updatedAt                        DateTime                         @updatedAt @map("updated_at")
@@ -515,6 +668,8 @@ model CollaborationDeal {
   supplier                         User                             @relation("CollaborationSupplier", fields: [supplierId], references: [id], onDelete: Restrict)
   closer                           User?                            @relation("CollaborationCloser", fields: [closerId], references: [id], onDelete: Restrict)
   reviewer                         User?                            @relation("CollaborationDealReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+  reviewAssignedTo                 User?                            @relation("CollaborationReviewAssignee", fields: [reviewAssignedToId], references: [id], onDelete: SetNull)
+  signAssignedTo                   User?                            @relation("CollaborationSignAssignee", fields: [signAssignedToId], references: [id], onDelete: SetNull)
   secret                           CollaborationProspectSecret?
   accessRequests                   CollaborationAccessRequest[]
   statusHistory                    CollaborationDealStatusHistory[]
@@ -531,6 +686,8 @@ model CollaborationDeal {
   @@index([supplierId, status, createdAt])
   @@index([closerId, status])
   @@index([status, accessExpiresAt])
+  @@index([reviewAssignedToId, status])
+  @@index([signAssignedToId, status])
   @@map("collaboration_deals")
 }
 

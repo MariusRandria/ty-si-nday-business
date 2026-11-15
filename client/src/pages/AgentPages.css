@@ -1152,3 +1152,380 @@
     font-size: 21px;
   }
 }
+
+.agent-profile-page {
+  display: grid;
+  width: min(100%, 1120px);
+  gap: 20px;
+  margin: 0 auto;
+}
+
+.agent-profile-page .profile-page-heading {
+  align-items: center;
+  margin: 0;
+}
+
+.agent-profile-page .profile-page-heading h1 {
+  margin-bottom: 7px;
+}
+
+.agent-profile-page .profile-member-id {
+  padding: 10px 14px;
+  border-color: color-mix(in srgb, var(--color-primary-violet) 22%, var(--line));
+  background: color-mix(in srgb, var(--color-primary-violet) 6%, var(--surface));
+  color: var(--color-primary-violet);
+  font-variant-numeric: tabular-nums;
+}
+
+.agent-profile-page .profile-overview {
+  margin: 0;
+  border: 1px solid var(--line) !important;
+  border-radius: 24px !important;
+  background: var(--surface) !important;
+  box-shadow: var(--shadow-soft) !important;
+}
+
+.agent-profile-page .profile-overview-banner {
+  position: relative;
+  min-height: 116px;
+  padding: 24px clamp(20px, 3vw, 34px);
+  overflow: hidden;
+  background:
+    radial-gradient(ellipse at 86% 0%, rgba(201, 185, 255, .26), transparent 34%),
+    linear-gradient(112deg, #342653 0%, #53427f 54%, #4f62a8 100%);
+}
+
+.agent-profile-page .profile-overview-banner::after {
+  position: absolute;
+  right: 12%;
+  bottom: -132px;
+  width: 220px;
+  height: 220px;
+  border: 1px solid rgba(255, 255, 255, .16);
+  border-radius: 50%;
+  box-shadow: 0 0 0 24px rgba(255, 255, 255, .035), 0 0 0 50px rgba(255, 255, 255, .025);
+  content: '';
+  pointer-events: none;
+}
+
+.agent-profile-page .profile-brand-mark,
+.agent-profile-page .profile-account-status {
+  position: relative;
+  z-index: 1;
+}
+
+.agent-profile-page .profile-brand-mark {
+  font-size: 14px;
+  letter-spacing: .08em;
+}
+
+.agent-profile-page .profile-brand-mark img {
+  width: 44px;
+  height: 44px;
+  border: 1px solid rgba(255, 255, 255, .26);
+  border-radius: 13px;
+  background: #fff;
+}
+
+.agent-profile-page .profile-account-status {
+  min-height: 34px;
+  padding: 8px 13px;
+  border-color: rgba(255, 255, 255, .25);
+  background: rgba(20, 17, 43, .22);
+  backdrop-filter: blur(8px);
+}
+
+.agent-profile-page .profile-overview-content {
+  padding: clamp(20px, 3vw, 32px);
+}
+
+.agent-profile-page .profile-identity {
+  align-items: center;
+  gap: 22px;
+  padding-bottom: 28px;
+  border-bottom-color: var(--line);
+}
+
+.agent-profile-page .profile-large {
+  width: 92px;
+  height: 92px;
+  flex-basis: 92px;
+  border: 4px solid var(--surface);
+  border-radius: 27px;
+  box-shadow: 0 10px 24px rgba(72, 53, 137, .2);
+}
+
+.agent-profile-page .profile-photo-action {
+  min-height: 34px;
+  padding: 0 11px;
+  border: 1px solid color-mix(in srgb, var(--color-primary-violet) 19%, var(--line));
+  background: color-mix(in srgb, var(--color-primary-violet) 7%, var(--surface));
+  color: var(--color-primary-violet);
+  font-size: 11px;
+  transition: background-color .16s ease, border-color .16s ease, transform .16s ease;
+}
+
+.agent-profile-page .profile-photo-action:hover:not(:disabled) {
+  transform: translateY(-1px);
+  border-color: color-mix(in srgb, var(--color-primary-violet) 40%, var(--line));
+  background: color-mix(in srgb, var(--color-primary-violet) 12%, var(--surface));
+}
+
+.agent-profile-page .profile-identity > div:last-child {
+  min-width: 0;
+}
+
+.agent-profile-page .profile-identity h2 {
+  margin-bottom: 9px;
+  font-size: clamp(23px, 3vw, 29px);
+  line-height: 1.2;
+}
+
+.agent-profile-page .profile-verified {
+  gap: 7px;
+  color: var(--muted);
+}
+
+.agent-profile-page .profile-verified svg {
+  color: #248b69;
+}
+
+.agent-profile-page .profile-contact-section {
+  margin-top: 24px;
+  padding: 22px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: var(--surface-muted);
+}
+
+.agent-profile-page .profile-section-heading {
+  margin-bottom: 15px;
+}
+
+.agent-profile-page .profile-section-heading .section-kicker {
+  color: var(--color-primary-violet);
+}
+
+.agent-profile-page .profile-section-heading h3 {
+  margin-top: 5px;
+  color: var(--ink);
+  font-size: 17px;
+}
+
+.agent-profile-page .profile-contact-grid {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
+  gap: 10px;
+}
+
+.agent-profile-page .profile-contact-item {
+  min-height: 72px;
+  padding: 14px;
+  border-color: var(--line);
+  border-radius: 14px;
+  background: var(--surface);
+  transition: border-color .16s ease, transform .16s ease, box-shadow .16s ease;
+}
+
+.agent-profile-page .profile-contact-item:hover {
+  transform: translateY(-1px);
+  border-color: color-mix(in srgb, var(--color-primary-violet) 32%, var(--line));
+  box-shadow: 0 8px 18px rgba(37, 39, 72, .055);
+}
+
+.agent-profile-page .profile-contact-icon {
+  width: 40px;
+  height: 40px;
+  flex-basis: 40px;
+  border-color: color-mix(in srgb, var(--color-primary-violet) 15%, var(--line));
+  border-radius: 13px;
+  background: color-mix(in srgb, var(--color-primary-violet) 8%, var(--surface));
+  color: var(--color-primary-violet);
+}
+
+.agent-profile-page .profile-contact-item small {
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.agent-profile-page .profile-contact-item strong {
+  color: var(--ink);
+  font-size: 12px;
+}
+
+.agent-profile-page .badge-generator {
+  grid-template-columns: minmax(0, 1fr) minmax(260px, 340px);
+  gap: clamp(20px, 4vw, 44px);
+  margin: 0;
+  padding: clamp(22px, 3vw, 34px) !important;
+  border: 1px solid color-mix(in srgb, var(--color-primary-violet) 18%, var(--line)) !important;
+  border-radius: 24px !important;
+  background:
+    radial-gradient(ellipse at 100% 0%, color-mix(in srgb, var(--color-primary-violet) 9%, transparent), transparent 38%),
+    var(--surface) !important;
+  box-shadow: var(--shadow-soft) !important;
+}
+
+.agent-profile-page .badge-generator-copy {
+  max-width: 560px;
+}
+
+.agent-profile-page .badge-generator-icon {
+  width: 48px;
+  height: 48px;
+  margin-bottom: 20px;
+  border-radius: 15px;
+  background: color-mix(in srgb, var(--color-primary-violet) 10%, var(--surface));
+}
+
+.agent-profile-page .badge-generator-copy h2 {
+  margin: 7px 0 10px;
+  color: var(--ink) !important;
+  font-size: clamp(23px, 2.5vw, 28px);
+  letter-spacing: -.035em;
+}
+
+.agent-profile-page .badge-generator-copy > p:not(.eyebrow):not(.badge-generator-error) {
+  max-width: 470px;
+  margin-bottom: 16px;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.65;
+}
+
+.agent-profile-page .badge-generator-benefit {
+  align-items: center;
+  gap: 9px;
+  margin-bottom: 22px;
+  color: var(--ink);
+  font-size: 12px;
+}
+
+.agent-profile-page .badge-generator-copy .primary-button {
+  min-height: 46px;
+  border-radius: 13px !important;
+}
+
+.agent-profile-page .badge-preview-wrap {
+  min-width: 0;
+  padding: 20px 14px 14px;
+  border: 1px solid var(--line);
+  border-radius: 19px;
+  background: var(--surface-muted);
+}
+
+.agent-profile-page .agent-badge {
+  width: min(100%, 230px);
+  box-shadow: 0 16px 36px rgba(36, 31, 65, .18);
+}
+
+.agent-profile-page .badge-preview-caption {
+  margin-top: 2px;
+  font-size: 9px;
+}
+
+.agent-profile-page .agent-badge-qr img {
+  width: 62px;
+  height: 62px;
+}
+
+.agent-portal-shell.theme-dark .agent-profile-page .profile-contact-section,
+.agent-portal-shell.theme-dark .agent-profile-page .badge-preview-wrap {
+  border-color: var(--line);
+  background: var(--surface-muted);
+}
+
+.agent-portal-shell.theme-dark .agent-profile-page .profile-contact-item,
+.agent-portal-shell.theme-dark .agent-profile-page .profile-contact-icon {
+  border-color: var(--line);
+  background: var(--surface);
+}
+
+.agent-portal-shell.theme-dark .agent-profile-page .profile-contact-item strong,
+.agent-portal-shell.theme-dark .agent-profile-page .profile-section-heading h3,
+.agent-portal-shell.theme-dark .agent-profile-page .badge-generator-copy h2,
+.agent-portal-shell.theme-dark .agent-profile-page .badge-generator-benefit {
+  color: var(--ink) !important;
+}
+
+@media (max-width: 700px) {
+  .agent-profile-page {
+    gap: 15px;
+  }
+
+  .agent-profile-page .profile-page-heading {
+    align-items: flex-start;
+  }
+
+  .agent-profile-page .profile-overview-banner {
+    min-height: 92px;
+  }
+
+  .agent-profile-page .profile-overview-content {
+    padding: 20px 17px;
+  }
+
+  .agent-profile-page .profile-identity {
+    align-items: flex-start;
+    gap: 15px;
+    padding-bottom: 22px;
+  }
+
+  .agent-profile-page .profile-large {
+    width: 68px;
+    height: 68px;
+    flex-basis: 68px;
+    border-radius: 21px;
+  }
+
+  .agent-profile-page .profile-contact-section {
+    margin-top: 20px;
+    padding: 16px;
+  }
+
+  .agent-profile-page .profile-contact-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .agent-profile-page .badge-generator {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 18px;
+    padding: 21px 17px !important;
+  }
+
+  .agent-profile-page .badge-preview-wrap {
+    padding: 16px 12px 12px;
+  }
+}
+
+@media (max-width: 380px) {
+  .agent-profile-page .profile-overview-banner {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .agent-profile-page .profile-identity {
+    gap: 11px;
+  }
+
+  .agent-profile-page .profile-large {
+    width: 56px;
+    height: 56px;
+    flex-basis: 56px;
+    border-radius: 17px;
+  }
+
+  .agent-profile-page .profile-photo-action {
+    max-width: 94px;
+    padding-inline: 6px;
+    font-size: 9px;
+  }
+
+  .agent-profile-page .profile-identity h2 {
+    font-size: 18px;
+  }
+
+  .agent-profile-page .profile-contact-section {
+    padding: 13px;
+  }
+}

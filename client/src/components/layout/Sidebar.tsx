@@ -1,9 +1,11 @@
+import { useEffect, useState } from 'react'
 import type { View } from '../../types/report'
 import { notify } from '../../utils/toast'
 import { confirmAction } from '../../utils/confirmation'
-import { BadgeCheck, BarChart3, ClipboardList, Grid2X2, Inbox, MessagesSquare, WalletCards, UserRound, LogOut, X, MapPinned, BriefcaseBusiness, Settings } from 'lucide-react'
-import tySyNdayLogo from '../../assets/TD.png'
+import api, { type SessionUser } from '../../api/client'
+import { BadgeCheck, BarChart3, ChevronRight, ClipboardList, Grid2X2, Inbox, MessagesSquare, WalletCards, UserRound, LogOut, X, MapPinned, BriefcaseBusiness, Settings, ShoppingBag } from 'lucide-react'
 import { useI18n } from '../../i18n'
+import { SubscriberBadge } from '../ui/SubscriberBadge'
 
 const navItems: { id: View; label: string; icon: typeof BarChart3 }[] = [
   { id: 'dashboard', label: 'Vue d’ensemble', icon: BarChart3 },
@@ -13,6 +15,7 @@ const navItems: { id: View; label: string; icon: typeof BarChart3 }[] = [
   { id: 'collaboration-requests', label: 'Demandes d’accès', icon: Inbox },
   { id: 'reports', label: 'Mes rapports', icon: ClipboardList },
   { id: 'products', label: 'Catalogue produits', icon: Grid2X2 },
+  { id: 'marketplace', label: 'Marketplace', icon: ShoppingBag },
   { id: 'prospects', label: 'Contacts prospects', icon: MapPinned },
   { id: 'subscription', label: 'Badge abonné', icon: BadgeCheck },
   { id: 'community', label: 'Communauté', icon: MessagesSquare },
@@ -20,10 +23,30 @@ const navItems: { id: View; label: string; icon: typeof BarChart3 }[] = [
   { id: 'commissions', label: 'Mes commissions', icon: WalletCards },
 ]
 const desktopShortcutItems = new Set<View>(['collaboration-home', 'reports', 'products', 'community', 'messages'])
-const mobileShortcutItems = new Set<View>(['collaboration-home', 'collaboration-closer-accesses', 'collaboration-requests', 'reports', 'commissions', 'community', 'messages', 'profile'])
+const mobileShortcutItems = new Set<View>(['collaboration-home', 'collaboration-closer-accesses', 'collaboration-requests', 'reports', 'commissions', 'community', 'messages'])
 
-export default function Sidebar({ view, onNavigate, mobileOpen, onMobileClose, pendingRequestCount = 0 }: { view: View; onNavigate: (view: View) => void; mobileOpen: boolean; onMobileClose: () => void; pendingRequestCount?: number }) {
+export default function Sidebar({ view, onNavigate, mobileOpen, onMobileClose, user, pendingRequestCount = 0 }: { view: View; onNavigate: (view: View) => void; mobileOpen: boolean; onMobileClose: () => void; user: SessionUser; pendingRequestCount?: number }) {
   const { t } = useI18n()
+  const [isSubscriber, setIsSubscriber] = useState(false)
+  const fullName = [user.profile?.firstName, user.profile?.lastName].filter(Boolean).join(' ') || user.email
+  const initials = fullName.split(/\s+/).map((part) => part[0]).slice(0, 2).join('').toUpperCase()
+  useEffect(() => {
+    let active = true
+    const refreshSubscriberStatus = () => {
+      api.subscriptionOverview()
+        .then((overview) => { if (active) setIsSubscriber(Boolean(overview.current)) })
+        .catch((caught) => { if (active) console.error('Impossible de vérifier le statut du badge abonné dans la navigation.', caught) })
+    }
+    refreshSubscriberStatus()
+    const interval = window.setInterval(refreshSubscriberStatus, 60_000)
+    window.addEventListener('focus', refreshSubscriberStatus)
+    return () => {
+      active = false
+      window.clearInterval(interval)
+      window.removeEventListener('focus', refreshSubscriberStatus)
+    }
+  }, [user.id])
+
   async function logout() {
     const confirmed = await confirmAction({ title: t('Se déconnecter ?'), message: t('Votre session agent sera fermée sur cet appareil.'), confirmLabel: t('Se déconnecter') })
     if (!confirmed) return
@@ -36,8 +59,16 @@ export default function Sidebar({ view, onNavigate, mobileOpen, onMobileClose, p
   return (
     <aside className={`sidebar ${mobileOpen ? 'mobile-open' : ''}`} aria-label="Navigation de l’espace agent">
       <button className="mobile-sidebar-close" type="button" aria-label="Fermer le menu" onClick={onMobileClose}><X size={22} /></button>
-      <a className="brand" href="/" aria-label="Ty sy Nday Business"><img src={tySyNdayLogo} alt="" /><span>TY SY NDAY <small>Business</small></span></a>
-      {/* <div className="profile-mini"><div className="avatar">{initials}</div><div><strong>{name}</strong><span>Agent commercial</span></div></div> */}
+      <button className="profile-mini mobile-profile-link" type="button" aria-label={`${t('Ouvrir mon profil')} : ${fullName}`} onClick={() => onNavigate('profile')}>
+        <span className="avatar mobile-profile-avatar">
+          {user.profile?.imageUrl ? <img src={user.profile.imageUrl} alt="" /> : initials}
+        </span>
+        <span className="mobile-profile-info">
+          <strong>{fullName}</strong>
+          {isSubscriber && <SubscriberBadge />}
+        </span>
+        <span className="mobile-profile-chevron"><ChevronRight size={18} aria-hidden="true" /></span>
+      </button>
       <nav className="main-nav" aria-label="Navigation principale">
         <span className="nav-caption">{t('ESPACE AGENT')}</span>
         {navItems.map(({ id, label, icon: Icon }) => {

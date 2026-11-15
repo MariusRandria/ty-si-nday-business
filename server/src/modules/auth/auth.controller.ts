@@ -266,7 +266,7 @@ export async function verifyRegistrationOtp(request: Request, response: Response
 function publicUser(user: { id: number; email: string; role: string; status: string; agentProfile?: { firstName: string; lastName: string; phone: string; city: string; imageUrl: string | null } | null }) {
   return { id: user.id, email: user.email, role: user.role, status: user.status, profile: user.agentProfile ?? null };
 }
-function signUser(user: { id: number; role: 'AGENT' | 'ADMIN' | 'SUPER_ADMIN'; status: string }) {
+function signUser(user: { id: number; role: 'AGENT' | 'ADMIN' | 'SUPER_ADMIN' | 'SALES_REVIEWER' | 'SALES_SIGNER'; status: string }) {
   return jwt.sign({ id: user.id, role: user.role, status: user.status }, env.jwtSecret, { expiresIn: '3h' });
 }
 async function recordAuthentication(

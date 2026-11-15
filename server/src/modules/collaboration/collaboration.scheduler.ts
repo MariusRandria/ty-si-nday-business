@@ -8,6 +8,7 @@ import { getCollaborationConfig } from './collaboration.config.js'
 import { enqueueCollaborationEmail } from './collaboration.outbox.js'
 import { CollaborationAccessError, transitionCollaborationDeal } from './collaboration.policy.js'
 import { writeCollaborationAudit } from './collaboration.audit.js'
+import { assignCollaborationDealToLeastLoadedStaff } from './collaboration.assignments.js'
 import { createAvailabilityNotifications } from './collaboration.notifications.js'
 import { verifyAuditChainIfNightlyWindow } from './collaboration.audit-verification.js'
 import { alertContactExtractionAnomalies, detectSignedContactBypass } from './collaboration.risk.service.js'
@@ -406,6 +407,44 @@ async function deliverQueuedEmails(now: Date) {
   }
 }
 
+async function assignUnassignedSalesDeals(now: Date) {
+  const reviewerDeals = await prisma.collaborationDeal.findMany({
+    where: {
+      reviewAssignedToId: null,
+      status: env.clientConfirmationRequired
+        ? { in: ['CONFIRMED_BY_CLIENT', 'CLIENT_CONFIRMED'] }
+        : { in: ['CLOSING_REPORTED', 'CONFIRMED_BY_CLIENT', 'CLIENT_CONFIRMED'] },
+      closingReport: { is: { status: 'SUBMITTED' } },
+      ...(env.clientConfirmationRequired
+        ? { clientConfirmation: { is: { status: { in: ['CONFIRMED_BY_CLIENT', 'CONFIRMED'] } } } }
+        : {}),
+    },
+    select: { id: true },
+    orderBy: [{ updatedAt: 'asc' }, { id: 'asc' }],
+    take: 100,
+  })
+  for (const deal of reviewerDeals) {
+    await prisma.$transaction((transaction) =>
+      assignCollaborationDealToLeastLoadedStaff(transaction, deal.id, 'SALES_REVIEWER', now))
+  }
+
+  const signerDeals = await prisma.collaborationDeal.findMany({
+    where: {
+      signAssignedToId: null,
+      status: 'CONFIRMED',
+      saleNumber: null,
+      closingReport: { is: { status: 'SUBMITTED' } },
+    },
+    select: { id: true },
+    orderBy: [{ updatedAt: 'asc' }, { id: 'asc' }],
+    take: 100,
+  })
+  for (const deal of signerDeals) {
+    await prisma.$transaction((transaction) =>
+      assignCollaborationDealToLeastLoadedStaff(transaction, deal.id, 'SALES_SIGNER', now))
+  }
+}
+
 export async function runCollaborationSchedulerCycle(now = new Date()) {
   const ownerToken = randomBytes(32).toString('hex')
   const expiresAt = new Date(now.getTime() + schedulerLeaseMs)
@@ -436,6 +475,7 @@ export async function runCollaborationSchedulerCycle(now = new Date()) {
       expireClientConfirmations(now),
       processPendingContractSignedEvents(now),
       holdCommissionsForSuspendedAgents(now),
+      assignUnassignedSalesDeals(now),
       deliverQueuedEmails(now),
       verifyAuditChainIfNightlyWindow(ownerToken, now),
       runNightlyCollaborationChecks(now),

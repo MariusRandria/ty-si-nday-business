@@ -115,6 +115,14 @@ test('concurrent generation is idempotent and credits the agent wallets once', {
   assert.ok(commissions.every(({ status }) => status === 'PENDING'))
   assert.equal(await getAvailableCollaborationCommissionAmount(prisma, supplier.id), 50_000n)
   assert.equal(await getAvailableCollaborationCommissionAmount(prisma, closer.id), 100_000n)
+  const completedDeal = await prisma.collaborationDeal.findUniqueOrThrow({
+    where: { id: deal.id },
+    select: { status: true },
+  })
+  assert.equal(completedDeal.status, 'COMMISSIONS_PAID')
+  assert.equal(await prisma.collaborationDealStatusHistory.count({
+    where: { dealId: deal.id, fromStatus: 'CONTRACT_SIGNED', toStatus: 'COMMISSIONS_PAID' },
+  }), 1)
 
   await Promise.all(Array.from({ length: 10 }, (_, index) =>
     prisma.$transaction((transaction) => writeCollaborationAudit(transaction, {

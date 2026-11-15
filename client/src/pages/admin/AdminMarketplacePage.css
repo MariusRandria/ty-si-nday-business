@@ -1,0 +1,133 @@
+.admin-marketplace-page { display: grid; gap: 18px; color: var(--ink); }
+.admin-marketplace-heading { align-items: center; }
+.admin-marketplace-heading .outline-button { display: inline-flex; align-items: center; gap: 7px; }
+.admin-marketplace-metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.admin-marketplace-metrics article { display: grid; gap: 4px; padding: 15px 17px; border: 1px solid var(--line); border-radius: 15px; background: var(--surface); }
+.admin-marketplace-metrics article > span { color: var(--muted); font-size: 11px; font-weight: 650; }
+.admin-marketplace-metrics article > strong { color: var(--ink); font-size: 24px; line-height: 1.15; }
+.admin-marketplace-metrics article > small { color: var(--muted); font-size: 10px; }
+.admin-marketplace-tabs { display: flex; gap: 8px; border-bottom: 1px solid var(--line); }
+.admin-marketplace-tabs button { display: inline-flex; min-height: 44px; align-items: center; gap: 8px; padding: 0 14px; border: 0; border-bottom: 2px solid transparent; background: transparent; color: var(--muted); font-size: 12px; font-weight: 750; cursor: pointer; }
+.admin-marketplace-tabs button.active { border-bottom-color: var(--color-primary-violet); color: var(--color-primary-violet); }
+.admin-marketplace-tabs button > span { display: grid; min-width: 20px; height: 20px; place-items: center; padding: 0 5px; border-radius: 999px; background: var(--surface-muted); color: var(--muted); font-size: 10px; }
+.admin-marketplace-settings { display: grid; gap: 16px; max-width: 900px; padding: 20px; }
+.admin-marketplace-settings .panel-heading h2 { margin: 3px 0 0; color: var(--ink); font-size: 18px; }
+.admin-marketplace-settings .panel-heading p { margin: 6px 0 0; color: var(--muted); font-size: 11px; }
+.admin-marketplace-payment-settings-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.admin-marketplace-payment-settings-grid > label { display: grid; gap: 6px; color: var(--ink); font-size: 11px; font-weight: 750; }
+.admin-marketplace-payment-settings-grid input, .admin-marketplace-payment-settings-grid textarea { width: 100%; min-height: 40px; padding: 9px 11px; border: 1px solid var(--line); border-radius: 9px; outline: 0; background: var(--surface); color: var(--ink); font: inherit; font-size: 12px; }
+.admin-marketplace-payment-settings-grid textarea { min-height: 80px; resize: vertical; }
+.admin-marketplace-payment-settings-grid input:focus, .admin-marketplace-payment-settings-grid textarea:focus { border-color: var(--color-primary-violet); box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-primary-violet) 14%, transparent); }
+.admin-marketplace-payment-settings-grid .wide { grid-column: 1 / -1; }
+.admin-marketplace-settings-note { margin: 0; color: var(--muted); font-size: 11px; line-height: 1.55; }
+.admin-marketplace-settings-actions { display: flex; justify-content: flex-end; }
+.admin-marketplace-settings-actions .primary-button { min-height: 40px; }
+.admin-marketplace-content { display: grid; grid-template-columns: minmax(340px, .82fr) minmax(0, 1.18fr); align-items: start; gap: 16px; }
+.admin-marketplace-form { display: grid; gap: 15px; padding: 18px; }
+.admin-marketplace-form .panel-heading, .admin-marketplace-product-list .panel-heading, .admin-marketplace-orders > .panel-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.admin-marketplace-form .panel-heading h2, .admin-marketplace-product-list .panel-heading h2, .admin-marketplace-orders .panel-heading h2 { margin: 3px 0 0; color: var(--ink); font-size: 18px; }
+.admin-marketplace-image-upload { position: relative; display: grid; min-height: 150px; place-items: center; overflow: hidden; border: 1px dashed color-mix(in srgb, var(--color-primary-violet) 45%, var(--line)); border-radius: 15px; background: color-mix(in srgb, var(--color-primary-violet) 5%, var(--surface)); color: var(--color-primary-violet); cursor: pointer; }
+.admin-marketplace-image-upload > img { width: 100%; height: 180px; object-fit: cover; }
+.admin-marketplace-image-upload > span { display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 750; }
+.admin-marketplace-image-upload > input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
+.admin-marketplace-image-upload > small { position: absolute; right: 9px; bottom: 8px; padding: 4px 7px; border-radius: 6px; background: color-mix(in srgb, var(--surface) 90%, transparent); color: var(--muted); font-size: 9px; }
+.admin-marketplace-product-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 11px; }
+.admin-marketplace-product-fields > label, .admin-marketplace-variant-row > label { display: grid; gap: 6px; color: var(--ink); font-size: 11px; font-weight: 750; }
+.admin-marketplace-product-fields input, .admin-marketplace-product-fields select, .admin-marketplace-product-fields textarea, .admin-marketplace-variant-row input, .admin-marketplace-product-list select, .admin-marketplace-orders .panel-heading select { width: 100%; min-height: 39px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 9px; outline: 0; background: var(--surface); color: var(--ink); font: inherit; font-size: 12px; }
+.admin-marketplace-product-fields textarea { min-height: 82px; resize: vertical; }
+.admin-marketplace-product-fields input:focus, .admin-marketplace-product-fields select:focus, .admin-marketplace-product-fields textarea:focus, .admin-marketplace-variant-row input:focus { border-color: var(--color-primary-violet); box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-primary-violet) 14%, transparent); }
+.admin-marketplace-product-fields .wide { grid-column: 1 / -1; }
+.admin-marketplace-variants { display: grid; gap: 10px; padding-top: 13px; border-top: 1px solid var(--line); }
+.admin-marketplace-variants-heading { display: flex; align-items: center; justify-content: space-between; gap: 9px; }
+.admin-marketplace-variants-heading h3 { margin: 0; color: var(--ink); font-size: 12px; }
+.admin-marketplace-variants-heading p { margin: 4px 0 0; color: var(--muted); font-size: 10px; }
+.admin-marketplace-variants-heading .outline-button { display: inline-flex; align-items: center; gap: 5px; flex: 0 0 auto; }
+.admin-marketplace-variant-row { display: grid; grid-template-columns: minmax(0, 1fr) 92px 34px; align-items: end; gap: 8px; }
+.admin-marketplace-variant-row > label > span { font-size: 10px; }
+.admin-marketplace-remove-variant { display: grid; width: 34px; height: 39px; place-items: center; border: 1px solid var(--line); border-radius: 9px; background: var(--surface); color: var(--muted); cursor: pointer; }
+.admin-marketplace-remove-variant:disabled { opacity: .4; cursor: not-allowed; }
+.admin-marketplace-form-footer { display: grid; gap: 10px; padding-top: 12px; border-top: 1px solid var(--line); }
+.admin-marketplace-form-footer p { margin: 0; color: var(--muted); font-size: 10px; line-height: 1.5; }
+.admin-marketplace-form-footer .primary-button { justify-self: end; min-width: 170px; }
+.admin-marketplace-product-list, .admin-marketplace-orders { display: grid; gap: 14px; padding: 18px; }
+.admin-marketplace-product-list select, .admin-marketplace-orders .panel-heading select { width: auto; min-width: 150px; }
+.admin-marketplace-products { display: grid; }
+.admin-marketplace-product-row { display: flex; align-items: center; gap: 11px; padding: 11px 0; border-bottom: 1px solid var(--line); }
+.admin-marketplace-product-row:last-child { border-bottom: 0; }
+.admin-marketplace-product-thumb { display: grid; width: 54px; height: 54px; flex: 0 0 54px; place-items: center; overflow: hidden; border: 1px solid var(--line); border-radius: 12px; background: var(--surface-muted); color: var(--color-primary-violet); }
+.admin-marketplace-product-thumb img { width: 100%; height: 100%; object-fit: cover; }
+.admin-marketplace-product-info { display: grid; flex: 1; gap: 4px; min-width: 0; }
+.admin-marketplace-product-info > div { display: flex; align-items: center; flex-wrap: wrap; gap: 7px; }
+.admin-marketplace-product-info > div > strong { overflow: hidden; color: var(--ink); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+.admin-marketplace-product-info > small { overflow: hidden; color: var(--muted); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+.admin-marketplace-product-status { display: inline-flex; padding: 4px 7px; border-radius: 999px; background: var(--surface-muted); color: var(--muted); font-size: 9px; font-weight: 800; white-space: nowrap; }
+.admin-marketplace-product-status.status-publie, .admin-marketplace-product-status.status-livree { background: color-mix(in srgb, #23a36d 12%, var(--surface)); color: #168553; }
+.admin-marketplace-product-status.status-archive, .admin-marketplace-product-status.status-annulee { background: color-mix(in srgb, #d75252 12%, var(--surface)); color: #c74040; }
+.admin-marketplace-product-status.status-demandee { background: color-mix(in srgb, #e99e32 13%, var(--surface)); color: #a76a1b; }
+.admin-marketplace-product-row .outline-button { display: inline-flex; align-items: center; gap: 5px; }
+.admin-marketplace-empty { display: grid; min-height: 140px; align-content: center; justify-items: center; gap: 10px; color: var(--muted); text-align: center; }
+.admin-marketplace-empty p { margin: 0; font-size: 12px; }
+.admin-marketplace-order-list { display: grid; gap: 12px; }
+.admin-marketplace-order { display: grid; gap: 12px; padding: 15px; border: 1px solid var(--line); border-radius: 15px; background: var(--surface); }
+.admin-marketplace-order > header { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.admin-marketplace-order > header > div { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.admin-marketplace-order-id { color: var(--ink); font-size: 13px; font-weight: 850; }
+.admin-marketplace-order time { color: var(--muted); font-size: 10px; }
+.admin-marketplace-order-agent { display: flex; flex-wrap: wrap; gap: 7px 12px; padding-bottom: 10px; border-bottom: 1px solid var(--line); }
+.admin-marketplace-order-agent strong { color: var(--ink); font-size: 11px; }
+.admin-marketplace-order-agent span { color: var(--muted); font-size: 10px; }
+.admin-marketplace-order-lines { display: grid; gap: 8px; }
+.admin-marketplace-order-lines > div { display: flex; justify-content: space-between; gap: 10px; }
+.admin-marketplace-order-lines strong { color: var(--ink); font-size: 11px; }
+.admin-marketplace-order-lines span { color: var(--muted); font-size: 10px; text-align: right; }
+.admin-marketplace-order-delivery { display: flex; flex-wrap: wrap; gap: 8px 12px; color: var(--muted); font-size: 10px; }
+.admin-marketplace-order-delivery > span:first-child { display: inline-flex; align-items: center; gap: 5px; color: var(--color-primary-violet); font-weight: 750; }
+.admin-marketplace-agent-note { margin: 0; padding: 8px 10px; border-radius: 9px; background: var(--surface-muted); color: var(--muted); font-size: 10px; line-height: 1.5; }
+.admin-marketplace-order > footer { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; padding-top: 10px; border-top: 1px solid var(--line); }
+.admin-marketplace-order > footer > strong { color: var(--ink); font-size: 11px; }
+.admin-marketplace-order-totals { display: grid; grid-template-columns: 1fr auto; gap: 5px 12px; padding: 10px 0; border-top: 1px solid var(--line); color: var(--muted); font-size: 10px; }
+.admin-marketplace-order-totals > :nth-child(even) { text-align: right; }
+.admin-marketplace-order-totals > strong { color: var(--ink); font-size: 11px; }
+.admin-marketplace-order-payment { display: grid; gap: 5px; color: var(--muted); font-size: 10px; }
+.admin-marketplace-order-payment > span:first-child { color: var(--ink); font-weight: 700; }
+.admin-marketplace-order-payment > small { color: #a76a1b; }
+.admin-marketplace-payment { color: #a76a1b; font-size: 10px; font-weight: 750; }
+.admin-marketplace-payment.paid { color: #168553; }
+.admin-marketplace-order-actions { display: flex; flex-wrap: wrap; gap: 7px; }
+.admin-marketplace-order-actions button { display: inline-flex; align-items: center; justify-content: center; gap: 5px; min-height: 34px; font-size: 10px; }
+.admin-marketplace-error { padding: 10px 13px; border: 1px solid color-mix(in srgb, #d75252 30%, var(--line)); border-radius: 11px; background: color-mix(in srgb, #d75252 8%, var(--surface)); color: #c74040; font-size: 12px; }
+.admin-marketplace-modal-backdrop { position: fixed; inset: 0; z-index: 120; display: grid; place-items: center; overflow-y: auto; padding: 20px; background: rgba(8, 10, 22, .62); backdrop-filter: blur(4px); }
+.admin-marketplace-payment-modal { display: grid; width: min(460px, 100%); gap: 15px; padding: 22px; border: 1px solid var(--line); border-radius: 20px; background: var(--surface); color: var(--ink); box-shadow: 0 24px 70px rgba(0, 0, 0, .28); }
+.admin-marketplace-payment-heading { display: flex; align-items: center; gap: 11px; }
+.admin-marketplace-payment-heading > span { display: grid; width: 43px; height: 43px; flex: 0 0 43px; place-items: center; border-radius: 13px; background: color-mix(in srgb, var(--color-primary-violet) 12%, var(--surface)); color: var(--color-primary-violet); }
+.admin-marketplace-payment-heading .eyebrow { margin: 0 0 3px; color: var(--color-primary-violet); font-size: 9px; font-weight: 850; letter-spacing: .13em; }
+.admin-marketplace-payment-heading h2 { margin: 0; color: var(--ink); font-size: 17px; }
+.admin-marketplace-payment-heading > button { display: grid; width: 34px; height: 34px; margin-left: auto; place-items: center; border: 1px solid var(--line); border-radius: 10px; background: var(--surface-muted); color: var(--muted); cursor: pointer; }
+.admin-marketplace-payment-modal > p { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.55; }
+.admin-marketplace-quote-total { padding: 10px 12px; border-radius: 10px; background: color-mix(in srgb, var(--color-primary-violet) 7%, var(--surface)); color: var(--muted); font-size: 12px; }
+.admin-marketplace-quote-total strong { color: var(--ink); }
+.admin-marketplace-payment-field { display: grid; gap: 6px; color: var(--ink); font-size: 11px; font-weight: 750; }
+.admin-marketplace-payment-field input { min-height: 41px; padding: 9px 11px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); color: var(--ink); font: inherit; font-size: 12px; }
+.admin-marketplace-payment-actions { display: flex; justify-content: flex-end; gap: 8px; }
+.admin-marketplace-payment-actions button { min-height: 40px; }
+
+@media (max-width: 1100px) {
+  .admin-marketplace-content { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 700px) {
+  .admin-marketplace-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .admin-marketplace-heading { align-items: flex-start; }
+  .admin-marketplace-form, .admin-marketplace-product-list, .admin-marketplace-orders { padding: 14px; }
+}
+@media (max-width: 480px) {
+  .admin-marketplace-metrics article { padding: 12px; }
+  .admin-marketplace-metrics article > strong { font-size: 20px; }
+  .admin-marketplace-product-fields { grid-template-columns: 1fr; }
+  .admin-marketplace-product-fields .wide { grid-column: auto; }
+  .admin-marketplace-payment-settings-grid { grid-template-columns: 1fr; }
+  .admin-marketplace-payment-settings-grid .wide { grid-column: auto; }
+  .admin-marketplace-order-lines > div { display: grid; gap: 2px; }
+  .admin-marketplace-order-lines span { text-align: left; }
+  .admin-marketplace-order > header { align-items: flex-start; flex-direction: column; }
+  .admin-marketplace-product-row { align-items: flex-start; }
+}

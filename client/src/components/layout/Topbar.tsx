@@ -3,7 +3,7 @@ import { io } from 'socket.io-client'
 import api, { type Notification, type SearchResult, type SessionUser } from '../../api/client'
 import type { View } from '../../types/report'
 import { Bell, BellRing, CheckCircle2, ClipboardList, Grid2X2, LayoutDashboard, MessageCircle, Menu, Moon, PackageOpen, Search, Settings, ShieldCheck, Sun, UsersRound, UserRound, WalletCards, MapPinned, X } from 'lucide-react'
-import tySyNdayLogo from '../../assets/TD.png'
+import navLogo from '../../assets/LOGO-NAV.png'
 import { useI18n } from '../../i18n'
 import { AgentPresenceDot } from '../ui/AgentPresence'
 
@@ -23,7 +23,7 @@ function notificationTime(value: string) {
   return new Intl.DateTimeFormat('fr-FR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }).format(date)
 }
 
-export default function Topbar({ view, apiOnline, theme, onToggleTheme, user, onNavigate, onMobileMenu }: { view: View; apiOnline: boolean; theme: 'light' | 'dark'; onToggleTheme: () => void; user: SessionUser; onNavigate: (view: View) => void; onMobileMenu: () => void }) {
+export default function Topbar({ view, apiOnline, theme, onToggleTheme, user, onNavigate, onMobileMenu, messageUnread, onMessageUnreadChange }: { view: View; apiOnline: boolean; theme: 'light' | 'dark'; onToggleTheme: () => void; user: SessionUser; onNavigate: (view: View) => void; onMobileMenu: () => void; messageUnread: number; onMessageUnreadChange: (count: number) => void }) {
   const { t } = useI18n()
   const localize = user.role === 'AGENT' ? t : (text: string) => text
   const [notifications, setNotifications] = useState<Notification[]>([]); const [open, setOpen] = useState(false)
@@ -33,11 +33,10 @@ export default function Topbar({ view, apiOnline, theme, onToggleTheme, user, on
   const [searching, setSearching] = useState(false)
   const [searchError, setSearchError] = useState('')
   const [notificationError, setNotificationError] = useState('')
-  const [messageUnread, setMessageUnread] = useState(0)
   useEffect(() => {
     if (view.startsWith('admin-')) return
     const refreshUnread = () => api.communityChatConversations().then((conversations) => {
-      setMessageUnread(conversations.reduce((total, conversation) => total + conversation.unreadCount, 0))
+      onMessageUnreadChange(conversations.reduce((total, conversation) => total + conversation.unreadCount, 0))
     }).catch(() => undefined)
     refreshUnread()
     const interval = window.setInterval(refreshUnread, 30000)
@@ -47,7 +46,7 @@ export default function Topbar({ view, apiOnline, theme, onToggleTheme, user, on
       window.clearInterval(interval)
       window.removeEventListener('tysynday:chat-unread-updated', syncUnread)
     }
-  }, [view])
+  }, [onMessageUnreadChange, view])
   useEffect(() => {
     let active = true
     const refresh = () => { api.notifications().then((data) => { if (active) setNotifications(data) }).catch(() => undefined) }
@@ -104,7 +103,7 @@ export default function Topbar({ view, apiOnline, theme, onToggleTheme, user, on
       const target = new URL(notification.link, window.location.origin)
       const segments = target.pathname.split('/').filter(Boolean)
       const route = segments[0]
-      const views: View[] = ['dashboard', 'collaboration-home', 'collaboration-requests', 'reports', 'products', 'prospects', 'subscription', 'community', 'messages', 'wallet', 'commissions', 'profile', 'account-settings', 'admin-dashboard', 'admin-applications', 'admin-reports', 'admin-collaboration', 'admin-withdrawals', 'admin-products', 'admin-prospects', 'admin-subscriptions', 'admin-settings', 'admin-community', 'admin-security']
+      const views: View[] = ['dashboard', 'collaboration-home', 'collaboration-requests', 'reports', 'products', 'marketplace', 'prospects', 'subscription', 'community', 'messages', 'wallet', 'commissions', 'profile', 'account-settings', 'admin-dashboard', 'admin-applications', 'admin-reports', 'admin-collaboration', 'admin-withdrawals', 'admin-products', 'admin-marketplace', 'admin-prospects', 'admin-subscriptions', 'admin-settings', 'admin-community', 'admin-security']
       const collaborationDealId = route === 'collaboration' && Number.isSafeInteger(Number(segments[1]))
         ? Number(segments[1])
         : undefined
@@ -163,7 +162,7 @@ export default function Topbar({ view, apiOnline, theme, onToggleTheme, user, on
     <header className="topbar">
       <button className="mobile-menu-button" type="button" aria-label={localize('Ouvrir le menu principal')} onClick={onMobileMenu}><Menu size={22} /></button>
       <div className="desktop-topbar-brand">
-        <img src={tySyNdayLogo} alt="" />
+        <img src={navLogo} alt="" />
         <button className="desktop-search-trigger" type="button" aria-label={localize('Rechercher')} onClick={() => setSearchOpen((current) => !current)}><Search size={18} /><span>{localize('Rechercher')}</span></button>
       </div>
       <nav className="desktop-topbar-shortcuts" aria-label={localize('Accès rapides')}>

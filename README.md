@@ -258,6 +258,18 @@ La file des commissions `GET /api/admin/collaboration/commissions?status=PENDING
 
 L’export utilise `GET /api/admin/collaboration/commissions/export.csv` avec un TOTP frais, avertit que les données sont financières et télécharge via un Blob/URL objet révoqué après usage; l’application ne conserve pas le fichier dans `localStorage` ou son cache. Aucun endpoint de téléchargement de reçu PDF individuel n’existe actuellement; le backend met déjà en file le reçu e-mail lors du paiement. Toutes les saisies TOTP sont `autocomplete="off"` et effacées avant la requête.
 
+### Rôles d’équipe pour le traitement des ventes
+
+Deux rôles limités sont disponibles dans le workflow de collaboration : `SALES_REVIEWER` consulte les rapports dont la confirmation client est reçue et peut les confirmer ou les rejeter; il ne peut pas déroger à l’absence de confirmation client ni signer. `SALES_SIGNER` consulte les dossiers prêts à signer et peut signer, mais ne peut pas prendre la décision de vérification. Les deux rôles doivent activer le TOTP. `ADMIN` et `SUPER_ADMIN` gardent les droits administratifs complets.
+
+Un administrateur peut gérer les membres depuis **Équipe ventes**. Les invitations sont envoyées par email avec un lien d’activation de 24 heures; configurez `ADMIN_APP_URL` (portail admin, `http://localhost:5175` en local) et SMTP. Les dossiers de vérification sont attribués aux vérificateurs actifs ayant activé le TOTP et les moins chargés, après confirmation du client; les dossiers prêts à signer sont répartis de la même façon après validation. Les équipes ne voient et ne traitent que les dossiers qui leur sont attribués. Un administrateur peut consulter l’affectation dans le dossier et la réattribuer avec un TOTP frais. Le scheduler rattrape aussi les dossiers éligibles restés sans affectation.
+
+Les migrations additives `20261115090000_sales_team_roles` et `20261115100000_collaboration_deal_assignments` ajoutent les rôles et les deux relations d’affectation. Elles ont été appliquées à la base locale `localhost/cominnovt`; vérifier la cible et le statut avant toute opération sur une autre base.
+
+Le tableau de bord suit aussi les délais de traitement : objectif initial de **4 h** pour la vérification à partir de la confirmation client (ou de la soumission si la confirmation client est désactivée), et **8 h** pour la signature à partir de la validation. Les dossiers hors délai apparaissent en rouge; l’administration voit aussi ceux sans affectation. Ce sont des heures calendaires et aucune alerte email automatique n’est envoyée. Les valeurs sont configurables dans `server/.env` avec `COLLABORATION_REVIEW_SLA_HOURS` et `COLLABORATION_SIGNATURE_SLA_HOURS` (entiers positifs).
+
+L’espace de traitement regroupe les files par étape (vérification, signature, après signature, exceptions). Chaque file est paginée et filtrable par période; les files de vérification/signature ajoutent les filtres d’affectation et de dépassement SLA, et la vérification peut aussi filtrer par statut client. Les cartes de dossier indiquent l’état, les agents concernés, l’affectation, le délai SLA et l’action suivante. Les modifications de filtre doivent être appliquées avec un nouveau code TOTP.
+
 Le lot frontend 3–4 ne modifie aucun endpoint, le backend ou une migration.
 
 ### TEMPS 1 backend admin — étape 9C

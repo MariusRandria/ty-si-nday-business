@@ -1,7 +1,7 @@
 import { ArrowRight } from 'lucide-react'
 import { Button } from '../ui/Button'
 import './brand.css'
-import tySyNdayLogo from '../../assets/TD.png'
+import tySyNdayLogo from '../../assets/LOGO.png'
 
 export function Hero() {
   return (

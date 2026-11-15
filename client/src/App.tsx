@@ -9,6 +9,7 @@ const CommunityChat = lazy(() => import('./pages/CommunityChat'))
 const ProspectsPage = lazy(() => import('./pages/ProspectsPage'))
 const SubscriptionPage = lazy(() => import('./pages/SubscriptionPage'))
 const ProductsPage = lazy(() => import('./pages/ProductsPage'))
+const MarketplacePage = lazy(() => import('./pages/MarketplacePage'))
 const ReportsPage = lazy(() => import('./pages/ReportsPage'))
 const DashboardPage = lazy(() => import('./pages/AgentPages').then(({ DashboardPage }) => ({ default: DashboardPage })))
 const ProfilePage = lazy(() => import('./pages/AgentPages').then(({ ProfilePage }) => ({ default: ProfilePage })))
@@ -20,11 +21,14 @@ const AdminApplicationsPage = lazy(() => import('./pages/admin/AdminApplications
 const AdminReportsPage = lazy(() => import('./pages/admin/AdminReportsPage'))
 const AdminWithdrawalsPage = lazy(() => import('./pages/admin/AdminWithdrawalsPage'))
 const AdminProductsPage = lazy(() => import('./pages/admin/AdminProductsPage'))
+const AdminMarketplacePage = lazy(() => import('./pages/admin/AdminMarketplacePage'))
 const AdminProspectsPage = lazy(() => import('./pages/admin/AdminProspectsPage'))
 const AdminSubscriptionsPage = lazy(() => import('./pages/admin/AdminSubscriptionsPage'))
 const AdminSettingsPage = lazy(() => import('./pages/admin/AdminSettingsPage'))
 const AdminCommunityPage = lazy(() => import('./pages/admin/AdminCommunityPage'))
 const AdminCollaborationReviewPage = lazy(() => import('./pages/admin/AdminCollaborationReviewPage'))
+const AdminSignedContractsPage = lazy(() => import('./pages/admin/AdminSignedContractsPage'))
+const AdminCollaborationTeamPage = lazy(() => import('./pages/admin/AdminCollaborationTeamPage'))
 const AdminTotpPage = lazy(() => import('./pages/admin/AdminTotpPage'))
 import type { Report, View } from './types/report'
 import type { SessionUser } from './api/client'
@@ -33,6 +37,7 @@ import { FeedbackCenter } from './components/ui/FeedbackCenter'
 import { AgentPresenceProvider } from './components/ui/AgentPresenceProvider'
 const AuthPage = lazy(() => import('./pages/AuthPage'))
 const ActivateAccountPage = lazy(() => import('./pages/ActivateAccountPage'))
+const LegalPage = lazy(() => import('./pages/LegalPage'))
 const CollaborationCommissionsPage = lazy(() => import('./pages/CollaborationCommissionsPage'))
 const CollaborationSupplierHomePage = lazy(() => import('./pages/CollaborationSupplierHomePage'))
 const CollaborationAccessRequestsPage = lazy(() => import('./pages/CollaborationAccessRequestsPage'))
@@ -44,6 +49,7 @@ const CollaborationLostPage = lazy(() => import('./pages/CollaborationLostPage')
 import ClientConfirmationPage from './pages/ClientConfirmationPage'
 import './App.css'
 import './console-redesign.css'
+import './agent-portal-polish.css'
 
 function readStoredUser(): SessionUser | null {
   try {
@@ -57,11 +63,19 @@ function readStoredUser(): SessionUser | null {
 }
 
 function getPortalFromLocation(): 'agent' | 'admin' {
-  return window.location.port === '5175' ? 'admin' : 'agent'
+  return window.location.port === '5175' || new URLSearchParams(window.location.search).get('portal') === 'admin' ? 'admin' : 'agent'
 }
 
 function isAdminRole(role?: string | null): boolean {
-  return !!role && ['ADMIN', 'SUPER_ADMIN'].includes(role)
+  return !!role && ['ADMIN', 'SUPER_ADMIN', 'SALES_REVIEWER', 'SALES_SIGNER'].includes(role)
+}
+
+function isSalesStaffRole(role: SessionUser['role']): boolean {
+  return role === 'SALES_REVIEWER' || role === 'SALES_SIGNER'
+}
+
+function adminLandingView(role: SessionUser['role']): View {
+  return isSalesStaffRole(role) ? 'admin-collaboration' : 'admin-dashboard'
 }
 
 function getInitialTheme(): 'light' | 'dark' {
@@ -75,12 +89,13 @@ function AuthenticatedApp() {
   const storedUser = readStoredUser()
   const storedIsAdmin = storedUser ? isAdminRole(storedUser.role) : false
   const initialIsAdmin = portal === 'admin' ? storedIsAdmin : false
-  const [view, setView] = useState<View>(initialIsAdmin ? 'admin-dashboard' : 'collaboration-home')
+  const [view, setView] = useState<View>(initialIsAdmin && storedUser ? adminLandingView(storedUser.role) : 'collaboration-home')
   const [notificationTarget, setNotificationTarget] = useState<{ postId?: number; conversationId?: number; dealId?: number } | null>(null)
   const [selectedCollaborationDeal, setSelectedCollaborationDeal] = useState<CollaborationSuppliedDeal | null>(null)
   const [selectedCollaborationDealId, setSelectedCollaborationDealId] = useState<number | null>(null)
   const [selectedCloserDealStatus, setSelectedCloserDealStatus] = useState<string | null>(null)
   const [pendingRequestCount, setPendingRequestCount] = useState(0)
+  const [messageUnreadCount, setMessageUnreadCount] = useState(0)
   const [reports, setReports] = useState<Report[]>([])
   const [apiOnline, setApiOnline] = useState(false)
   const [showNewReport, setShowNewReport] = useState(false)
@@ -134,7 +149,7 @@ function AuthenticatedApp() {
     setMobileNavOpen(false)
   }
   const toggleTheme = () => setTheme((current) => { const next = current === 'light' ? 'dark' : 'light'; window.localStorage.setItem('innovcom-theme', next); return next })
-  const handleLogin = (token: string, user: SessionUser) => { const userIsAdmin = isAdminRole(user.role); if ((portal === 'admin') !== userIsAdmin) return false; window.localStorage.setItem('innovcom-token', token); window.localStorage.setItem('innovcom-user', JSON.stringify(user)); setSession({ token, user }); setIsAdmin(userIsAdmin); setPendingRequestCount(0); setView(userIsAdmin ? 'admin-dashboard' : 'collaboration-home'); return true }
+  const handleLogin = (token: string, user: SessionUser) => { const userIsAdmin = isAdminRole(user.role); if ((portal === 'admin') !== userIsAdmin) return false; window.localStorage.setItem('innovcom-token', token); window.localStorage.setItem('innovcom-user', JSON.stringify(user)); setSession({ token, user }); setIsAdmin(userIsAdmin); setPendingRequestCount(0); setView(userIsAdmin ? adminLandingView(user.role) : 'collaboration-home'); return true }
   useEffect(() => {
     const user = readStoredUser()
     if (!user) return
@@ -221,8 +236,9 @@ function AuthenticatedApp() {
     return <AuthPage onLogin={handleLogin} portal={portal} />
   }
   if (isAdmin) {
-    const adminPage = view === 'admin-dashboard' ? <AdminDashboardPage onNavigate={navigate} /> : view === 'admin-applications' ? <AdminApplicationsPage /> : view === 'admin-reports' ? <AdminReportsPage /> : view === 'admin-collaboration' ? <AdminCollaborationReviewPage /> : view === 'admin-security' ? <AdminTotpPage /> : view === 'admin-withdrawals' ? <AdminWithdrawalsPage /> : view === 'admin-products' ? <AdminProductsPage /> : view === 'admin-prospects' ? <AdminProspectsPage /> : view === 'admin-subscriptions' ? <AdminSubscriptionsPage /> : view === 'admin-community' ? <AdminCommunityPage /> : <AdminSettingsPage />
-    return <div className={`app-shell theme-${theme} ${mobileNavOpen ? 'mobile-nav-open' : ''}`}><AdminSidebar view={view} onNavigate={navigate} mobileOpen={mobileNavOpen} onMobileClose={() => setMobileNavOpen(false)} /><button className="mobile-nav-backdrop" type="button" aria-label="Fermer le menu" onClick={() => setMobileNavOpen(false)} /><main className="main-content"><Topbar view={view} apiOnline={apiOnline} theme={theme} onToggleTheme={toggleTheme} user={session.user} onNavigate={navigate} onMobileMenu={() => setMobileNavOpen(true)} /><div className="content-wrap">{adminPage}</div></main><MobileBottomNav admin view={view} onNavigate={navigate} /><FeedbackCenter /></div>
+    const salesStaff = isSalesStaffRole(session.user.role)
+    const adminPage = view === 'admin-dashboard' ? <AdminDashboardPage onNavigate={navigate} /> : view === 'admin-applications' ? <AdminApplicationsPage /> : view === 'admin-reports' ? <AdminReportsPage /> : view === 'admin-collaboration' ? <AdminCollaborationReviewPage userRole={session.user.role} /> : view === 'admin-signed-contracts' ? <AdminSignedContractsPage /> : view === 'admin-collaboration-team' ? <AdminCollaborationTeamPage /> : view === 'admin-security' ? <AdminTotpPage /> : view === 'admin-withdrawals' ? <AdminWithdrawalsPage /> : view === 'admin-products' ? <AdminProductsPage /> : view === 'admin-marketplace' ? <AdminMarketplacePage /> : view === 'admin-prospects' ? <AdminProspectsPage /> : view === 'admin-subscriptions' ? <AdminSubscriptionsPage /> : view === 'admin-community' ? <AdminCommunityPage /> : <AdminSettingsPage />
+    return <div className={`app-shell theme-${theme} ${mobileNavOpen ? 'mobile-nav-open' : ''}`}><AdminSidebar view={view} userRole={session.user.role} onNavigate={navigate} mobileOpen={mobileNavOpen} onMobileClose={() => setMobileNavOpen(false)} /><button className="mobile-nav-backdrop" type="button" aria-label="Fermer le menu" onClick={() => setMobileNavOpen(false)} /><main className="main-content"><Topbar view={view} apiOnline={apiOnline} theme={theme} onToggleTheme={toggleTheme} user={session.user} onNavigate={navigate} onMobileMenu={() => setMobileNavOpen(true)} messageUnread={messageUnreadCount} onMessageUnreadChange={setMessageUnreadCount} /><div className="content-wrap">{adminPage}</div></main>{!salesStaff && <MobileBottomNav admin view={view} onNavigate={navigate} />}<FeedbackCenter /></div>
   }
   const page = view === 'collaboration-home'
     ? <CollaborationSupplierHomePage onOpenDeal={(deal) => openCollaborationDeal(deal.dealId, deal)} onOpenRequests={() => navigate('collaboration-requests')} pendingRequestCount={pendingRequestCount} />
@@ -245,12 +261,15 @@ function AuthenticatedApp() {
     ? <DashboardPage reports={visibleReports} user={session.user} onNewReport={() => setShowNewReport(true)} onViewReports={() => navigate('reports')} />
     : view === 'reports'
       ? <ReportsPage reports={visibleReports} onNewReport={() => setShowNewReport(true)} />
-        : view === 'products' ? <ProductsPage /> : view === 'prospects' ? <ProspectsPage onSubscribe={() => navigate('subscription')} /> : view === 'subscription' ? <SubscriptionPage onOpenProspects={() => navigate('prospects')} /> : view === 'community' ? <CommunityPage onOpenChat={() => navigate('messages')} focusPostId={notificationTarget?.postId} currentUserId={session.user.id} /> : view === 'messages' ? <CommunityChat currentUserId={session.user.id} initialConversationId={notificationTarget?.conversationId} />         : view === 'wallet' ? <WalletPage /> : view === 'commissions' ? <CollaborationCommissionsPage /> : view === 'account-settings' ? <AgentSettingsPage user={session.user} theme={theme} onToggleTheme={toggleTheme} /> : <ProfilePage user={session.user} onUserUpdate={(user) => { window.localStorage.setItem('innovcom-user', JSON.stringify(user)); setSession((current) => current ? { ...current, user } : current) }} />
-      return <AgentPresenceProvider userId={session.user.id} token={session.token}><div className={`app-shell theme-${theme} ${mobileNavOpen ? 'mobile-nav-open' : ''}`}><Sidebar view={view} onNavigate={navigate} mobileOpen={mobileNavOpen} onMobileClose={() => setMobileNavOpen(false)} pendingRequestCount={pendingRequestCount} /><button className="mobile-nav-backdrop" type="button" aria-label="Fermer le menu" onClick={() => setMobileNavOpen(false)} /><main className="main-content"><Topbar view={view} apiOnline={apiOnline} theme={theme} onToggleTheme={toggleTheme} user={session.user} onNavigate={navigate} onMobileMenu={() => setMobileNavOpen(true)} /><div className="content-wrap">{page}</div></main><MobileBottomNav admin={false} view={view} onNavigate={navigate} pendingRequestCount={pendingRequestCount} />{showNewReport && <NewReportModal user={session.user} onClose={() => setShowNewReport(false)} onSaved={reloadReports} />}<FeedbackCenter /></div></AgentPresenceProvider>
+        : view === 'products' ? <ProductsPage /> : view === 'marketplace' ? <MarketplacePage /> : view === 'prospects' ? <ProspectsPage onSubscribe={() => navigate('subscription')} /> : view === 'subscription' ? <SubscriptionPage onOpenProspects={() => navigate('prospects')} /> : view === 'community' ? <CommunityPage onOpenChat={() => navigate('messages')} onOpenAccessRequests={() => navigate('collaboration-requests')} focusPostId={notificationTarget?.postId} currentUserId={session.user.id} /> : view === 'messages' ? <CommunityChat currentUserId={session.user.id} initialConversationId={notificationTarget?.conversationId} />         : view === 'wallet' ? <WalletPage /> : view === 'commissions' ? <CollaborationCommissionsPage /> : view === 'account-settings' ? <AgentSettingsPage user={session.user} theme={theme} onToggleTheme={toggleTheme} /> : <ProfilePage user={session.user} onUserUpdate={(user) => { window.localStorage.setItem('innovcom-user', JSON.stringify(user)); setSession((current) => current ? { ...current, user } : current) }} />
+      return <AgentPresenceProvider userId={session.user.id} token={session.token}><div className={`app-shell agent-portal-shell theme-${theme} ${mobileNavOpen ? 'mobile-nav-open' : ''}`}><Sidebar view={view} onNavigate={navigate} mobileOpen={mobileNavOpen} onMobileClose={() => setMobileNavOpen(false)} user={session.user} pendingRequestCount={pendingRequestCount} /><button className="mobile-nav-backdrop" type="button" aria-label="Fermer le menu" onClick={() => setMobileNavOpen(false)} /><main className="main-content"><Topbar view={view} apiOnline={apiOnline} theme={theme} onToggleTheme={toggleTheme} user={session.user} onNavigate={navigate} onMobileMenu={() => setMobileNavOpen(true)} messageUnread={messageUnreadCount} onMessageUnreadChange={setMessageUnreadCount} /><div className="content-wrap">{page}</div></main><MobileBottomNav admin={false} view={view} onNavigate={navigate} pendingRequestCount={pendingRequestCount} />{showNewReport && <NewReportModal user={session.user} onClose={() => setShowNewReport(false)} onSaved={reloadReports} />}<FeedbackCenter /></div></AgentPresenceProvider>
 }
 
 export default function App() {
   const path = window.location.pathname
+  const legalPath = path.replace(/\/+$/, '') || '/'
+  if (legalPath === '/politique-de-confidentialite') return <LegalPage document="privacy" />
+  if (legalPath === '/conditions-generales-utilisation') return <LegalPage document="terms" />
   if (path === '/confirmation-client' || path.startsWith('/confirmation-client/')) {
     return <ClientConfirmationPage confirmationToken={path.match(/^\/confirmation-client\/([A-Za-z0-9_-]{32})\/?$/)?.[1] ?? null} />
   }

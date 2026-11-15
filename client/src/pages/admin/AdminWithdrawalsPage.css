@@ -257,84 +257,14 @@
   font-size: 10px;
 }
 
-.admin-withdrawal-security .admin-withdrawal-field {
+.admin-withdrawal-security .admin-totp-code-field {
   margin-top: 14px;
-}
-
-.admin-withdrawal-otp-control {
-  position: relative;
-  display: block;
-  min-height: 62px;
-  padding: 6px;
-  border: 1px solid var(--line);
-  border-radius: 13px;
-  background: var(--surface-muted);
-  transition: border-color .18s ease, box-shadow .18s ease;
-}
-
-.admin-withdrawal-otp-control:focus-within {
-  border-color: #9474ed;
-  box-shadow: 0 0 0 3px rgba(123, 92, 220, .14);
-}
-
-.admin-withdrawal-otp-display {
-  display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
-  gap: 8px;
-}
-
-.admin-withdrawal-otp-cell {
-  display: grid;
-  min-width: 0;
-  height: 48px;
-  place-items: center;
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  background: var(--surface);
-  color: var(--ink);
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  font-size: 20px;
-  font-weight: 700;
-  transition: border-color .18s ease, background-color .18s ease, box-shadow .18s ease;
-}
-
-.admin-withdrawal-otp-control:focus-within .admin-withdrawal-otp-cell.is-current {
-  border-color: #9474ed;
-  background: rgba(123, 92, 220, .1);
-  box-shadow: 0 0 0 2px rgba(123, 92, 220, .1);
-}
-
-.app-shell .admin-withdrawal-modal .admin-withdrawal-otp-control input {
-  position: absolute;
-  z-index: 1;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  min-height: 0;
-  margin: 0;
-  padding: 0;
-  border: 0 !important;
-  border-radius: 13px;
-  outline: 0;
-  background-color: transparent !important;
-  color: transparent !important;
-  caret-color: transparent;
-  -webkit-text-fill-color: transparent !important;
-  box-shadow: none !important;
 }
 
 .app-shell.theme-dark .admin-withdrawal-modal .admin-withdrawal-input-wrap input {
   border: 0 !important;
   background-color: transparent !important;
   color: var(--ink) !important;
-  box-shadow: none !important;
-}
-
-.app-shell.theme-dark .admin-withdrawal-modal .admin-withdrawal-otp-control input {
-  border: 0 !important;
-  background-color: transparent !important;
-  color: transparent !important;
-  -webkit-text-fill-color: transparent !important;
   box-shadow: none !important;
 }
 

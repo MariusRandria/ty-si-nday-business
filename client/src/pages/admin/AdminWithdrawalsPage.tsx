@@ -1,6 +1,7 @@
 import { useEffect, useId, useState, type FormEvent } from 'react'
 import { BadgeCheck, ReceiptText, ShieldCheck, X } from 'lucide-react'
 import api, { type AdminWithdrawal } from '../../api/client'
+import { AdminTotpCodeField } from '../../components/admin/AdminTotpCodeField'
 import { notify } from '../../utils/toast'
 import './AdminWithdrawalsPage.css'
 
@@ -159,34 +160,14 @@ export default function AdminWithdrawalsPage() {
               <small>Requise pour confirmer le versement</small>
             </div>
           </div>
-          <label className="admin-withdrawal-field admin-withdrawal-otp-field" htmlFor={totpInputId}>
-            <span>Code OTP administrateur <em>6 chiffres</em></span>
-            <span className="admin-withdrawal-otp-control">
-              <span className="admin-withdrawal-otp-display" aria-hidden="true">
-                {Array.from({ length: 6 }, (_, index) => (
-                  <span
-                    className={`admin-withdrawal-otp-cell ${index === adminTotpCode.length && index < 6 ? 'is-current' : ''}`}
-                    key={index}
-                  >
-                    {adminTotpCode[index] ?? ''}
-                  </span>
-                ))}
-              </span>
-              <input
-                id={totpInputId}
-                type="text"
-                inputMode="numeric"
-                autoComplete="one-time-code"
-                pattern="[0-9]{6}"
-                maxLength={6}
-                required
-                aria-describedby={`${totpInputId}-hint`}
-                value={adminTotpCode}
-                onChange={(event) => setAdminTotpCode(event.target.value.replace(/\D/g, '').slice(0, 6))}
-              />
-            </span>
-          </label>
-          <p className="admin-withdrawal-field-hint" id={`${totpInputId}-hint`}>Saisissez un nouveau code à 6 chiffres de votre application d’authentification.</p>
+          <AdminTotpCodeField
+            id={totpInputId}
+            label="Code administrateur pour le paiement"
+            value={adminTotpCode}
+            onChange={setAdminTotpCode}
+            autoComplete="one-time-code"
+            required
+          />
         </section>}
         {error && <p className="form-error admin-withdrawal-error" role="alert">{error}</p>}
         <div className="modal-actions admin-withdrawal-actions">

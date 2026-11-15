@@ -64,9 +64,11 @@ test('commission resolution rejects terminal state changes', () => {
   assert.equal(canResolveHeldCommission('CANCELLED'), false)
 })
 
-test('the deal is complete only after both commissions have been paid', () => {
+test('the deal is complete once both commissions are credited to agent wallets', () => {
+  assert.equal(shouldCompleteCommissionsPaid(['PENDING', 'PENDING']), true)
   assert.equal(shouldCompleteCommissionsPaid(['PAID', 'PAID']), true)
-  assert.equal(shouldCompleteCommissionsPaid(['PAID', 'PENDING']), false)
+  assert.equal(shouldCompleteCommissionsPaid(['PAID', 'PENDING']), true)
+  assert.equal(shouldCompleteCommissionsPaid(['PENDING', 'ON_HOLD']), false)
   assert.equal(shouldCompleteCommissionsPaid(['PAID', 'CANCELLED']), false)
   assert.equal(shouldCompleteCommissionsPaid(['PAID']), false)
 })
